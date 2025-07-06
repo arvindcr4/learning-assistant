@@ -1,0 +1,20 @@
+# Learning Assistant Cron Jobs
+# Copy this to your crontab using: crontab crontab.txt
+
+# Daily backup at 2:00 AM
+0 2 * * * /app/scripts/backup.sh main >> /var/log/learning-assistant-backup.log 2>&1
+
+# Weekly database optimization on Sundays at 3:00 AM
+0 3 * * 0 /app/scripts/db-maintenance.sh >> /var/log/learning-assistant-maintenance.log 2>&1
+
+# Monthly cleanup of old logs at 4:00 AM on the 1st
+0 4 1 * * find /app/logs -name "*.log" -mtime +30 -delete
+
+# Refresh materialized views every 6 hours
+0 */6 * * * psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -c "REFRESH MATERIALIZED VIEW user_analytics_summary;"
+
+# Health check every 5 minutes (optional - if not using external monitoring)
+*/5 * * * * curl -f http://localhost:3000/api/health > /dev/null 2>&1 || echo "Health check failed at $(date)" >> /var/log/health-check.log
+
+# Weekly backup verification on Saturdays at 1:00 AM
+0 1 * * 6 /app/scripts/verify-backups.sh >> /var/log/backup-verification.log 2>&1
