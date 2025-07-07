@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: learning-assistant
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    branch: main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '3000'
+      - key: NEXT_TELEMETRY_DISABLED
+        value: '1'
+      - key: DATABASE_URL
+        value: sqlite:./app.db
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: NEXT_PUBLIC_API_URL
+        value: https://learning-assistant.onrender.com
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://learning-assistant.onrender.com
+      - key: FEATURE_ANALYTICS_ENABLED
+        value: 'true'
+      - key: FEATURE_RECOMMENDATIONS_ENABLED
+        value: 'true'
+      - key: FEATURE_CHAT_ENABLED
+        value: 'false'
