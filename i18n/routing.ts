@@ -17,33 +17,34 @@ export const routing = defineRouting({
     }
   },
 
-  // Domains configuration for different locales (optional)
-  domains: [
-    {
-      domain: 'learning-en.example.com',
-      defaultLocale: 'en'
-    },
-    {
-      domain: 'learning-es.example.com',
-      defaultLocale: 'es'
-    },
-    {
-      domain: 'learning-fr.example.com',
-      defaultLocale: 'fr'
-    },
-    {
-      domain: 'learning-de.example.com',
-      defaultLocale: 'de'
-    },
-    {
-      domain: 'learning-ja.example.com',
-      defaultLocale: 'ja'
-    },
-    {
-      domain: 'learning-ar.example.com',
-      defaultLocale: 'ar'
-    }
-  ]
+  // Domains configuration for different locales (optional) - commented out for deployment
+  // domains: [
+  //   {
+  //     domain: 'learning-en.example.com',
+  //     defaultLocale: 'en',
+  //     locales: ['en']
+  //   },
+  //   {
+  //     domain: 'learning-es.example.com',
+  //     defaultLocale: 'es'
+  //   },
+  //   {
+  //     domain: 'learning-fr.example.com',
+  //     defaultLocale: 'fr'
+  //   },
+  //   {
+  //     domain: 'learning-de.example.com',
+  //     defaultLocale: 'de'
+  //   },
+  //   {
+  //     domain: 'learning-ja.example.com',
+  //     defaultLocale: 'ja'
+  //   },
+  //   {
+  //     domain: 'learning-ar.example.com',
+  //     defaultLocale: 'ar'
+  //   }
+  // ]
 });
 
 // Lightweight wrappers around Next.js' navigation APIs
