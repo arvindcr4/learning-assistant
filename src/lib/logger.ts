@@ -1,87 +1,354 @@
-// Edge Runtime compatible logger
-const isDevelopment = process.env.NODE_ENV === 'development';
+import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
-// Simple console logger that works everywhere
-const createSimpleLogger = () => {
-  const log = (level: string, message: string, meta?: any) => {
-    const timestamp = new Date().toISOString();
-    const metaString = meta ? JSON.stringify(meta) : '';
-    console.log(`${timestamp} [${level.toUpperCase()}]: ${message} ${metaString}`);
+// Environment variables
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isProduction = process.env.NODE_ENV === 'production';
+const logLevel = process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info');
+
+// Log format configuration
+const logFormat = winston.format.combine(
+  winston.format.timestamp({
+    format: 'YYYY-MM-DD HH:mm:ss.SSS'
+  }),
+  winston.format.errors({ stack: true }),
+  winston.format.json(),
+  winston.format.printf((info) => {
+    const { timestamp, level, message, correlationId, userId, sessionId, ...meta } = info;
+    return JSON.stringify({
+      timestamp,
+      level,
+      message,
+      correlationId,
+      userId,
+      sessionId,
+      service: 'learning-assistant',
+      environment: process.env.NODE_ENV,
+      ...meta
+    });
+  })
+);
+
+// Console format for development
+const consoleFormat = winston.format.combine(
+  winston.format.colorize(),
+  winston.format.timestamp({
+    format: 'HH:mm:ss'
+  }),
+  winston.format.printf((info) => {
+    const { timestamp, level, message, correlationId, ...meta } = info;
+    const metaString = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : '';
+    const correlationString = correlationId ? `[${correlationId}]` : '';
+    return `${timestamp} ${level} ${correlationString}: ${message} ${metaString}`;
+  })
+);
+
+// Transport configuration
+const transports: winston.transport[] = [
+  // Console transport
+  new winston.transports.Console({
+    format: isDevelopment ? consoleFormat : logFormat,
+    level: logLevel
+  })
+];
+
+// File transports for production
+if (isProduction) {
+  // Application logs with rotation
+  transports.push(
+    new DailyRotateFile({
+      filename: 'logs/app-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d',
+      format: logFormat,
+      level: 'info'
+    })
+  );
+
+  // Error logs with rotation
+  transports.push(
+    new DailyRotateFile({
+      filename: 'logs/error-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '30d',
+      format: logFormat,
+      level: 'error'
+    })
+  );
+
+  // Security audit logs
+  transports.push(
+    new DailyRotateFile({
+      filename: 'logs/security-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '90d',
+      format: logFormat,
+      level: 'warn'
+    })
+  );
+}
+
+// Create Winston logger instance
+const winstonLogger = winston.createLogger({
+  level: logLevel,
+  format: logFormat,
+  transports,
+  exitOnError: false,
+  silent: process.env.NODE_ENV === 'test'
+});
+
+// Logger interface for consistency
+interface Logger {
+  error: (message: string, meta?: any) => void;
+  warn: (message: string, meta?: any) => void;
+  info: (message: string, meta?: any) => void;
+  debug: (message: string, meta?: any) => void;
+  http: (message: string, meta?: any) => void;
+}
+
+// Create enhanced logger with additional context
+const createEnhancedLogger = (): Logger => {
+  const log = (level: string, message: string, meta: any = {}) => {
+    // Add default metadata
+    const enrichedMeta = {
+      ...meta,
+      pid: process.pid,
+      hostname: process.env.HOSTNAME || 'unknown',
+      version: process.env.npm_package_version || '1.0.0'
+    };
+
+    winstonLogger.log(level, message, enrichedMeta);
   };
 
   return {
     error: (message: string, meta?: any) => log('error', message, meta),
     warn: (message: string, meta?: any) => log('warn', message, meta),
     info: (message: string, meta?: any) => log('info', message, meta),
-    debug: (message: string, meta?: any) => {
-      if (isDevelopment) log('debug', message, meta);
-    },
-    http: (message: string, meta?: any) => log('http', message, meta),
+    debug: (message: string, meta?: any) => log('debug', message, meta),
+    http: (message: string, meta?: any) => log('info', message, { ...meta, category: 'http' }),
   };
 };
 
-// Use simple logger for Edge Runtime compatibility
-const logger = createSimpleLogger();
+// Create logger instance
+const logger = createEnhancedLogger();
 
-// Request logging middleware
+// Enhanced logging utilities
+export interface LogContext {
+  correlationId?: string;
+  userId?: string;
+  sessionId?: string;
+  userAgent?: string;
+  ip?: string;
+  method?: string;
+  url?: string;
+  statusCode?: number;
+  duration?: number;
+  category?: string;
+  operation?: string;
+  component?: string;
+  [key: string]: any;
+}
+
+// Create contextual logger
+export const createContextualLogger = (context: LogContext) => {
+  return {
+    error: (message: string, meta?: any) => 
+      logger.error(message, { ...context, ...meta }),
+    warn: (message: string, meta?: any) => 
+      logger.warn(message, { ...context, ...meta }),
+    info: (message: string, meta?: any) => 
+      logger.info(message, { ...context, ...meta }),
+    debug: (message: string, meta?: any) => 
+      logger.debug(message, { ...context, ...meta }),
+    http: (message: string, meta?: any) => 
+      logger.http(message, { ...context, ...meta }),
+  };
+};
+
+// Request logging middleware (enhanced)
 export const requestLogger = (req: any, res: any, next: any) => {
   const start = Date.now();
   const { method, url, headers } = req;
+  const correlationId = req.headers['x-correlation-id'] || req.correlationId;
+  const userId = req.user?.id || req.userId;
+  const sessionId = req.sessionId;
   
-  logger.http(`${method} ${url}`, {
+  const context: LogContext = {
+    correlationId,
+    userId,
+    sessionId,
     userAgent: headers['user-agent'],
     ip: headers['x-forwarded-for'] || req.connection?.remoteAddress,
-  });
+    method,
+    url,
+    category: 'http'
+  };
+
+  // Log request start
+  logger.http(`${method} ${url} - Start`, context);
 
   res.on('finish', () => {
     const duration = Date.now() - start;
     const { statusCode } = res;
     
-    logger.http(`${method} ${url} ${statusCode}`, {
-      duration: `${duration}ms`,
+    // Log request completion
+    logger.http(`${method} ${url} - ${statusCode}`, {
+      ...context,
       statusCode,
+      duration,
+      responseTime: `${duration}ms`
     });
+
+    // Log slow requests as warnings
+    if (duration > 5000) {
+      logger.warn(`Slow request detected: ${method} ${url}`, {
+        ...context,
+        statusCode,
+        duration,
+        slowRequest: true
+      });
+    }
+
+    // Log error responses
+    if (statusCode >= 400) {
+      const level = statusCode >= 500 ? 'error' : 'warn';
+      logger[level](`HTTP ${statusCode}: ${method} ${url}`, {
+        ...context,
+        statusCode,
+        duration,
+        httpError: true
+      });
+    }
   });
 
   if (next) next();
 };
 
-// Error logging helper
-export const logError = (error: Error, context?: string) => {
-  logger.error(`${context ? `[${context}] ` : ''}${error.message}`, {
+// Enhanced error logging
+export const logError = (error: Error, context?: string, meta?: LogContext) => {
+  const errorMeta = {
+    ...meta,
     stack: error.stack,
     name: error.name,
     context,
+    category: 'error'
+  };
+
+  logger.error(`${context ? `[${context}] ` : ''}${error.message}`, errorMeta);
+
+  // Log critical errors to security log for monitoring
+  if (error.name === 'SecurityError' || error.message.includes('security')) {
+    logger.warn(`Security-related error: ${error.message}`, {
+      ...errorMeta,
+      category: 'security'
+    });
+  }
+};
+
+// Performance logging with enhanced metrics
+export const logPerformance = (operation: string, duration: number, metadata?: LogContext) => {
+  const performanceMeta = {
+    ...metadata,
+    duration,
+    responseTime: `${duration}ms`,
+    category: 'performance',
+    operation
+  };
+
+  logger.info(`Performance: ${operation}`, performanceMeta);
+
+  // Log slow operations as warnings
+  if (duration > 3000) {
+    logger.warn(`Slow operation: ${operation}`, {
+      ...performanceMeta,
+      slowOperation: true
+    });
+  }
+};
+
+// Security audit logging
+export const logSecurityEvent = (event: string, details: LogContext) => {
+  logger.warn(`Security Event: ${event}`, {
+    ...details,
+    category: 'security',
+    securityEvent: true,
+    timestamp: new Date().toISOString()
   });
 };
 
-// Performance logging helper
-export const logPerformance = (operation: string, duration: number, metadata?: any) => {
-  logger.info(`Performance: ${operation}`, {
-    duration: `${duration}ms`,
-    ...metadata,
+// Database operation logging
+export const logDatabaseOperation = (operation: string, table: string, duration: number, meta?: LogContext) => {
+  logger.info(`Database: ${operation} on ${table}`, {
+    ...meta,
+    operation,
+    table,
+    duration,
+    category: 'database'
+  });
+};
+
+// Business logic logging
+export const logBusinessEvent = (event: string, details: LogContext) => {
+  logger.info(`Business Event: ${event}`, {
+    ...details,
+    category: 'business',
+    businessEvent: true
   });
 };
 
 // Export specific loggers for different contexts
-export const performanceLogger = logger;
-export const securityLogger = logger;
+export const performanceLogger = createContextualLogger({ category: 'performance' });
+export const securityLogger = createContextualLogger({ category: 'security' });
+export const databaseLogger = createContextualLogger({ category: 'database' });
+export const businessLogger = createContextualLogger({ category: 'business' });
 
 // Export utility functions as loggerUtils
 export const loggerUtils = {
-  logPerformanceMetric: (operation: string, value: number, unit: string, metadata?: any) => {
+  logPerformanceMetric: (operation: string, value: number, unit: string, metadata?: LogContext) => {
     logger.info(`Performance metric: ${operation}`, {
+      ...metadata,
       value,
       unit,
-      ...metadata,
+      category: 'metrics',
+      operation
     });
   },
+  
+  logMemoryUsage: () => {
+    const memUsage = process.memoryUsage();
+    logger.info('Memory usage', {
+      category: 'system',
+      memory: {
+        rss: `${Math.round(memUsage.rss / 1024 / 1024)} MB`,
+        heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)} MB`,
+        heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)} MB`,
+        external: `${Math.round(memUsage.external / 1024 / 1024)} MB`,
+      }
+    });
+  },
+
+  logSystemMetrics: () => {
+    const uptime = process.uptime();
+    logger.info('System metrics', {
+      category: 'system',
+      uptime: `${Math.round(uptime)} seconds`,
+      pid: process.pid,
+      platform: process.platform,
+      nodeVersion: process.version
+    });
+  }
 };
 
 // Health check function for monitoring
 export const loggerHealthCheck = (): boolean => {
   try {
-    logger.info('Logger health check');
+    logger.info('Logger health check', { category: 'health' });
     return true;
   } catch (error) {
     console.error('Logger health check failed:', error);
@@ -89,4 +356,28 @@ export const loggerHealthCheck = (): boolean => {
   }
 };
 
+// Log sampling for high-volume events
+export const createSampledLogger = (sampleRate: number = 0.1) => {
+  return {
+    error: (message: string, meta?: any) => logger.error(message, meta),
+    warn: (message: string, meta?: any) => logger.warn(message, meta),
+    info: (message: string, meta?: any) => {
+      if (Math.random() <= sampleRate) {
+        logger.info(message, { ...meta, sampled: true });
+      }
+    },
+    debug: (message: string, meta?: any) => {
+      if (Math.random() <= sampleRate) {
+        logger.debug(message, { ...meta, sampled: true });
+      }
+    },
+    http: (message: string, meta?: any) => {
+      if (Math.random() <= sampleRate) {
+        logger.http(message, { ...meta, sampled: true });
+      }
+    }
+  };
+};
+
+// Export the main logger
 export default logger;

@@ -51,8 +51,11 @@ const demoUser: User = {
   id: '1',
   name: 'Alice Johnson',
   email: 'alice@example.com',
+  emailVerified: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
   avatar: '',
-  preferences: {
+  userPreferences: {
     learningGoals: ['Web Development', 'Data Science', 'Machine Learning'],
     preferredTopics: ['JavaScript', 'Python', 'React'],
     difficultyLevel: 'intermediate',

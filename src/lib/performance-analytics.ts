@@ -9,6 +9,7 @@ import {
   PredictionFactor,
   LearningStyleType
 } from '@/types';
+import { generateUUID } from '@/utils/uuid';
 
 export interface PerformanceMetrics {
   accuracy: number;
@@ -841,7 +842,7 @@ export class PerformanceAnalyticsEngine {
 
   private generateAlerts(anomalies: LearningAnomaly[]): PerformanceAlert[] {
     return anomalies.map(anomaly => ({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: anomaly.severity === 'high' ? 'concern' : 'warning',
       title: `${anomaly.type.replace('_', ' ')} detected`,
       description: anomaly.description,

@@ -190,13 +190,6 @@ module.exports = {
   
   // Plugins for additional functionality
   plugins: [
-    // Note: Tailwind CSS v4 has many plugins built-in
-    // Uncomment these if using Tailwind CSS v3
-    // require('@tailwindcss/forms'),
-    // require('@tailwindcss/typography'),
-    // require('@tailwindcss/aspect-ratio'),
-    // require('@tailwindcss/container-queries'),
-    
     // Custom plugin for learning assistant specific utilities
     function({ addUtilities, addComponents, theme }) {
       // Custom utilities
@@ -280,25 +273,4 @@ module.exports = {
   
   // Dark mode configuration
   darkMode: 'class',
-  
-  // Important selector for overriding other styles
-  important: false,
-  
-  // Prefix for CSS classes (optional)
-  prefix: '',
-  
-  // Separator for modifiers
-  separator: ':',
-  
-  // Core plugins configuration
-  corePlugins: {
-    // Disable unused core plugins for smaller bundle size
-    // container: false,
-    // preflight: false,
-  },
-  
-  // Future configuration for upcoming features
-  future: {
-    hoverOnlyWhenSupported: true,
-  },
 };

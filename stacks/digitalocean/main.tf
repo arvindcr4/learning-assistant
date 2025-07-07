@@ -56,13 +56,13 @@ resource "digitalocean_database_cluster" "postgres" {
   private_network_uuid = digitalocean_vpc.main.id
   
   maintenance_window {
-    day  = "sunday"
-    hour = "03:00:00"
+    day  = var.postgres_maintenance_day
+    hour = var.postgres_maintenance_hour
   }
   
   backup_restore {
-    backup_hour         = "02:00"
-    backup_minute       = "00"
+    backup_hour         = var.postgres_backup_hour
+    backup_minute       = var.postgres_backup_minute
     days_to_retain_backups = var.postgres_backup_retention
   }
   

@@ -23,12 +23,12 @@ provider "aws" {
   region = var.aws_region
   
   default_tags {
-    tags = {
+    tags = merge(var.tags, {
       Environment = var.environment
       Application = var.app_name
       Project     = "learning-assistant"
       ManagedBy   = "terraform"
-    }
+    })
   }
 }
 

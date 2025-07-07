@@ -6,6 +6,48 @@ import {
 } from '@/lib/learning-engine'
 import { LearningService } from '@/services/learning-service'
 import { createLargeDataset } from '../mocks/test-data'
+import { measurePerformance, expectPerformance } from '../utils/test-utils'
+
+// Performance test utilities
+const PERFORMANCE_THRESHOLDS = {
+  SMALL_DATASET: 50,   // ms for datasets < 100 items
+  MEDIUM_DATASET: 100, // ms for datasets < 1000 items
+  LARGE_DATASET: 250,  // ms for datasets >= 1000 items
+  MEMORY_THRESHOLD: 50 * 1024 * 1024, // 50MB
+  GC_THRESHOLD: 5,     // max GC collections during test
+}
+
+const measureMemoryUsage = () => {
+  if (process.memoryUsage) {
+    return process.memoryUsage().heapUsed
+  }
+  return 0
+}
+
+const benchmarkFunction = async (fn: () => void | Promise<void>, iterations = 10) => {
+  const times: number[] = []
+  const memoryBefore = measureMemoryUsage()
+  
+  for (let i = 0; i < iterations; i++) {
+    const time = await measurePerformance(fn)
+    times.push(time)
+  }
+  
+  const memoryAfter = measureMemoryUsage()
+  const avgTime = times.reduce((a, b) => a + b, 0) / times.length
+  const minTime = Math.min(...times)
+  const maxTime = Math.max(...times)
+  const memoryUsed = memoryAfter - memoryBefore
+  
+  return {
+    avgTime,
+    minTime,
+    maxTime,
+    memoryUsed,
+    iterations,
+    times
+  }
+}
 
 describe('Learning Algorithms Performance Tests', () => {
   let detector: LearningStyleDetector
@@ -23,33 +65,32 @@ describe('Learning Algorithms Performance Tests', () => {
   })
 
   describe('LearningStyleDetector Performance', () => {
-    it('should handle large behavioral indicator datasets efficiently', () => {
+    it('should handle large behavioral indicator datasets efficiently', async () => {
       const { indicators } = createLargeDataset(1000)
       
-      const startTime = performance.now()
-      const result = detector.analyzeBehavioralPatterns(indicators)
-      const endTime = performance.now()
+      const executionTime = await measurePerformance(() => {
+        const result = detector.analyzeBehavioralPatterns(indicators)
+        expect(result).toBeDefined()
+        expect(result.length).toBe(4)
+      })
       
-      const executionTime = endTime - startTime
-      
-      expect(result).toBeDefined()
-      expect(result.length).toBe(4)
-      expect(executionTime).toBeLessThan(100) // Should complete in under 100ms
+      expectPerformance(executionTime, PERFORMANCE_THRESHOLDS.MEDIUM_DATASET)
     })
 
-    it('should scale linearly with dataset size', () => {
+    it('should scale linearly with dataset size', async () => {
       const sizes = [100, 500, 1000, 2000]
       const times: number[] = []
       
-      sizes.forEach(size => {
+      for (const size of sizes) {
         const { indicators } = createLargeDataset(size)
         
-        const startTime = performance.now()
-        detector.analyzeBehavioralPatterns(indicators)
-        const endTime = performance.now()
+        const executionTime = await measurePerformance(() => {
+          detector.analyzeBehavioralPatterns(indicators)
+        })
         
-        times.push(endTime - startTime)
-      })
+        times.push(executionTime)
+        
+      }
       
       // Check that execution time scales reasonably (not exponentially)
       const timeRatio = times[3]! / times[0]! // 2000 vs 100 items
@@ -58,19 +99,18 @@ describe('Learning Algorithms Performance Tests', () => {
       expect(timeRatio).toBeLessThan(sizeRatio * 2) // Should not be more than 2x the size ratio
     })
 
-    it('should process VARK assessment quickly', () => {
-      const varkResponsesObj: Record<string, string> = {}
-      for (let i = 1; i <= 16; i++) {
-        varkResponsesObj[`q${i}`] = `Answer for question ${i}`
-      }
-      const varkResponses = Object.entries(varkResponsesObj).map(([questionId, response]) => ({ questionId, response, selectedOptions: [] }));
+    it('should process VARK assessment quickly', async () => {
+      const varkResponses = Array.from({ length: 16 }, (_, i) => ({
+        questionId: `q${i + 1}`,
+        selectedOptions: [`q${i + 1}a`]
+      }))
 
-      const startTime = performance.now()
-      const result = detector.processVARKAssessment(varkResponses)
-      const endTime = performance.now()
+      const executionTime = await measurePerformance(() => {
+        const result = detector.processVARKAssessment(varkResponses)
+        expect(result).toBeDefined()
+      })
       
-      expect(result).toBeDefined()
-      expect(endTime - startTime).toBeLessThan(10) // Should be very fast
+      expectPerformance(executionTime, 10) // Should be very fast
     })
 
     it('should handle concurrent profile updates efficiently', async () => {

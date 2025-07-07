@@ -485,6 +485,50 @@ export interface UserProgressSummary {
 }
 
 // ==========================================
+// CREATE DATA MODELS
+// ==========================================
+
+export interface CreateUserData {
+  email: string;
+  name: string;
+  avatar_url?: string;
+}
+
+export interface CreateLearningProfileData {
+  user_id: string;
+  dominant_style: LearningStyleType;
+  is_multimodal?: boolean;
+  adaptation_level?: number;
+  confidence_score?: number;
+}
+
+export interface CreateSessionData {
+  user_id: string;
+  content_id: string;
+  duration: number;
+  items_completed?: number;
+  correct_answers?: number;
+  total_questions?: number;
+  completed?: boolean;
+  focus_time?: number;
+  distraction_events?: number;
+  interaction_rate?: number;
+  scroll_depth?: number;
+  video_watch_time?: number;
+  pause_frequency?: number;
+}
+
+export interface CreateAssessmentAttemptData {
+  user_id: string;
+  assessment_id: string;
+  score?: number;
+  passed?: boolean;
+  time_spent?: number;
+  questions_answered?: number;
+  correct_answers?: number;
+}
+
+// ==========================================
 // REQUEST/RESPONSE MODELS
 // ==========================================
 

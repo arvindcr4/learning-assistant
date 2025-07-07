@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withSecureAuth } from '@/middleware/secure-auth';
+import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
 import { securityMonitoringService } from '@/lib/security/security-monitoring';
 import { infrastructureSecurityService } from '@/lib/security/infrastructure-security';
 import { privacyComplianceService } from '@/lib/security/privacy-compliance';
 
-async function handleGet(request: NextRequest) {
+async function handleGet(request: AuthenticatedRequest) {
   try {
     // Only allow admin users to access security dashboard
     if (request.user!.role !== 'admin') {
@@ -48,7 +48,7 @@ async function handleGet(request: NextRequest) {
       activeAlerts: activeAlerts.filter(a => !a.acknowledged).length,
       criticalAlerts: activeAlerts.filter(a => a.severity === 'critical' && !a.resolved).length,
       overallRiskScore: securityMetrics.riskScore,
-      securityPosture: this.calculateSecurityPosture(securityMetrics, infrastructureValidation),
+      securityPosture: calculateSecurityPosture(securityMetrics, infrastructureValidation),
     };
 
     return NextResponse.json({

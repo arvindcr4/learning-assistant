@@ -1,3 +1,5 @@
+const { withSentryConfig } = require('@sentry/nextjs');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable React strict mode for better development experience
@@ -6,7 +8,13 @@ const nextConfig = {
   // Enable experimental features for Next.js 15.3.5
   experimental: {
     // Enable Next.js 15+ app router optimizations
-    optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react'],
+    optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react', 'framer-motion'],
+    // Enable advanced optimizations
+    optimizeCss: true,
+    optimizeServerReact: true,
+    webpackBuildWorker: true,
+    // Enable partial pre-rendering for better performance
+    ppr: true,
   },
   
   // Turbopack configuration (stable in Next.js 15)
@@ -25,9 +33,14 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   
-  // Image optimization
+  // Advanced image optimization
   images: {
     formats: ['image/avif', 'image/webp'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 31536000, // 1 year
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [
       {
         protocol: 'https',
@@ -37,10 +50,18 @@ const nextConfig = {
         protocol: 'https',
         hostname: '**.googleapis.com',
       },
+      {
+        protocol: 'https',
+        hostname: '**.cloudflare.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.cloudfront.net',
+      },
     ],
   },
   
-  // Security headers
+  // Security and performance headers
   async headers() {
     return [
       {
@@ -64,6 +85,46 @@ const nextConfig = {
           },
         ],
       },
+      // Static asset caching
+      {
+        source: '/assets/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // Image caching
+      {
+        source: '/_next/image',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // Font caching
+      {
+        source: '/fonts/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // API caching
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=300, s-maxage=300, stale-while-revalidate=86400',
+          },
+        ],
+      },
     ];
   },
   
@@ -78,7 +139,7 @@ const nextConfig = {
     ];
   },
   
-  // Bundle analyzer for development
+  // Advanced webpack configuration
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     // Add SVG support
     config.module.rules.push({
@@ -86,10 +147,12 @@ const nextConfig = {
       use: ['@svgr/webpack'],
     });
     
-    // Optimize bundle size
+    // Optimize bundle size with advanced code splitting
     if (!dev && !isServer) {
       config.optimization.splitChunks = {
         chunks: 'all',
+        minSize: 20000,
+        maxSize: 244000,
         cacheGroups: {
           default: {
             minChunks: 2,
@@ -113,8 +176,42 @@ const nextConfig = {
             chunks: 'all',
             priority: 15,
           },
+          animation: {
+            test: /[\\/]node_modules[\\/](framer-motion|motion)[\\/]/,
+            name: 'animation',
+            chunks: 'all',
+            priority: 10,
+          },
+          utils: {
+            test: /[\\/]node_modules[\\/](lodash|date-fns|uuid)[\\/]/,
+            name: 'utils',
+            chunks: 'all',
+            priority: 5,
+          },
         },
       };
+      
+      // Enable module concatenation for better tree shaking
+      config.optimization.concatenateModules = true;
+      
+      // Enable aggressive module splitting for better caching
+      config.optimization.moduleIds = 'deterministic';
+      config.optimization.chunkIds = 'deterministic';
+    }
+    
+    // Performance optimizations
+    if (!dev) {
+      // Enable webpack bundle analyzer in production
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          __DEV__: JSON.stringify(false),
+          'process.env.NODE_ENV': JSON.stringify('production'),
+        })
+      );
+      
+      // Tree shaking optimizations
+      config.optimization.usedExports = true;
+      config.optimization.sideEffects = false;
     }
     
     return config;
@@ -134,6 +231,25 @@ const nextConfig = {
   // Compression enabled
   compress: true,
   
+  // Enable SWC minification for better performance
+  swcMinify: true,
+  
+  // Enable modularize imports for better tree shaking
+  modularizeImports: {
+    'lodash': {
+      transform: 'lodash/{{member}}',
+      preventFullImport: true,
+    },
+    'date-fns': {
+      transform: 'date-fns/{{member}}',
+      preventFullImport: true,
+    },
+    '@radix-ui/react-icons': {
+      transform: '@radix-ui/react-icons/dist/{{member}}',
+      preventFullImport: true,
+    },
+  },
+  
   // ESLint configuration
   eslint: {
     dirs: ['src', 'app'],
@@ -146,12 +262,31 @@ const nextConfig = {
   },
 };
 
+// Sentry configuration options
+const sentryWebpackPluginOptions = {
+  // Additional config options for the Sentry Webpack plugin
+  silent: true, // Suppresses all logs
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  
+  // Source maps
+  widenClientFileUpload: true,
+  transpileClientSDK: true,
+  tunnelRoute: '/monitoring',
+  hideSourceMaps: true,
+  disableLogger: process.env.NODE_ENV === 'production',
+  
+  // Release tracking
+  automaticVercelMonitors: true,
+};
+
 // Bundle analyzer for production builds
 if (process.env.ANALYZE === 'true') {
   const withBundleAnalyzer = require('@next/bundle-analyzer')({
     enabled: process.env.ANALYZE === 'true',
   });
-  module.exports = withBundleAnalyzer(nextConfig);
+  module.exports = withSentryConfig(withBundleAnalyzer(nextConfig), sentryWebpackPluginOptions);
 } else {
-  module.exports = nextConfig;
+  module.exports = withSentryConfig(nextConfig, sentryWebpackPluginOptions);
 }

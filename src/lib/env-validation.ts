@@ -32,6 +32,34 @@ const envSchema = z.object({
   // Rate Limiting
   RATE_LIMIT_MAX: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('100'),
   RATE_LIMIT_WINDOW: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('60000'),
+  
+  // Redis Configuration
+  REDIS_URL: z.string().optional(),
+  REDIS_HOST: z.string().default('localhost'),
+  REDIS_PORT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('6379'),
+  REDIS_PASSWORD: z.string().optional(),
+  REDIS_DB: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(0)).default('0'),
+  REDIS_USERNAME: z.string().optional(),
+  REDIS_TLS: z.string().transform((val) => val === 'true').optional(),
+  REDIS_CLUSTER_ENABLED: z.string().transform((val) => val === 'true').default('false'),
+  REDIS_CLUSTER_NODES: z.string().optional(),
+  REDIS_CONNECTION_TIMEOUT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('10000'),
+  REDIS_COMMAND_TIMEOUT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('5000'),
+  REDIS_RETRY_ATTEMPTS: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('3'),
+  REDIS_RETRY_DELAY: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('100'),
+  REDIS_MAX_RETRIES_PER_REQUEST: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('3'),
+  REDIS_POOL_MIN: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('2'),
+  REDIS_POOL_MAX: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('10'),
+  
+  // Cache Configuration
+  CACHE_TTL_DEFAULT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('3600'),
+  CACHE_TTL_SHORT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('300'),
+  CACHE_TTL_MEDIUM: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('1800'),
+  CACHE_TTL_LONG: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('7200'),
+  CACHE_COMPRESSION_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  CACHE_COMPRESSION_THRESHOLD: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('1024'),
+  CACHE_WARMING_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  CACHE_METRICS_ENABLED: z.string().transform((val) => val === 'true').default('true'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
@@ -57,6 +85,12 @@ function generateSecureSecret(): string {
 }
 
 export function getValidatedEnv(): EnvConfig {
+  // Skip validation if explicitly disabled (for build processes)
+  if (process.env.SKIP_ENV_VALIDATION === 'true') {
+    console.warn('⚠️  Environment validation skipped');
+    return process.env as any;
+  }
+
   // In development, generate secure secrets if not provided
   if (process.env.NODE_ENV === 'development') {
     if (!process.env.BETTER_AUTH_SECRET) {

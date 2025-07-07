@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 
 import { env } from "./env-validation";
+import { generateUUID } from "@/utils/uuid";
 
 export const auth = betterAuth({
   database: {
@@ -70,7 +71,7 @@ export const auth = betterAuth({
     ...(env.CORS_ORIGIN ? env.CORS_ORIGIN.split(',') : []),
   ],
   advanced: {
-    generateId: () => crypto.randomUUID(),
+    generateId: () => generateUUID(),
     crossSubDomainCookies: {
       enabled: env.NODE_ENV === "production",
       domain: env.NODE_ENV === "production" ? undefined : "localhost",

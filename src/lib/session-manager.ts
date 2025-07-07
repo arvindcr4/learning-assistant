@@ -1,6 +1,7 @@
 import { auth } from './auth';
 import { jwtService } from './jwt';
 import { env } from './env-validation';
+import { generateUUID } from '@/utils/uuid';
 
 export interface SessionInfo {
   id: string;
@@ -43,7 +44,7 @@ export class SessionManager {
     ipAddress?: string;
     userAgent?: string;
   }): Promise<{ sessionId: string; accessToken: string; refreshToken: string }> {
-    const sessionId = crypto.randomUUID();
+    const sessionId = generateUUID();
     
     // Check for existing sessions for this user
     await this.cleanupUserSessions(payload.userId);

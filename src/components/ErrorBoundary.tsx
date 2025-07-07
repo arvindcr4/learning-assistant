@@ -1,8 +1,10 @@
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
 import { usePerformanceMonitoring } from '@/hooks/usePerformanceMonitoring';
+import { captureErrorBoundary } from '@/lib/sentry';
 
 // Error types
 interface ErrorDetails {
@@ -71,6 +73,9 @@ class ErrorReporter {
       this.errors = this.errors.slice(-this.maxErrors);
     }
 
+    // Report to Sentry
+    captureErrorBoundary(error, errorInfo);
+    
     // Report to external service (implement your own)
     this.sendToExternalService(errorDetails, errorId);
     
@@ -425,6 +430,17 @@ export function AsyncErrorBoundary({ children, onError }: { children: ReactNode;
       const error = new Error(event.reason?.message || 'Unhandled promise rejection');
       setError(error);
       onError?.(error);
+      
+      // Report to Sentry
+      Sentry.captureException(error, {
+        tags: {
+          error_boundary: 'async',
+          error_type: 'unhandled_promise_rejection',
+        },
+        extra: {
+          reason: event.reason,
+        },
+      });
     };
 
     window.addEventListener('unhandledrejection', handleUnhandledRejection);

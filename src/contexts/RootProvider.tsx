@@ -3,6 +3,7 @@
 import React, { ReactNode, useEffect } from 'react';
 
 import { usePerformanceMonitor } from '@/hooks/usePerformance';
+import { setUserContext, clearUserContext, setSentryTag, trackLearningEvent } from '@/lib/sentry';
 
 import { AuthProvider } from './AuthContext';
 import { LearningProvider } from './LearningContext';
@@ -227,13 +228,38 @@ function DevToolsWrapper({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-// Enhanced root provider with development tools
+// Sentry integration wrapper
+function SentryWrapper({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    // Set initial Sentry context
+    setSentryTag('app_component', 'root_provider');
+    setSentryTag('version', process.env.NEXT_PUBLIC_APP_VERSION || 'unknown');
+    
+    // Track app initialization
+    trackLearningEvent({
+      type: 'lesson_start',
+      lessonId: 'app_initialization',
+      userId: 'anonymous',
+    });
+
+    return () => {
+      // Clear user context on unmount
+      clearUserContext();
+    };
+  }, []);
+
+  return <>{children}</>;
+}
+
+// Enhanced root provider with development tools and Sentry
 export function EnhancedRootProvider({ children }: { children: ReactNode }) {
   return (
     <RootProvider>
-      <DevToolsWrapper>
-        {children}
-      </DevToolsWrapper>
+      <SentryWrapper>
+        <DevToolsWrapper>
+          {children}
+        </DevToolsWrapper>
+      </SentryWrapper>
     </RootProvider>
   );
 }

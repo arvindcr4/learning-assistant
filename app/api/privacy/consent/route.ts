@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withSecureAuth } from '@/middleware/secure-auth';
+import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
 import { privacyComplianceService } from '@/lib/security/privacy-compliance';
 import { z } from 'zod';
 
@@ -12,7 +12,7 @@ const multipleConsentSchema = z.object({
   consents: z.array(consentSchema),
 });
 
-async function handlePost(request: NextRequest) {
+async function handlePost(request: AuthenticatedRequest) {
   try {
     const body = await request.json();
     const { consents } = multipleConsentSchema.parse(body);
@@ -65,7 +65,7 @@ async function handlePost(request: NextRequest) {
   }
 }
 
-async function handleGet(request: NextRequest) {
+async function handleGet(request: AuthenticatedRequest) {
   try {
     const userId = request.user!.id;
     const consentHistory = privacyComplianceService.getConsentHistory(userId);

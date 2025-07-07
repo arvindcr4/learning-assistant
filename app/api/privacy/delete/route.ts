@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withSecureAuth } from '@/middleware/secure-auth';
+import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
 import { privacyComplianceService } from '@/lib/security/privacy-compliance';
 import { z } from 'zod';
 
@@ -13,7 +13,7 @@ const verificationSchema = z.object({
   verificationCode: z.string(),
 });
 
-async function handlePost(request: NextRequest) {
+async function handlePost(request: AuthenticatedRequest) {
   try {
     const body = await request.json();
     const { reason, confirmPassword } = deletionRequestSchema.parse(body);
@@ -74,7 +74,7 @@ async function handlePost(request: NextRequest) {
   }
 }
 
-async function handlePatch(request: NextRequest) {
+async function handlePatch(request: AuthenticatedRequest) {
   try {
     const body = await request.json();
     const { requestId, verificationCode } = verificationSchema.parse(body);

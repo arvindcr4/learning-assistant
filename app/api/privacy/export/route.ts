@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withSecureAuth } from '@/middleware/secure-auth';
+import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
 import { privacyComplianceService } from '@/lib/security/privacy-compliance';
 import { z } from 'zod';
 
@@ -7,7 +7,7 @@ const exportRequestSchema = z.object({
   format: z.enum(['json', 'csv', 'xml']).optional().default('json'),
 });
 
-async function handlePost(request: NextRequest) {
+async function handlePost(request: AuthenticatedRequest) {
   try {
     const body = await request.json();
     const { format } = exportRequestSchema.parse(body);
@@ -66,7 +66,7 @@ async function handlePost(request: NextRequest) {
   }
 }
 
-async function handleGet(request: NextRequest) {
+async function handleGet(request: AuthenticatedRequest) {
   try {
     const userId = request.user!.id;
     

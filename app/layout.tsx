@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { RootProvider } from "@/contexts/RootProvider";
+import { EnhancedErrorBoundary } from "@/components/ErrorBoundary";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -79,9 +80,15 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <RootProvider>
-          {children}
-        </RootProvider>
+        <EnhancedErrorBoundary
+          level="application"
+          name="RootLayout"
+          showDetails={process.env.NODE_ENV === 'development'}
+        >
+          <RootProvider>
+            {children}
+          </RootProvider>
+        </EnhancedErrorBoundary>
       </body>
     </html>
   );

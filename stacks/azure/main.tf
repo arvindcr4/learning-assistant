@@ -31,7 +31,7 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
   version             = "12"
   storage_mb          = 32768
   administrator_login = "psqladmin"
-  administrator_login_password = "H@Sh1CoR3!"
+  administrator_login_password = var.psql_admin_password
 }
 
 resource "azurerm_redis_cache" "redis" {
@@ -49,6 +49,13 @@ resource "azurerm_storage_account" "storage" {
   location                 = azurerm_resource_group.main.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+}
+
+resource "azurerm_cdn_profile" "example" {
+  name                = "example-profile"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku                 = "Standard_Microsoft"
 }
 
 resource "azurerm_cdn_endpoint" "cdn" {

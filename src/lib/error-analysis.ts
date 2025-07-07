@@ -1,5 +1,6 @@
 // Comprehensive Error Analysis and Feedback Engine
 import type { LearningSession, AdaptiveQuestion } from '@/types';
+import { generateUUID } from '@/utils/uuid';
 
 export interface ErrorPattern {
   id: string;
@@ -48,7 +49,7 @@ export class ErrorAnalysisEngine {
     errorsByTopic.forEach((errors, topic) => {
       if (errors.length >= 3) {
         patterns.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           errorType: 'conceptual',
           frequency: errors.length,
           severity: errors.length > 5 ? 'high' : 'medium',

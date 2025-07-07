@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 
 import { env } from './env-validation';
+import { generateUUID } from '@/utils/uuid';
 
 export interface JWTPayload {
   userId: string;
@@ -167,7 +168,7 @@ export class JWTService {
     role: string;
     sessionId?: string;
   }): { accessToken: string; refreshToken: string } {
-    const tokenId = crypto.randomUUID();
+    const tokenId = generateUUID();
     
     const accessToken = this.generateAccessToken(payload);
     const refreshToken = this.generateRefreshToken({
