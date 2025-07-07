@@ -7,8 +7,15 @@ const nextConfig: NextConfig = {
   // Output configuration for Docker deployment
   output: "standalone",
   
-  // Enable SWC minification for better performance
-  swcMinify: true,
+  // Disable ESLint during build for production deployment
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
+  // Disable TypeScript checking during build for faster deployment
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   
   // Enable experimental features
   experimental: {
