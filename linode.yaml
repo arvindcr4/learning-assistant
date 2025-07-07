@@ -1,0 +1,66 @@
+# Linode deployment configuration for learning-assistant
+# This file contains deployment settings and can be used with automation tools
+
+app:
+  name: learning-assistant
+  type: nodejs
+  version: "20"
+
+deployment:
+  # Linode configuration
+  region: us-east  # Options: us-east, us-west, eu-west, ap-south, etc.
+  instance_type: g6-nanode-1  # 1GB RAM, 1 CPU (upgrade to g6-standard-1 for 2GB)
+  image: linode/ubuntu22.04
+  
+  # Application configuration
+  port: 3000
+  build_command: "npm run build"
+  start_command: "npm start"
+  
+  # Environment variables (set these on your server)
+  environment:
+    NODE_ENV: production
+    PORT: 3000
+    # Add your database and other environment variables here
+    # DATABASE_URL: "postgresql://..."
+    # NEXTAUTH_SECRET: "..."
+    # NEXTAUTH_URL: "http://your-domain.com"
+
+# Services that will be installed
+services:
+  - nodejs-20
+  - postgresql
+  - nginx
+  - pm2
+
+# Nginx configuration
+nginx:
+  proxy_pass: "http://localhost:3000"
+  client_max_body_size: "10M"
+
+# PM2 configuration
+pm2:
+  instances: 1
+  max_memory_restart: "1G"
+  autorestart: true
+
+# SSL/TLS (optional - for production)
+ssl:
+  enabled: false  # Set to true and configure domain for SSL
+  # domain: your-domain.com
+  # email: your-email@example.com
+
+# Monitoring (optional)
+monitoring:
+  pm2_web: false  # Set to true to enable PM2 web interface
+  nginx_status: false  # Set to true to enable nginx status page
+
+# Database configuration
+database:
+  type: postgresql
+  # Configure these settings on your server
+  # host: localhost
+  # port: 5432
+  # database: learning_assistant
+  # username: app_user
+  # password: secure_password

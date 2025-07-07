@@ -107,4 +107,19 @@ export const logPerformance = (operation: string, duration: number, metadata?: a
   });
 };
 
+// Export specific loggers for different contexts
+export const performanceLogger = logger;
+export const securityLogger = logger;
+
+// Export utility functions as loggerUtils
+export const loggerUtils = {
+  logPerformanceMetric: (operation: string, value: number, unit: string, metadata?: any) => {
+    logger.info(`Performance metric: ${operation}`, {
+      value,
+      unit,
+      ...metadata,
+    });
+  },
+};
+
 export default logger;

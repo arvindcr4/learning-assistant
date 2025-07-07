@@ -18,6 +18,7 @@ import { AdaptiveAssessmentEngine, AssessmentState } from './adaptive-assessment
 import { PerformanceAnalyticsEngine, PerformanceMetrics, MLInsight } from './performance-analytics';
 import { SpacedRepetitionEngine, SpacedRepetitionCard, RepetitionSchedule } from './spaced-repetition';
 import { BehavioralTrackingEngine, BehavioralEvent, BehavioralPattern, RealTimeInsight } from './behavioral-tracking';
+import { generateUUID } from '@/utils/uuid';
 import { 
   ContentRecommendation, 
   LearningPathOptimization, 
@@ -59,7 +60,7 @@ export class LearningStyleDetector {
     const varkResults = VARKAssessment.calculateScores(responses);
     
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: 'questionnaire',
       results: {
         visual: varkResults.visual / 100,
@@ -86,7 +87,7 @@ export class LearningStyleDetector {
     const isMultimodal = this.isMultimodalLearner(styles);
     
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       userId,
       styles,
       dominantStyle,
@@ -632,7 +633,7 @@ export class AdvancedLearningEngine {
     // Performance-based recommendations
     if (performanceMetrics.accuracy < 70) {
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'content',
         title: 'Focus on Accuracy Improvement',
         description: 'Your accuracy could benefit from additional practice on foundational concepts',
@@ -649,7 +650,7 @@ export class AdvancedLearningEngine {
     mlInsights.forEach(insight => {
       insight.actionable_insights.forEach(actionableInsight => {
         recommendations.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           type: 'style',
           title: 'AI-Powered Learning Optimization',
           description: actionableInsight,
@@ -668,7 +669,7 @@ export class AdvancedLearningEngine {
       .filter(pattern => pattern.learningImpact.impactType === 'negative')
       .forEach(pattern => {
         recommendations.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           type: 'pace',
           title: `Address ${pattern.patternType.replace('_', ' ')}`,
           description: pattern.description,
@@ -750,7 +751,7 @@ export class RecommendationEngine {
     
     underperformingStyles.forEach(style => {
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'style',
         title: `Improve ${style.style} Learning Experience`,
         description: `Your ${style.style} learning content shows lower comprehension rates. Consider trying different ${style.style} formats.`,
@@ -772,7 +773,7 @@ export class RecommendationEngine {
     
     if (analytics.paceAnalysis.paceConsistency < 60) {
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'pace',
         title: 'Improve Learning Pace Consistency',
         description: 'Your learning pace varies significantly. Consider setting a regular study schedule.',
@@ -798,7 +799,7 @@ export class RecommendationEngine {
     
     if (lowEngagementContent.length > 0) {
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'content',
         title: 'Diversify Content Types',
         description: 'Some content types show lower engagement. Try exploring different formats.',
@@ -819,7 +820,7 @@ export class RecommendationEngine {
     
     if (analytics.paceAnalysis.peakPerformanceTime) {
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'schedule',
         title: 'Optimize Study Schedule',
         description: `Your peak performance time is ${analytics.paceAnalysis.peakPerformanceTime}. Consider scheduling challenging content during this time.`,

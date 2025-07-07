@@ -1,6 +1,7 @@
 // Fatigue Detection and Break Recommendation Engine
 import { LearningSession, BehavioralIndicator } from '@/types';
 import { BehavioralEvent } from './behavioral-tracking';
+import { generateUUID } from '@/utils/uuid';
 
 export interface FatigueIndicators {
   performanceDecline: number; // 0-100
@@ -152,7 +153,7 @@ export class FatigueDetectionEngine {
     if (fatigueIndicators.overallFatigueLevel >= 80) {
       // Critical fatigue - extended break needed
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'extended',
         duration: 30,
         urgency: 'critical',
@@ -165,7 +166,7 @@ export class FatigueDetectionEngine {
     } else if (fatigueIndicators.overallFatigueLevel >= 60) {
       // Moderate fatigue - long break
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'long',
         duration: 15,
         urgency: 'high',
@@ -178,7 +179,7 @@ export class FatigueDetectionEngine {
     } else if (fatigueIndicators.overallFatigueLevel >= 40) {
       // Mild fatigue - short break
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'short',
         duration: 5,
         urgency: 'medium',
@@ -193,7 +194,7 @@ export class FatigueDetectionEngine {
     // Micro-breaks for long sessions
     if (currentSessionDuration > 25 && fatigueIndicators.attentionDecline > 30) {
       recommendations.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: 'micro',
         duration: 2,
         urgency: 'low',
@@ -390,7 +391,7 @@ export class FatigueDetectionEngine {
         
         if (fatigueOnset > 0) {
           patterns.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             userId,
             patternType: 'cognitive',
             onsetTime: fatigueOnset,
@@ -430,7 +431,7 @@ export class FatigueDetectionEngine {
         
         if (avgAccuracy < 0.6) { // Low performance threshold
           patterns.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             userId,
             patternType: 'mixed',
             onsetTime: hour * 60, // Convert to minutes
@@ -465,7 +466,7 @@ export class FatigueDetectionEngine {
       // Check for cumulative fatigue
       if (currentAccuracy < previousAccuracy * 0.8) {
         patterns.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           userId,
           patternType: 'cognitive',
           onsetTime: 0,

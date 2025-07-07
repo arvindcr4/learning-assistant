@@ -1,5 +1,6 @@
 // Behavioral Tracking Engine - Real-time pattern recognition and analysis
 import { BehavioralIndicator, LearningStyleType, LearningProfile } from '@/types';
+import { generateUUID } from '@/utils/uuid';
 
 export interface BehavioralEvent {
   id: string;
@@ -492,7 +493,7 @@ export class BehavioralTrackingEngine {
       
       if (trend < -0.1) { // Decreasing trend
         patterns.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           userId: currentEvent.userId,
           patternType: PatternType.MASTERY_PATTERN,
           description: 'Decreasing response times indicate improving mastery',
@@ -517,7 +518,7 @@ export class BehavioralTrackingEngine {
     const helpEvents = events.filter(e => e.eventType === BehavioralEventType.HELP_SEEKING);
     if (helpEvents.length >= 3 && events.length <= 20) { // High frequency
       patterns.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         userId: currentEvent.userId,
         patternType: PatternType.CONFUSION_PATTERN,
         description: 'Frequent help-seeking indicates confusion or difficulty',
@@ -815,7 +816,7 @@ export class BehavioralTrackingEngine {
 
     if (bestHour !== -1) {
       patterns.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         userId,
         patternType: PatternType.TIME_PREFERENCE,
         description: `Peak performance observed at ${bestHour}:00`,
@@ -849,7 +850,7 @@ export class BehavioralTrackingEngine {
           events[i + 2].data.success === true) {
         
         patterns.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           userId,
           patternType: PatternType.EFFICIENCY_PATTERN,
           description: 'Effective help-seeking after errors leads to success',
@@ -892,7 +893,7 @@ export class BehavioralTrackingEngine {
 
       if (recentAccuracy < olderAccuracy * 0.8) {
         patterns.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           userId,
           patternType: PatternType.FATIGUE_PATTERN,
           description: 'Significant performance drop detected',

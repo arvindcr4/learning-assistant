@@ -21,19 +21,21 @@ const nextConfig: NextConfig = {
   experimental: {
     // Enable optimized CSS loading
     optimizeCss: true,
-    // Enable server components logging
-    serverComponentsExternalPackages: ['winston'],
-    // Enable Turbo for faster builds
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
-      },
-    },
     // Enable PPR (Partial Prerendering) for better performance
     // ppr: true, // Only available in canary versions
+  },
+  
+  // Server external packages configuration
+  serverExternalPackages: ['winston', 'winston-daily-rotate-file', 'prom-client', 'better-auth', 'msw'],
+  
+  // Turbopack configuration
+  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
+      },
+    },
   },
   
   // Image optimization
@@ -139,27 +141,6 @@ const nextConfig: NextConfig = {
       );
     }
     
-    // Optimize bundle size
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        chunks: 'all',
-        cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            chunks: 'all',
-          },
-          common: {
-            minChunks: 2,
-            chunks: 'all',
-            enforce: true,
-            name: 'common',
-          },
-        },
-      },
-    };
-    
     // Add support for importing SVG as React components
     config.module.rules.push({
       test: /\.svg$/,
@@ -169,17 +150,7 @@ const nextConfig: NextConfig = {
     return config;
   },
   
-  // TypeScript configuration
-  typescript: {
-    // Enable type checking during build
-    ignoreBuildErrors: false,
-  },
   
-  // ESLint configuration
-  eslint: {
-    // Enable linting during build
-    ignoreDuringBuilds: false,
-  },
   
   // Logging configuration
   logging: {
@@ -202,8 +173,6 @@ const nextConfig: NextConfig = {
     productionBrowserSourceMaps: false,
     // React strict mode
     reactStrictMode: true,
-    // Optimize fonts
-    optimizeFonts: true,
   }),
 };
 

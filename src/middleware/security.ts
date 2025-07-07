@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { securityLogger } from '@/lib/logger';
+// import { securityLogger } from '@/lib/logger'; // Removed due to Edge Runtime compatibility
 
 // Middleware function type definitions
 type SecurityMiddleware = (req: NextRequest) => NextResponse | null;
@@ -108,15 +108,21 @@ const securityConfig: SecurityConfig = {
 // Rate limiting store (in production, use Redis)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
-// Clean up old rate limit entries
-setInterval(() => {
-  const now = Date.now();
-  rateLimitStore.forEach((value, key) => {
-    if (now > value.resetTime) {
-      rateLimitStore.delete(key);
-    }
-  });
-}, 60000); // Clean up every minute
+// Clean up old rate limit entries (only in Node.js runtime)
+if (typeof setInterval !== 'undefined') {
+  try {
+    setInterval(() => {
+      const now = Date.now();
+      rateLimitStore.forEach((value, key) => {
+        if (now > value.resetTime) {
+          rateLimitStore.delete(key);
+        }
+      });
+    }, 60000); // Clean up every minute
+  } catch (error) {
+    // Ignore in Edge Runtime
+  }
+}
 
 // Rate limiting function
 const checkRateLimit = (req: NextRequest): boolean => {
@@ -137,7 +143,7 @@ const checkRateLimit = (req: NextRequest): boolean => {
   
   if (current.count >= securityConfig.rateLimit.max) {
     // Rate limit exceeded
-    securityLogger.warn('Rate limit exceeded', {
+    console.warn('Rate limit exceeded', {
       ip: clientIp,
       path: req.nextUrl.pathname,
       userAgent: req.headers.get('user-agent'),
@@ -164,7 +170,7 @@ const checkCors = (req: NextRequest): boolean => {
                    securityConfig.cors.origin.includes(origin);
   
   if (!isAllowed) {
-    securityLogger.warn('CORS violation', {
+    console.warn('CORS violation', {
       origin,
       path: req.nextUrl.pathname,
       ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
@@ -268,7 +274,7 @@ const detectSuspiciousActivity = (req: NextRequest): boolean => {
   // Check path
   for (const pattern of suspiciousPatterns) {
     if (pattern.test(path) || pattern.test(req.nextUrl.search)) {
-      securityLogger.warn('Suspicious request detected', {
+      console.warn('Suspicious request detected', {
         pattern: pattern.toString(),
         path,
         method,
@@ -287,7 +293,7 @@ const detectSuspiciousActivity = (req: NextRequest): boolean => {
   
   for (const pattern of botPatterns) {
     if (pattern.test(userAgent) && !req.nextUrl.pathname.startsWith('/api/health')) {
-      securityLogger.info('Bot request detected', {
+      console.info('Bot request detected', {
         userAgent,
         path,
         ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),

@@ -1,5 +1,6 @@
 // Enhanced learning analytics API routes
 import { NextRequest, NextResponse } from 'next/server';
+import { generateUUID } from '@/utils/uuid';
 import { LearningService } from '@/services/learning-service';
 import { withAuth, AuthenticatedRequest } from '@/middleware/auth';
 import { validateRequest, AnalyticsValidationRules } from '@/utils/validation';
@@ -107,7 +108,7 @@ export const POST = withAuth(async (request: AuthenticatedRequest) => {
     const trackingResult = await learningService.trackUserInteraction(targetUserId, {
       ...interaction,
       timestamp: new Date(),
-      sessionId: interaction.sessionId || crypto.randomUUID(),
+      sessionId: interaction.sessionId || generateUUID(),
       ip: request.ip || 'unknown',
       userAgent: request.headers.get('user-agent') || 'unknown'
     });

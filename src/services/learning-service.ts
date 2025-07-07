@@ -13,6 +13,7 @@ import {
   User,
   AdaptiveChange
 } from '@/types';
+import { generateUUID } from '@/utils/uuid';
 import { 
   LearningStyleDetector, 
   AdaptivePaceManager, 
@@ -200,7 +201,7 @@ export class LearningService {
       const timeRange = this.getAnalyticsTimeRange();
       
       return {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         userId,
         timeRange,
         overallProgress: this.calculateProgressMetrics(sessions),
@@ -259,7 +260,7 @@ export class LearningService {
   
   async submitAssessment(submissionData: any): Promise<any> {
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       ...submissionData,
       score: Math.floor(Math.random() * 100),
       status: 'completed'
@@ -751,7 +752,7 @@ export class LearningService {
     // Implement database fetch operation
     // Return placeholder data for now
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       userId,
       styles: [
         { type: LearningStyleType.VISUAL, score: 80, confidence: 0.8, lastUpdated: new Date() },
@@ -772,7 +773,7 @@ export class LearningService {
   private async getPaceProfile(userId: string): Promise<PaceProfile> {
     // Implement database fetch operation
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       userId,
       currentPace: 3.5,
       optimalPace: 4.0,
@@ -873,7 +874,7 @@ export class LearningService {
   
   async createAssessment(assessmentData: any): Promise<any> {
     // Create new assessment
-    return { id: crypto.randomUUID(), ...assessmentData, createdAt: new Date() };
+    return { id: generateUUID(), ...assessmentData, createdAt: new Date() };
   }
   
   async updateAssessment(assessmentId: string, data: any): Promise<any> {
@@ -904,7 +905,7 @@ export class LearningService {
   
   async createLearningSession(session: LearningSession): Promise<LearningSession> {
     // Create new session
-    return { ...session, id: session.id || crypto.randomUUID() };
+    return { ...session, id: session.id || generateUUID() };
   }
   
   async updateLearningSession(sessionId: string, data: any): Promise<LearningSession> {
@@ -967,7 +968,7 @@ export class LearningService {
   }
   
   async createGoal(userId: string, goalData: any): Promise<any> {
-    return { id: crypto.randomUUID(), userId, ...goalData };
+    return { id: generateUUID(), userId, ...goalData };
   }
   
   async updateGoal(goalId: string, data: any): Promise<any> {
@@ -1040,7 +1041,7 @@ export class LearningService {
   }
   
   async createAdaptiveContent(content: AdaptiveContent, createdBy: string): Promise<AdaptiveContent> {
-    return { ...content, id: content.id || crypto.randomUUID() };
+    return { ...content, id: content.id || generateUUID() };
   }
   
   async updateAdaptiveContent(contentId: string, data: any): Promise<AdaptiveContent> {

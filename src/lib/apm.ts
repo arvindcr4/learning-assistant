@@ -1,6 +1,11 @@
-import { performance } from 'perf_hooks';
+// Edge Runtime compatible performance and logging
 import { performanceLogger, loggerUtils } from './logger';
 import { metricsUtils } from './metrics';
+
+// Use globalThis.performance for Edge Runtime compatibility
+const performance = typeof globalThis !== 'undefined' && globalThis.performance 
+  ? globalThis.performance 
+  : { now: () => Date.now() };
 
 // Performance monitoring configuration
 interface PerformanceConfig {
@@ -136,10 +141,11 @@ export const apm = {
 
   // Track memory usage
   trackMemoryUsage: () => {
-    if (!config.enabled) return;
+    if (!config.enabled || typeof process === 'undefined') return;
     
-    const memoryUsage = process.memoryUsage();
-    const memoryUsedMB = memoryUsage.heapUsed / 1024 / 1024;
+    try {
+      const memoryUsage = process.memoryUsage();
+      const memoryUsedMB = memoryUsage.heapUsed / 1024 / 1024;
     
     performanceState.metrics.memoryUsage = memoryUsedMB;
     
@@ -151,22 +157,29 @@ export const apm = {
       });
     }
     
-    metricsUtils.updateSystemMetrics(memoryUsage.heapUsed, 0, 0);
+      metricsUtils.updateSystemMetrics(memoryUsage.heapUsed, 0, 0);
+    } catch (error) {
+      // Ignore in Edge Runtime
+    }
   },
 
   // Track CPU usage (simplified)
   trackCpuUsage: () => {
-    if (!config.enabled) return;
+    if (!config.enabled || typeof process === 'undefined') return;
     
-    const cpuUsage = process.cpuUsage();
-    const cpuPercent = (cpuUsage.user + cpuUsage.system) / 1000000; // Convert to seconds
+    try {
+      const cpuUsage = process.cpuUsage();
+      const cpuPercent = (cpuUsage.user + cpuUsage.system) / 1000000; // Convert to seconds
     
     performanceState.metrics.cpuUsage = cpuPercent;
     
-    performanceLogger.debug('CPU usage', {
-      cpuPercent,
-      cpuUsage,
-    });
+      performanceLogger.debug('CPU usage', {
+        cpuPercent,
+        cpuUsage,
+      });
+    } catch (error) {
+      // Ignore in Edge Runtime
+    }
   },
 
   // Track learning session performance
@@ -216,13 +229,22 @@ export const apm = {
 
   // Get performance metrics
   getMetrics: () => {
-    return {
+    const metrics: any = {
       ...performanceState.metrics,
       activeTraces: performanceState.traces.size,
-      uptime: process.uptime(),
-      memoryUsage: process.memoryUsage(),
-      cpuUsage: process.cpuUsage(),
     };
+    
+    if (typeof process !== 'undefined') {
+      try {
+        metrics.uptime = process.uptime();
+        metrics.memoryUsage = process.memoryUsage();
+        metrics.cpuUsage = process.cpuUsage();
+      } catch (error) {
+        // Ignore in Edge Runtime
+      }
+    }
+    
+    return metrics;
   },
 
   // Reset metrics (useful for testing)
@@ -329,12 +351,16 @@ export const withTracing = (name: string, metadata?: any) => {
   };
 };
 
-// Periodic system metrics collection
-if (config.enabled) {
-  setInterval(() => {
-    apm.trackMemoryUsage();
-    apm.trackCpuUsage();
-  }, 30000); // Every 30 seconds
+// Periodic system metrics collection (only in Node.js runtime)
+if (config.enabled && typeof process !== 'undefined' && typeof setInterval !== 'undefined') {
+  try {
+    setInterval(() => {
+      apm.trackMemoryUsage();
+      apm.trackCpuUsage();
+    }, 30000); // Every 30 seconds
+  } catch (error) {
+    // Ignore in Edge Runtime
+  }
 }
 
 export default apm;

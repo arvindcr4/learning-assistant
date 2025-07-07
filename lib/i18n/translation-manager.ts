@@ -76,7 +76,7 @@ export class TranslationManager {
       if (typeof value === 'string') {
         this.addOrUpdateTranslation(fullKey, value, locale);
       } else if (typeof value === 'object' && value !== null) {
-        this.processNestedMessages(value, fullKey, prefix);
+        this.processNestedMessages(value, fullKey, locale);
       }
     }
   }
