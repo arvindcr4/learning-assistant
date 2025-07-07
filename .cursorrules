@@ -1,0 +1,7 @@
+{
+  "python.venv.createCommand": "uv venv .venv",
+  "python.venv.activateCommand": "source .venv/bin/activate",
+  "python.packageManager": "uv",
+  "python.installCommand": "uv pip install ${package}",
+  "python.runCommand": "uv run ${file}"
+}

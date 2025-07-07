@@ -1,0 +1,29 @@
+# Assistant Configuration Paths
+# Generated on discovery scan
+
+## Cursor
+/Users/arvindcr/Library/Application Support/Cursor/User/settings.json
+
+## Windsurf
+/Users/arvindcr/Library/Application Support/Windsurf/User/settings.json
+
+## Claude
+# Note: Claude uses different config files, no single settings.json found
+# Main configuration files:
+/Users/arvindcr/Library/Application Support/Claude/claude_desktop_config.json
+/Users/arvindcr/Library/Application Support/Claude/config.json
+# Note: No native .*rules files found - will add hidden rule files in $HOME
+
+## Gemini
+# Note: No native Gemini application support directory found
+# Will add hidden rule files in $HOME
+
+## Summary
+- Cursor: Has standard User/settings.json
+- Windsurf: Has standard User/settings.json
+- Claude: Has claude_desktop_config.json and config.json instead of settings.json
+- Gemini: No native application files exist (likely web-based)
+
+## Hidden rule files to be created in $HOME:
+- $HOME/.claude_rules (for Claude custom rules)
+- $HOME/.gemini_rules (for Gemini custom rules)
