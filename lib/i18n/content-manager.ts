@@ -85,7 +85,7 @@ export class ContentManager {
         culturalReferences: true,
         localExamples: true,
         timeFormat: '24h',
-        dateFormat: 'dd/mm/yyyy',
+        dateFormat: 'dd/mm/yyyy' as const,
         numberFormat: 'comma'
       },
       educationalNorms: {
@@ -106,7 +106,7 @@ export class ContentManager {
         culturalReferences: true,
         localExamples: true,
         timeFormat: '24h',
-        dateFormat: 'dd/mm/yyyy',
+        dateFormat: 'dd/mm/yyyy' as const,
         numberFormat: 'comma'
       },
       educationalNorms: {
@@ -127,7 +127,7 @@ export class ContentManager {
         culturalReferences: true,
         localExamples: true,
         timeFormat: '24h',
-        dateFormat: 'dd.mm.yyyy',
+        dateFormat: 'dd/mm/yyyy' as const,
         numberFormat: 'comma'
       },
       educationalNorms: {
@@ -148,7 +148,7 @@ export class ContentManager {
         culturalReferences: true,
         localExamples: true,
         timeFormat: '24h',
-        dateFormat: 'yyyy/mm/dd',
+        dateFormat: 'yyyy-mm-dd',
         numberFormat: 'decimal'
       },
       educationalNorms: {
@@ -169,7 +169,7 @@ export class ContentManager {
         culturalReferences: true,
         localExamples: true,
         timeFormat: '12h',
-        dateFormat: 'dd/mm/yyyy',
+        dateFormat: 'dd/mm/yyyy' as const,
         numberFormat: 'decimal'
       },
       educationalNorms: {
