@@ -225,7 +225,7 @@ export class MigrationManager {
 
           console.log(`Migration ${migration.version} rolled back successfully`);
         } catch (error) {
-          if (error.code === 'ENOENT') {
+          if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
             throw new Error(`Rollback file not found for migration ${migration.version}`);
           }
           throw error;

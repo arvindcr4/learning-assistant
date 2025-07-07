@@ -259,7 +259,7 @@ export class DifficultyCalibrationEngine {
   }
 
   private getBloomsLevel(bloomsLevel: string): number {
-    const levels = {
+    const levels: Record<string, number> = {
       'remember': 1,
       'understand': 2,
       'apply': 3,

@@ -7,7 +7,7 @@ const config = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   
   // Module name mapping for path aliases
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/components/(.*)$': '<rootDir>/src/components/$1',
     '^@/lib/(.*)$': '<rootDir>/src/lib/$1',
     '^@/services/(.*)$': '<rootDir>/src/services/$1',

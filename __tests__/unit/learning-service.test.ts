@@ -108,7 +108,8 @@ describe('LearningService', () => {
       const mockError = new Error('Database error')
 
       // Mock the private method to throw an error
-      jest.spyOn(service as any, 'saveLearningProfile').mockRejectedValue(mockError)
+      const mockSaveLearningProfile = jest.fn().mockRejectedValue(mockError)
+      ;(service as any).saveLearningProfile = mockSaveLearningProfile
 
       await expect(service.initializeLearningProfile(userId)).rejects.toThrow(
         'Failed to initialize learning profile'
@@ -182,8 +183,11 @@ describe('LearningService', () => {
         userResponse: 'accepted',
       }
 
-      const mockPaceManager = service['paceManager'] as any
-      mockPaceManager.createAdaptiveChange.mockReturnValue(mockPaceAdjustment)
+      // Mock the private paceManager
+      const mockPaceManager = {
+        createAdaptiveChange: jest.fn().mockReturnValue(mockPaceAdjustment)
+      }
+      ;(service as any).paceManager = mockPaceManager
 
       const result = await service.processLearningSession(sessionData, 'user-123')
 
@@ -214,7 +218,8 @@ describe('LearningService', () => {
       }
 
       // Mock error in getLearningProfile
-      jest.spyOn(service as any, 'getLearningProfile').mockRejectedValue(new Error('Database error'))
+      const mockGetLearningProfile = jest.fn().mockRejectedValue(new Error('Database error'))
+      ;(service as any).getLearningProfile = mockGetLearningProfile
 
       await expect(service.processLearningSession(sessionData, 'user-123')).rejects.toThrow(
         'Failed to process learning session'
@@ -314,7 +319,8 @@ describe('LearningService', () => {
       }
 
       // Mock error in getLearningProfile
-      jest.spyOn(service as any, 'getLearningProfile').mockRejectedValue(new Error('Database error'))
+      const mockGetLearningProfile = jest.fn().mockRejectedValue(new Error('Database error'))
+      ;(service as any).getLearningProfile = mockGetLearningProfile
 
       await expect(service.adaptContentForUser(content, 'user-123')).rejects.toThrow(
         'Failed to adapt content'
@@ -345,7 +351,8 @@ describe('LearningService', () => {
       const userId = 'user-123'
 
       // Mock error in getLearningProfile
-      jest.spyOn(service as any, 'getLearningProfile').mockRejectedValue(new Error('Database error'))
+      const mockGetLearningProfile = jest.fn().mockRejectedValue(new Error('Database error'))
+      ;(service as any).getLearningProfile = mockGetLearningProfile
 
       await expect(service.generateLearningAnalytics(userId)).rejects.toThrow(
         'Failed to generate learning analytics'
@@ -404,7 +411,8 @@ describe('LearningService', () => {
       const responses = { 'q1': 'test response' }
 
       // Mock error in getLearningProfile
-      jest.spyOn(service as any, 'getLearningProfile').mockRejectedValue(new Error('Database error'))
+      const mockGetLearningProfile = jest.fn().mockRejectedValue(new Error('Database error'))
+      ;(service as any).getLearningProfile = mockGetLearningProfile
 
       await expect(service.processVARKAssessment(userId, responses)).rejects.toThrow(
         'Failed to process VARK assessment'
@@ -437,7 +445,8 @@ describe('LearningService', () => {
       }
 
       // Mock error in saveBehavioralIndicator
-      jest.spyOn(service as any, 'saveBehavioralIndicator').mockRejectedValue(new Error('Database error'))
+      const mockSaveBehavioralIndicator = jest.fn().mockRejectedValue(new Error('Database error'))
+      ;(service as any).saveBehavioralIndicator = mockSaveBehavioralIndicator
 
       await expect(service.trackUserInteraction(userId, interaction)).rejects.toThrow(
         'Failed to track user interaction'
@@ -464,13 +473,15 @@ describe('LearningService', () => {
         timestamp: new Date(),
       }))
 
-      jest.spyOn(service as any, 'getRecentBehavioralIndicators').mockResolvedValue(mockIndicators)
+      const mockGetRecentBehavioralIndicators = jest.fn().mockResolvedValue(mockIndicators)
+      ;(service as any).getRecentBehavioralIndicators = mockGetRecentBehavioralIndicators
 
-      const updateProfileSpy = jest.spyOn(service as any, 'saveLearningProfile')
+      const mockSaveLearningProfile = jest.fn()
+      ;(service as any).saveLearningProfile = mockSaveLearningProfile
 
       await service.trackUserInteraction(userId, interaction)
 
-      expect(updateProfileSpy).toHaveBeenCalled()
+      expect(mockSaveLearningProfile).toHaveBeenCalled()
     })
   })
 

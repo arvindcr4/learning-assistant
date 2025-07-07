@@ -975,7 +975,7 @@ export interface Notification {
   message: string;
   timestamp: Date;
   read: boolean;
-  actions?: NotificationAction[];
+  actions?: NotificationActionItem[];
   expiresAt?: Date;
 }
 
@@ -985,11 +985,11 @@ export interface Alert {
   title: string;
   message: string;
   persistent: boolean;
-  actions?: NotificationAction[];
+  actions?: NotificationActionItem[];
   timestamp: Date;
 }
 
-export interface NotificationAction {
+export interface NotificationActionItem {
   id: string;
   label: string;
   action: string;

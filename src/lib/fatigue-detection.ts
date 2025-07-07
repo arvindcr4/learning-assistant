@@ -326,7 +326,7 @@ export class FatigueDetectionEngine {
 
   private analyzeAttentionDecline(behavioralEvents: BehavioralEvent[]): number {
     const focusEvents = behavioralEvents.filter(e => e.eventType === 'focus_change');
-    const distractionEvents = focusEvents.filter(e => e.data.focused === false);
+    const distractionEvents = focusEvents.filter(e => e.data && e.data.focused === false);
 
     if (focusEvents.length === 0) return 0;
 
@@ -350,11 +350,11 @@ export class FatigueDetectionEngine {
   private analyzePhysicalSigns(behavioralEvents: BehavioralEvent[]): number {
     // Look for physical indicators in behavioral data
     const longPauses = behavioralEvents.filter(e => 
-      e.eventType === 'pause_duration' && e.data.duration > 10000 // 10+ seconds
+      e.eventType === 'pause_duration' && e.data && e.data.duration && e.data.duration > 10000 // 10+ seconds
     );
 
     const slowMouseMovements = behavioralEvents.filter(e => 
-      e.eventType === 'mouse_movement' && e.data.speed < 50 // Slow movement
+      e.eventType === 'mouse_movement' && e.data && e.data.speed && e.data.speed < 50 // Slow movement
     );
 
     if (behavioralEvents.length === 0) return 0;

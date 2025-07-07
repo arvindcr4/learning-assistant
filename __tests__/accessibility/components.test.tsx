@@ -139,13 +139,8 @@ describe('Accessibility Tests for Components', () => {
 
   describe('QuizCard Component Accessibility', () => {
     const mockQuizData = {
-      id: 'quiz-123',
-      moduleId: 'module-123',
-      title: 'JavaScript Fundamentals Quiz',
-      description: 'Test your knowledge of JavaScript basics',
+      ...mockQuiz,
       questions: mockQuestions,
-      timeLimit: 30,
-      passingScore: 70,
     }
 
     it('should not have accessibility violations', async () => {

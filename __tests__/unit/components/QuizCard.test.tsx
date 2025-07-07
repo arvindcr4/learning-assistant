@@ -67,15 +67,13 @@ describe('QuizCard Component', () => {
     
     render(<QuizCard {...defaultProps} progress={progress} />)
     
-    expect(screen.getByText('85%')).toBeInTheDocument()
+    expect(screen.getAllByText('85%')[0]).toBeInTheDocument()
     expect(screen.getByText('View Results')).toBeInTheDocument()
     expect(screen.getByText('Retry')).toBeInTheDocument()
     
     // Should show passed state
-    const checkIcon = document.querySelector('[data-testid="check-circle"]') || 
-                     screen.getByTestId('check-circle').closest('svg') ||
-                     document.querySelector('svg[class*="CheckCircle"]')
-    // Note: Icon testing might need adjustment based on actual implementation
+    const checkIcon = screen.getByTestId('check-circle')
+    expect(checkIcon).toBeInTheDocument()
   })
 
   it('shows failed state with low score', () => {
@@ -89,12 +87,11 @@ describe('QuizCard Component', () => {
     
     render(<QuizCard {...defaultProps} progress={progress} />)
     
-    expect(screen.getByText('45%')).toBeInTheDocument()
+    expect(screen.getAllByText('45%')[0]).toBeInTheDocument()
     
-    // Should show failed state - adjust based on actual badge implementation
-    const scoreElement = screen.getByText('45%')
-    expect(scoreElement.closest('[class*="badge"]') || scoreElement.parentElement)
-      .toHaveClass('destructive')
+    // Should show failed state - check badge has destructive variant
+    const badgeElement = screen.getAllByText('45%')[0]
+    expect(badgeElement.closest('div')).toHaveClass('bg-destructive')
   })
 
   it('handles retry button click', async () => {
@@ -163,13 +160,15 @@ describe('QuizCard Component', () => {
     render(<QuizCard {...defaultProps} progress={progress} />)
     
     expect(screen.getByText('Your Score')).toBeInTheDocument()
-    expect(screen.getByText('85%')).toBeInTheDocument()
+    expect(screen.getAllByText('85%')[0]).toBeInTheDocument()
     expect(screen.getByText('Best Score:')).toBeInTheDocument()
     expect(screen.getByText('90%')).toBeInTheDocument()
     expect(screen.getByText('Time Spent:')).toBeInTheDocument()
     expect(screen.getByText('25m')).toBeInTheDocument()
     expect(screen.getByText('Attempts:')).toBeInTheDocument()
-    expect(screen.getByText('3')).toBeInTheDocument()
+    // Find the attempts value specifically in the attempts section
+    const attemptsSection = screen.getByText('Attempts:').closest('div')
+    expect(attemptsSection).toHaveTextContent('3')
   })
 
   it('hides progress when showProgress is false', () => {
@@ -224,8 +223,10 @@ describe('QuizCard Component', () => {
       />
     )
     
-    let scoreElement = screen.getByText('95%')
-    expect(scoreElement).toHaveClass('text-learning-secondary')
+    // Find the "Your Score" section specifically
+    const yourScoreSection = screen.getByText('Your Score').closest('div')
+    let scoreElement = yourScoreSection?.querySelector('span[class*="text-learning-secondary"]')
+    expect(scoreElement).toHaveTextContent('95%')
     
     rerender(
       <QuizCard 
@@ -234,8 +235,9 @@ describe('QuizCard Component', () => {
       />
     )
     
-    scoreElement = screen.getByText('75%')
-    expect(scoreElement).toHaveClass('text-learning-accent')
+    const yourScoreSection2 = screen.getByText('Your Score').closest('div')
+    scoreElement = yourScoreSection2?.querySelector('span[class*="text-learning-accent"]')
+    expect(scoreElement).toHaveTextContent('75%')
     
     rerender(
       <QuizCard 
@@ -244,8 +246,9 @@ describe('QuizCard Component', () => {
       />
     )
     
-    scoreElement = screen.getByText('45%')
-    expect(scoreElement).toHaveClass('text-destructive')
+    const yourScoreSection3 = screen.getByText('Your Score').closest('div')
+    scoreElement = yourScoreSection3?.querySelector('span[class*="text-destructive"]')
+    expect(scoreElement).toHaveTextContent('45%')
   })
 
   it('forwards ref correctly', () => {
@@ -320,9 +323,10 @@ describe('QuizCard Component', () => {
     render(<QuizCard {...defaultProps} progress={progress} />)
     
     // Check for progress bar accessibility
-    const progressBar = screen.getByRole('progressbar')
-    expect(progressBar).toHaveAttribute('aria-valuemin', '0')
-    expect(progressBar).toHaveAttribute('aria-valuemax', '100')
-    expect(progressBar).toHaveAttribute('aria-valuenow', '85')
+    const progressBars = screen.getAllByRole('progressbar')
+    const mainProgressBar = progressBars[0] // The main score progress bar
+    expect(mainProgressBar).toHaveAttribute('aria-valuemin', '0')
+    expect(mainProgressBar).toHaveAttribute('aria-valuemax', '100')
+    expect(mainProgressBar).toHaveAttribute('aria-valuenow', '85')
   })
 })

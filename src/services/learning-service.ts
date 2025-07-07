@@ -65,7 +65,7 @@ export class LearningService {
    */
   async initializeLearningProfile(
     userId: string,
-    varkResponses?: Record<string, string>
+    varkResponses?: VARKResponse[]
   ): Promise<LearningProfile> {
     try {
       const assessments: StyleAssessment[] = [];

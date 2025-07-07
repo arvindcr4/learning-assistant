@@ -123,9 +123,9 @@ const QuizCard = React.forwardRef<HTMLDivElement, QuizCardProps>(
             {progress?.completed && (
               <div className="flex items-center space-x-2">
                 {isPassed ? (
-                  <CheckCircle className="h-5 w-5 text-learning-secondary" />
+                  <CheckCircle className="h-5 w-5 text-learning-secondary" data-testid="check-circle" />
                 ) : (
-                  <XCircle className="h-5 w-5 text-destructive" />
+                  <XCircle className="h-5 w-5 text-destructive" data-testid="x-circle" />
                 )}
                 {progress.score !== undefined && (
                   <Badge variant={getScoreBadge(progress.score)}>
@@ -186,6 +186,10 @@ const QuizCard = React.forwardRef<HTMLDivElement, QuizCardProps>(
                     max={100}
                     variant="learning"
                     size="sm"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progress.score}
+                    role="progressbar"
                   />
                 </div>
               )}

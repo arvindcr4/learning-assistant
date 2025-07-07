@@ -1,6 +1,7 @@
 import { query, transaction } from './connection';
 import { PoolClient } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
+import { LearningStyleType } from './models';
 
 // Generic query result interface
 export interface QueryResult<T = any> {
@@ -136,8 +137,8 @@ export class DatabaseUtils {
       };
       
       const dominantStyle = Object.entries(scores).reduce((a, b) => 
-        scores[a[0]] > scores[b[0]] ? a : b
-      )[0];
+        scores[a[0] as keyof typeof scores] > scores[b[0] as keyof typeof scores] ? a : b
+      )[0] as LearningStyleType;
       
       // Check if multimodal (multiple styles within 20% of each other)
       const maxScore = Math.max(...Object.values(scores));
@@ -246,7 +247,7 @@ export class DatabaseUtils {
     
     if (options?.difficulty) {
       queryText += ` AND ac.difficulty = $${paramIndex}`;
-      params.push(options.difficulty);
+      params.push(options.difficulty.toString());
       paramIndex++;
     }
     
@@ -260,7 +261,7 @@ export class DatabaseUtils {
     
     if (options?.limit) {
       queryText += ` LIMIT $${paramIndex}`;
-      params.push(options.limit);
+      params.push(options.limit.toString());
     }
     
     const result = await query(queryText, params);

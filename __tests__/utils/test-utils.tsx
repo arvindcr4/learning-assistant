@@ -268,3 +268,65 @@ declare global {
 
 // Setup custom matchers
 expect.extend(customMatchers)
+
+// Additional test utilities for component testing
+export const waitFor = async (callback: () => boolean, timeout = 5000) => {
+  const startTime = Date.now()
+  
+  while (Date.now() - startTime < timeout) {
+    if (callback()) {
+      return true
+    }
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  
+  throw new Error(`Timeout waiting for condition after ${timeout}ms`)
+}
+
+export const findByTextContent = (container: HTMLElement, text: string) => {
+  return Array.from(container.querySelectorAll('*')).find(element => 
+    element.textContent?.includes(text)
+  )
+}
+
+export const queryByTextContent = (container: HTMLElement, text: string) => {
+  return Array.from(container.querySelectorAll('*')).find(element => 
+    element.textContent?.includes(text)
+  ) || null
+}
+
+export const getAllByTextContent = (container: HTMLElement, text: string) => {
+  return Array.from(container.querySelectorAll('*')).filter(element => 
+    element.textContent?.includes(text)
+  )
+}
+
+// Test ID utilities
+export const getTestId = (testId: string) => `[data-testid="${testId}"]`
+export const getByTestId = (container: HTMLElement, testId: string) => {
+  return container.querySelector(getTestId(testId))
+}
+
+// Component testing utilities
+export const renderWithProviders = (ui: ReactElement, options?: RenderOptions) => {
+  return customRender(ui, options)
+}
+
+export const createMockProps = <T>(defaults: T, overrides: Partial<T> = {}): T => {
+  return { ...defaults, ...overrides }
+}
+
+// Mock component utility for testing
+export const MockComponent = ({ 
+  children, 
+  testId = 'mock-component',
+  ...props 
+}: { 
+  children?: React.ReactNode 
+  testId?: string 
+  [key: string]: any 
+}) => (
+  <div data-testid={testId} {...props}>
+    {children}
+  </div>
+)

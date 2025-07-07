@@ -55,7 +55,7 @@ export {
 export * from './models';
 
 // Database initialization function for Next.js
-export async function initializeDatabase(): Promise<void> {
+export async function initializeDatabaseSystem(): Promise<void> {
   try {
     console.log('🔄 Initializing database connection...');
     
@@ -79,7 +79,7 @@ export async function initializeDatabase(): Promise<void> {
 }
 
 // Graceful shutdown function
-export async function shutdownDatabase(): Promise<void> {
+export async function shutdownDatabaseSystem(): Promise<void> {
   try {
     const db = getDatabase();
     await db.close();
@@ -91,7 +91,7 @@ export async function shutdownDatabase(): Promise<void> {
 }
 
 // Health check for monitoring
-export async function healthCheck(): Promise<{
+export async function databaseHealthCheck(): Promise<{
   database: boolean;
   migrations: boolean;
   tables: boolean;
@@ -143,8 +143,8 @@ export async function setupDevelopmentDatabase(): Promise<void> {
 
 // Export default configuration for easy imports
 export default {
-  initialize: initializeDatabase,
-  shutdown: shutdownDatabase,
-  healthCheck,
+  initialize: initializeDatabaseSystem,
+  shutdown: shutdownDatabaseSystem,
+  healthCheck: databaseHealthCheck,
   setupDevelopment: setupDevelopmentDatabase,
 };

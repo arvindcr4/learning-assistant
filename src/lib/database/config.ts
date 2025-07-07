@@ -58,7 +58,7 @@ export const getPoolConfig = (config: DatabaseConfig): PoolConfig => {
   // SSL configuration for production
   if (config.ssl) {
     poolConfig.ssl = {
-      rejectUnauthorized: false,
+      rejectUnauthorized: process.env.NODE_ENV === 'production',
     };
   }
 

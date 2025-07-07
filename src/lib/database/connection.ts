@@ -1,4 +1,4 @@
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { getDatabaseConfig, getPoolConfig, getCurrentEnvironment, getEnvironmentSettings } from './config';
 
 // Global connection pool instance
@@ -64,7 +64,7 @@ export class DatabaseConnection {
   }
 
   // Execute a query with automatic retry and logging
-  public async query<T = any>(
+  public async query<T extends QueryResultRow = any>(
     text: string,
     params?: any[],
     options: QueryOptions = {}
@@ -111,7 +111,7 @@ export class DatabaseConnection {
   }
 
   // Execute a query with a specific client (for transactions)
-  public async queryWithClient<T = any>(
+  public async queryWithClient<T extends QueryResultRow = any>(
     client: PoolClient,
     text: string,
     params?: any[],
@@ -201,7 +201,7 @@ export const getDatabase = (): DatabaseConnection => {
 };
 
 // Global query function for convenience
-export const query = async <T = any>(
+export const query = async <T extends QueryResultRow = any>(
   text: string,
   params?: any[],
   options?: QueryOptions

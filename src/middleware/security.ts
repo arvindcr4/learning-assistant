@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { securityLogger } from '@/lib/logger';
 
+// Middleware function type definitions
+type SecurityMiddleware = (req: NextRequest) => NextResponse | null;
+type ResponseSecurityMiddleware = (response: NextResponse, req: NextRequest) => NextResponse;
+
 // Security configuration
 interface SecurityConfig {
   rateLimit: {
@@ -59,15 +63,12 @@ const securityConfig: SecurityConfig = {
     defaultSrc: ["'self'"],
     scriptSrc: [
       "'self'",
-      "'unsafe-inline'",
-      "'unsafe-eval'",
       'https://apis.google.com',
       'https://www.googletagmanager.com',
       'https://www.google-analytics.com',
     ],
     styleSrc: [
       "'self'",
-      "'unsafe-inline'",
       'https://fonts.googleapis.com',
     ],
     imgSrc: [
@@ -119,7 +120,7 @@ setInterval(() => {
 
 // Rate limiting function
 const checkRateLimit = (req: NextRequest): boolean => {
-  const clientIp = req.ip || req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
   const key = `rate_limit:${clientIp}`;
   const now = Date.now();
   
@@ -166,7 +167,7 @@ const checkCors = (req: NextRequest): boolean => {
     securityLogger.warn('CORS violation', {
       origin,
       path: req.nextUrl.pathname,
-      ip: req.ip || req.headers.get('x-forwarded-for'),
+      ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
     });
   }
   
@@ -272,7 +273,7 @@ const detectSuspiciousActivity = (req: NextRequest): boolean => {
         path,
         method,
         userAgent,
-        ip: req.ip || req.headers.get('x-forwarded-for'),
+        ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
       });
       return true;
     }
@@ -289,7 +290,7 @@ const detectSuspiciousActivity = (req: NextRequest): boolean => {
       securityLogger.info('Bot request detected', {
         userAgent,
         path,
-        ip: req.ip || req.headers.get('x-forwarded-for'),
+        ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
       });
       // Don't block bots, just log them
     }
@@ -337,7 +338,7 @@ export const sanitizeInput = (input: string): string => {
 };
 
 // Main security middleware
-export const securityMiddleware = (req: NextRequest): NextResponse | null => {
+export const securityMiddleware: SecurityMiddleware = (req: NextRequest): NextResponse | null => {
   // Skip security checks for health endpoint
   if (req.nextUrl.pathname === '/api/health') {
     return null;
@@ -370,7 +371,7 @@ export const securityMiddleware = (req: NextRequest): NextResponse | null => {
 };
 
 // Response security middleware
-export const secureResponse = (response: NextResponse, req: NextRequest): NextResponse => {
+export const secureResponse: ResponseSecurityMiddleware = (response: NextResponse, req: NextRequest): NextResponse => {
   // Add security headers
   addSecurityHeaders(response);
   

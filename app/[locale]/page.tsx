@@ -1,5 +1,5 @@
 import { useTranslations } from 'next-intl';
-import { unstable_setRequestLocale } from 'next-intl/server';
+import { setRequestLocale } from 'next-intl/server';
 import LanguageSwitcher from './components/LanguageSwitcher';
 
 type Props = {
@@ -8,7 +8,7 @@ type Props = {
 
 export default function HomePage({ params: { locale } }: Props) {
   // Enable static rendering
-  unstable_setRequestLocale(locale);
+  setRequestLocale(locale);
 
   const t = useTranslations('common');
   const tDashboard = useTranslations('dashboard');

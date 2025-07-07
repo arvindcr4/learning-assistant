@@ -1,6 +1,10 @@
 // Authentication middleware for API routes
 import { NextRequest, NextResponse } from 'next/server';
 
+// Middleware function type definitions
+type AuthMiddleware = (request: NextRequest) => Promise<{user: AuthenticatedRequest['user'] | null; response?: NextResponse}>;
+type RateLimitMiddleware = (request: NextRequest) => NextResponse | null;
+
 export interface AuthenticatedRequest extends NextRequest {
   user?: {
     id: string;
@@ -29,7 +33,7 @@ export async function authenticateToken(token: string): Promise<AuthenticatedReq
 
 // Authentication middleware
 export async function authenticateUser(request: NextRequest): Promise<{
-  user: AuthenticatedRequest['user'];
+  user: AuthenticatedRequest['user'] | null;
   response?: NextResponse;
 }> {
   try {
@@ -97,7 +101,7 @@ export async function authenticateUser(request: NextRequest): Promise<{
 
 // Authorization middleware
 export function authorizeUser(requiredRole?: string) {
-  return (user: AuthenticatedRequest['user']): NextResponse | null => {
+  return (user: AuthenticatedRequest['user'] | null): NextResponse | null => {
     if (!user) {
       return NextResponse.json(
         { 
@@ -125,9 +129,9 @@ export function authorizeUser(requiredRole?: string) {
 // Rate limiting middleware
 const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
 
-export function rateLimit(maxRequests: number = 100, windowMs: number = 60000) {
+export function rateLimit(maxRequests: number = 100, windowMs: number = 60000): RateLimitMiddleware {
   return (request: NextRequest): NextResponse | null => {
-    const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
     const now = Date.now();
     const windowStart = now - windowMs;
     
@@ -177,7 +181,7 @@ export function corsHeaders(origin?: string) {
 
 // Combined middleware wrapper
 export function withAuth(handler: (request: AuthenticatedRequest) => Promise<NextResponse>) {
-  return async (request: NextRequest) => {
+  return async (request: NextRequest): Promise<NextResponse> => {
     try {
       // Apply rate limiting
       const rateLimitResponse = rateLimit()(request);
@@ -200,8 +204,7 @@ export function withAuth(handler: (request: AuthenticatedRequest) => Promise<Nex
       }
       
       // Add user to request
-      const authenticatedRequest = request as AuthenticatedRequest;
-      authenticatedRequest.user = user;
+      const authenticatedRequest = Object.assign(request, { user }) as AuthenticatedRequest;
       
       // Call the handler
       const result = await handler(authenticatedRequest);

@@ -216,6 +216,7 @@ export const handlers = [
     
     const mockQuiz = {
       id: quizId,
+      moduleId: 'module-123',
       title: 'JavaScript Variables Quiz',
       description: 'Test your knowledge of JavaScript variables',
       questions: [
@@ -225,6 +226,8 @@ export const handlers = [
           type: 'multiple-choice',
           options: ['var', 'let', 'const', 'All of the above'],
           correctAnswer: 'All of the above',
+          explanation: 'JavaScript has three keywords for declaring variables: var, let, and const.',
+          points: 10,
         },
       ],
       timeLimit: 15,
