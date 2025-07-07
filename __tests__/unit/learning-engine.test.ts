@@ -86,16 +86,16 @@ describe('LearningStyleDetector', () => {
 
   describe('processVARKAssessment', () => {
     it('should process VARK questionnaire responses correctly', () => {
-      const responses = {
-        'q1': 'I prefer visual diagrams when learning',
-        'q2': 'I like to listen to explanations',
-        'q3': 'I learn best by reading text',
-        'q4': 'I prefer hands-on practice',
-        'q5': 'Charts and graphs help me understand',
-        'q6': 'I like to discuss topics with others',
-        'q7': 'I prefer written instructions',
-        'q8': 'I learn by doing experiments',
-      }
+      const responses = [
+        { questionId: 'q1', response: 'I prefer visual diagrams when learning', selectedOptions: [] },
+        { questionId: 'q2', response: 'I like to listen to explanations', selectedOptions: [] },
+        { questionId: 'q3', response: 'I learn best by reading text', selectedOptions: [] },
+        { questionId: 'q4', response: 'I prefer hands-on practice', selectedOptions: [] },
+        { questionId: 'q5', response: 'Charts and graphs help me understand', selectedOptions: [] },
+        { questionId: 'q6', response: 'I like to discuss topics with others', selectedOptions: [] },
+        { questionId: 'q7', response: 'I prefer written instructions', selectedOptions: [] },
+        { questionId: 'q8', response: 'I learn by doing experiments', selectedOptions: [] },
+      ]
 
       const result = detector.processVARKAssessment(responses)
 
@@ -110,7 +110,7 @@ describe('LearningStyleDetector', () => {
     })
 
     it('should handle empty responses', () => {
-      const result = detector.processVARKAssessment({})
+      const result = detector.processVARKAssessment([])
       
       expect(result.confidence).toBe(0)
       expect(result.dataPoints).toBe(0)
@@ -209,6 +209,7 @@ describe('LearningStyleDetector', () => {
     })
   })
 })
+
 
 describe('AdaptivePaceManager', () => {
   let paceManager: AdaptivePaceManager

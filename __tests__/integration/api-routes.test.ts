@@ -16,12 +16,12 @@ jest.mock('@/services/learning-service', () => ({
 }))
 
 // Import handlers after mocking
-import profileHandler from '@/app/api/learning/profile/route'
-import sessionHandler from '@/app/api/learning/session/route'
-import analyticsHandler from '@/app/api/learning/analytics/route'
-import recommendationsHandler from '@/app/api/learning/recommendations/route'
-import varkHandler from '@/app/api/learning/assessment/vark/route'
-import adaptHandler from '@/app/api/learning/content/adapt/route'
+import * as profileHandler from '@/app/api/learning/profile/route'
+import * as sessionHandler from '@/app/api/learning/session/route'
+import * as analyticsHandler from '@/app/api/learning/analytics/route'
+import * as recommendationsHandler from '@/app/api/learning/recommendations/route'
+import * as varkHandler from '@/app/api/learning/assessment/vark/route'
+import * as adaptHandler from '@/app/api/learning/content/adapt/route'
 
 describe('API Routes Integration Tests', () => {
   let mockLearningService: any
@@ -500,7 +500,7 @@ describe('API Routes Integration Tests', () => {
     it('should handle malformed JSON requests', async () => {
       const { req, res } = createMocks({
         method: 'POST',
-        body: 'invalid json',
+        body: JSON.stringify('invalid json') as any,
       })
 
       try {

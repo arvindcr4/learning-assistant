@@ -59,11 +59,12 @@ describe('Learning Algorithms Performance Tests', () => {
     })
 
     it('should process VARK assessment quickly', () => {
-      const varkResponses: Record<string, string> = {}
+      const varkResponsesObj: Record<string, string> = {}
       for (let i = 1; i <= 16; i++) {
-        varkResponses[`q${i}`] = `Answer for question ${i}`
+        varkResponsesObj[`q${i}`] = `Answer for question ${i}`
       }
-      
+      const varkResponses = Object.entries(varkResponsesObj).map(([questionId, response]) => ({ questionId, response, selectedOptions: [] }));
+
       const startTime = performance.now()
       const result = detector.processVARKAssessment(varkResponses)
       const endTime = performance.now()

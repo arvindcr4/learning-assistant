@@ -1,0 +1,54 @@
+name: learning-assistant-do
+
+resources:
+  cloud: do
+  region: nyc1
+  instance_type: s-2vcpu-2gb  # 2 vCPUs, 2GB RAM
+  disk_size: 50
+  ports:
+    - 3000
+
+file_mounts:
+  /app: .
+
+setup: |
+  # Install Node.js 18
+  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+
+run: |
+  cd /app
+  
+  # Create production environment
+  cat > .env.local << 'EOF'
+  NODE_ENV=production
+  BETTER_AUTH_SECRET="quick-deploy-secret-$(date +%s)"
+  DATABASE_URL="sqlite:./learning_assistant.db"
+  EOF
+  
+  # Get public IP and create full environment
+  export PUBLIC_IP=$(curl -s ifconfig.me)
+  cat >> .env.local << EOF
+  BETTER_AUTH_URL="http://$PUBLIC_IP:3000"
+  NEXT_PUBLIC_API_URL="http://$PUBLIC_IP:3000"
+  NEXT_PUBLIC_APP_URL="http://$PUBLIC_IP:3000"
+  
+  # Disable external service features for quick demo
+  FEATURE_CHAT_ENABLED="false"
+  FEATURE_VOICE_ENABLED="false"
+  FEATURE_ANALYTICS_ENABLED="true"
+  FEATURE_RECOMMENDATIONS_ENABLED="true"
+  EOF
+  
+  echo "Installing dependencies..."
+  npm install --legacy-peer-deps --production
+  
+  echo "Building application..."
+  npm run build
+  
+  echo "Starting Learning Assistant..."
+  echo "🚀 Learning Assistant will be available at: http://$PUBLIC_IP:3000"
+  echo "📝 Note: This is a demo deployment with SQLite database"
+  
+  # Start the application
+  npm start

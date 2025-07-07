@@ -1,4 +1,5 @@
-import { LearningService } from '@/services/learning-service'
+import { LearningService } from '@/services/learning-service';
+import { VARKResponse } from '@/lib/vark-questionnaire';
 import {
   LearningStyleType,
   LearningProfile,
@@ -6,7 +7,7 @@ import {
   BehavioralIndicator,
   AdaptiveContent,
   ContentVariant,
-} from '@/types'
+} from '@/types';
 
 // Mock the learning engine modules
 jest.mock('@/lib/learning-engine', () => ({
@@ -100,12 +101,12 @@ describe('LearningService', () => {
   describe('initializeLearningProfile', () => {
     it('should initialize learning profile with VARK responses', async () => {
       const userId = 'test-user-123'
-      const varkResponses = {
-        'q1': 'I prefer visual diagrams',
-        'q2': 'I like audio explanations',
-        'q3': 'I learn by reading',
-        'q4': 'I prefer hands-on practice',
-      }
+      const varkResponses: VARKResponse[] = [
+        { questionId: 'q1', selectedOptions: ['q1a'] },
+        { questionId: 'q2', selectedOptions: ['q2b'] },
+        { questionId: 'q3', selectedOptions: ['q3c'] },
+        { questionId: 'q4', selectedOptions: ['q4d'] },
+      ]
 
       const profile = await service.initializeLearningProfile(userId, varkResponses)
 
@@ -413,12 +414,12 @@ describe('LearningService', () => {
   describe('processVARKAssessment', () => {
     it('should process VARK assessment and update profile', async () => {
       const userId = 'user-123'
-      const responses = {
-        'q1': 'I prefer visual diagrams',
-        'q2': 'I like audio explanations',
-        'q3': 'I learn by reading',
-        'q4': 'I prefer hands-on practice',
-      }
+      const responses: VARKResponse[] = [
+        { questionId: 'q1', selectedOptions: ['q1a'] },
+        { questionId: 'q2', selectedOptions: ['q2b'] },
+        { questionId: 'q3', selectedOptions: ['q3c'] },
+        { questionId: 'q4', selectedOptions: ['q4d'] },
+      ]
 
       const assessment = await service.processVARKAssessment(userId, responses)
 
@@ -431,7 +432,7 @@ describe('LearningService', () => {
 
     it('should handle VARK assessment errors', async () => {
       const userId = 'user-123'
-      const responses = { 'q1': 'test response' }
+      const responses: VARKResponse[] = [{ questionId: 'q1', selectedOptions: ['q1a'] }]
 
       // Mock error in getLearningProfile
       const mockGetLearningProfile = jest.fn().mockRejectedValue(new Error('Database error'))

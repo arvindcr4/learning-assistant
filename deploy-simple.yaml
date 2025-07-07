@@ -1,0 +1,39 @@
+name: learning-assistant-simple
+
+resources:
+  cloud: gcp
+  region: us-west1
+  instance_type: e2-medium  # 1 vCPU, 4GB RAM - cheaper option
+  disk_size: 30
+  ports:
+    - 3000
+
+file_mounts:
+  /home/sky/app: .
+
+setup: |
+  # Install Node.js 18
+  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+
+run: |
+  cd /home/sky/app
+  
+  # Create minimal environment
+  cat > .env.local << 'EOF'
+  NODE_ENV=production
+  BETTER_AUTH_SECRET="quick-deploy-secret-key-change-later"
+  DATABASE_URL="sqlite:./app.db"
+  NEXT_PUBLIC_API_URL="http://$(curl -s ifconfig.me):3000"
+  EOF
+  
+  # Install and build (skip problematic dependencies)
+  npm install --legacy-peer-deps --production
+  npm run build
+  
+  # Get public IP
+  export PUBLIC_IP=$(curl -s ifconfig.me)
+  echo "Starting Learning Assistant at http://$PUBLIC_IP:3000"
+  
+  # Start the app
+  npm start

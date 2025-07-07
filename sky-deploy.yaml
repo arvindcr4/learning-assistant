@@ -1,0 +1,75 @@
+name: learning-assistant
+
+resources:
+  cloud: gcp  # Can also use aws or azure
+  region: us-central1
+  instance_type: n1-standard-2  # 2 vCPUs, 7.5GB RAM
+  disk_size: 50
+  ports:
+    - 3000  # Next.js app port
+
+file_mounts:
+  /app: .
+
+setup: |
+  # Update system and install Node.js 18
+  sudo apt-get update
+  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+
+  # Install Docker
+  sudo apt-get install -y ca-certificates curl gnupg lsb-release
+  sudo mkdir -p /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  sudo apt-get update
+  sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+  # Add user to docker group
+  sudo usermod -aG docker $USER
+
+  # Install PM2 for process management
+  sudo npm install -g pm2
+
+run: |
+  cd /app
+  
+  # Install dependencies
+  npm install --legacy-peer-deps
+  
+  # Create production environment file
+  cat > .env.local << EOF
+  NODE_ENV=production
+  BETTER_AUTH_SECRET="prod-secret-$(openssl rand -hex 32)"
+  BETTER_AUTH_URL="http://$(curl -s ifconfig.me):3000"
+  DATABASE_URL="sqlite:./learning_assistant.db"
+  NEXT_PUBLIC_API_URL="http://$(curl -s ifconfig.me):3000"
+  NEXT_PUBLIC_APP_URL="http://$(curl -s ifconfig.me):3000"
+  
+  # Disable features that require external services
+  FEATURE_CHAT_ENABLED="false"
+  FEATURE_VOICE_ENABLED="false"
+  FEATURE_ANALYTICS_ENABLED="true"
+  FEATURE_RECOMMENDATIONS_ENABLED="true"
+  EOF
+  
+  # Build the application
+  npm run build
+  
+  # Setup database (SQLite for quick deployment)
+  npm run db:migrate || echo "Migration skipped"
+  npm run db:seed || echo "Seeding skipped"
+  
+  # Start the application with PM2
+  pm2 start npm --name "learning-assistant" -- start
+  pm2 startup
+  pm2 save
+  
+  # Print access information
+  echo "=================================="
+  echo "Learning Assistant is starting..."
+  echo "Public URL: http://$(curl -s ifconfig.me):3000"
+  echo "=================================="
+  
+  # Keep the application running
+  pm2 logs learning-assistant

@@ -1,0 +1,53 @@
+name: learning-assistant
+
+resources:
+  cloud: aws
+  region: us-east-1
+  instance_type: t3.small  # 2 vCPUs, 2GB RAM
+  disk_size: 20
+  ports:
+    - 3000
+
+file_mounts:
+  /home/ubuntu/app: .
+
+setup: |
+  # Update system and install Node.js 18
+  sudo apt-get update
+  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+
+run: |
+  cd /home/ubuntu/app
+  
+  # Get public IP
+  export PUBLIC_IP=$(curl -s ifconfig.me)
+  
+  # Create minimal production environment
+  cat > .env.local << EOF
+  NODE_ENV=production
+  BETTER_AUTH_SECRET="demo-secret-$(openssl rand -hex 16)"
+  BETTER_AUTH_URL="http://$PUBLIC_IP:3000"
+  DATABASE_URL="sqlite:./demo.db"
+  NEXT_PUBLIC_API_URL="http://$PUBLIC_IP:3000"
+  NEXT_PUBLIC_APP_URL="http://$PUBLIC_IP:3000"
+  
+  # Feature flags for demo
+  FEATURE_CHAT_ENABLED="false"
+  FEATURE_VOICE_ENABLED="false"
+  FEATURE_ANALYTICS_ENABLED="true"
+  FEATURE_RECOMMENDATIONS_ENABLED="true"
+  EOF
+  
+  echo "🚀 Starting Learning Assistant deployment..."
+  echo "Public URL will be: http://$PUBLIC_IP:3000"
+  
+  # Install dependencies (production only for faster deployment)
+  npm install --production --legacy-peer-deps
+  
+  # Build the app
+  npm run build
+  
+  # Start the application
+  echo "✅ Learning Assistant is starting at http://$PUBLIC_IP:3000"
+  npm start
