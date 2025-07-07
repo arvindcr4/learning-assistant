@@ -285,7 +285,9 @@ export class ConversationService {
       const prevMessage = messages[i - 1];
       const currentMessage = messages[i];
       
-      if (prevMessage.role === 'user' && currentMessage.role === 'assistant') {
+      if (prevMessage && currentMessage && 
+          prevMessage.role === 'user' && currentMessage.role === 'assistant' &&
+          prevMessage.timestamp && currentMessage.timestamp) {
         const timeDiff = currentMessage.timestamp.getTime() - prevMessage.timestamp.getTime();
         totalTime += timeDiff;
         responseCount++;

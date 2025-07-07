@@ -3,6 +3,9 @@
 // UI Components
 export * from './ui';
 
+// Magic UI Components
+export * from './magicui';
+
 // Layout Components
 export * from './layout';
 

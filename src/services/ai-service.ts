@@ -1,6 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { TamboAI } from '@tambo-ai/typescript-sdk';
+import { errorHandler } from './error-handler';
 
 import { 
   AIConfig, 
@@ -188,7 +189,7 @@ export class AIService {
     conversationHistory: ChatMessage[] = [],
     persona?: AIPersona
   ): Promise<AIResponse> {
-    try {
+    return errorHandler.handleError(async () => {
       // Input validation and sanitization
       if (!message || typeof message !== 'string') {
         throw new Error('Invalid message input');
@@ -226,13 +227,10 @@ export class AIService {
       this.updateTokenUsage(response.usage?.total_tokens || estimatedTokens);
       
       return this.processAIResponse(response, context);
-    } catch (error) {
-      console.error('AI Service Error:', error);
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Failed to generate AI response');
-    }
+    }, context, 'ai_response').catch(error => {
+      // Return fallback response for handled errors
+      return errorHandler.generateFallbackAIResponse(error, context);
+    });
   }
 
   async generateStreamingResponse(
@@ -242,7 +240,7 @@ export class AIService {
     persona?: AIPersona,
     onChunk?: (chunk: StreamingResponse) => void
   ): Promise<AIResponse> {
-    try {
+    return errorHandler.handleError(async () => {
       // Input validation and sanitization (same as generateResponse)
       if (!message || typeof message !== 'string') {
         throw new Error('Invalid message input');
@@ -279,13 +277,10 @@ export class AIService {
       this.updateTokenUsage(response.usage?.total_tokens || estimatedTokens);
       
       return this.processAIResponse(response, context);
-    } catch (error) {
-      console.error('AI Streaming Service Error:', error);
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Failed to generate streaming AI response');
-    }
+    }, context, 'ai_streaming').catch(error => {
+      // Return fallback response for handled errors
+      return errorHandler.generateFallbackAIResponse(error, context);
+    });
   }
 
   private buildSystemPrompt(persona: AIPersona, context: LearningContext): string {
@@ -492,13 +487,18 @@ If the request is inappropriate or outside educational scope:
       ];
 
       // Use Tambo SDK to advance the thread
+      const lastMessage = messages[messages.length - 1];
+      if (!lastMessage) {
+        throw new Error('No message to send');
+      }
+
       const response = await this.tamboClient.beta.threads.advance({
-        messageToAppend: messages[messages.length - 1] // Send the user message
+        messageToAppend: lastMessage
       });
 
       // Transform Tambo response to match expected format
       return {
-        id: response.id || uuidv4(),
+        id: (response as any).id || uuidv4(),
         choices: [{
           message: {
             content: this.extractTextFromTamboResponse(response)

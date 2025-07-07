@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PerformanceAnalyticsEngine } from '@/lib/performance-analytics';
 import { LearningService } from '@/services/learning-service';
 import { validateQueryParams, AnalyticsValidationRules } from '@/utils/validation';
+import { apm } from '@/lib/apm';
+import databaseMonitoring from '@/lib/monitoring/database-monitoring';
+import logger from '@/lib/logger';
 
 interface PerformanceMetrics {
   [metricName: string]: {

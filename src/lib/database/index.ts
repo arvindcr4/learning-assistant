@@ -59,17 +59,8 @@ export async function initializeDatabaseSystem(): Promise<void> {
   try {
     console.log('🔄 Initializing database connection...');
     
-    // Check database health (stub implementation)
-    const isHealthy = await (async () => {
-      try {
-        const client = await getDbClient();
-        await client.query('SELECT 1');
-        return true;
-      } catch (error) {
-        console.error('Database health check failed:', error);
-        return false;
-      }
-    })();
+    // Check database health using the optimized connection
+    const isHealthy = await checkDatabaseHealth();
     if (!isHealthy) {
       throw new Error('Database health check failed');
     }
@@ -101,16 +92,8 @@ export async function databaseHealthCheck(): Promise<{
   tables: boolean;
 }> {
   try {
-    // Stub implementation for health check
-    const dbHealth = await (async () => {
-      try {
-        const client = await getDbClient();
-        await client.query('SELECT 1');
-        return true;
-      } catch {
-        return false;
-      }
-    })();
+    // Use the optimized database connection for health check
+    const dbHealth = await checkDatabaseHealth();
     
     return {
       database: dbHealth,

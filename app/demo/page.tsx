@@ -33,9 +33,18 @@ import {
   LearningStyleIndicator,
   Alert,
   ToastProvider,
-  useToastHelpers
+  useToastHelpers,
+  // Magic UI Components
+  MagicUIDemo,
+  AnimatedProgress,
+  EnhancedCard,
+  ShimmerButton,
+  BlurFade,
+  BentoGrid,
+  BentoGridItem
 } from '@/components';
-import type { User, LearningStyleType, Quiz, LearningModule, LearningProfile } from '@/types';
+import type { User, Quiz, LearningModule, LearningProfile } from '@/types';
+import { LearningStyleType } from '@/types';
 
 // Demo data
 const demoUser: User = {

@@ -175,8 +175,13 @@ export function safeAnalyticsDataByDate<T>(
   if (typeof date === 'string') {
     dateKey = date;
   } else if (isValidDate(date)) {
-    dateKey = date.toISOString().split('T')[0];
+    dateKey = date.toISOString().split('T')[0] || '';
   } else {
+    return defaultValue;
+  }
+
+  // Check if dateKey is valid
+  if (!dateKey) {
     return defaultValue;
   }
 

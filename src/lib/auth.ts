@@ -5,7 +5,7 @@ import { env } from "./env-validation";
 
 export const auth = betterAuth({
   database: {
-    provider: "sqlite",
+    provider: "pg", // Changed from sqlite to pg for PostgreSQL/Supabase
     url: env.DATABASE_URL,
   },
   emailAndPassword: {

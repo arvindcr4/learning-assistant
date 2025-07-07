@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withSecureAuth } from '@/middleware/secure-auth';
+import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
 import { mfaManager } from '@/lib/mfa/mfa-manager';
 import { z } from 'zod';
 
@@ -8,7 +8,7 @@ const setupSchema = z.object({
   deviceName: z.string().min(1).max(100).optional(),
 });
 
-async function handler(request: NextRequest) {
+async function handler(request: AuthenticatedRequest) {
   try {
     const body = await request.json();
     const { type, deviceName } = setupSchema.parse(body);

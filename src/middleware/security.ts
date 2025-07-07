@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-// import { securityLogger } from '@/lib/logger'; // Removed due to Edge Runtime compatibility
 
 // Middleware function type definitions
 type SecurityMiddleware = (req: NextRequest) => NextResponse | null;

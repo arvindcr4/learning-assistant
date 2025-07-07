@@ -87,7 +87,7 @@ describe('reactOptimizations', () => {
       const ShallowMemoizedComponent = createShallowMemo(TestComponent);
       
       expect(ShallowMemoizedComponent).toBeDefined();
-      expect(ShallowMemoizedComponent.displayName).toBe('Memo(TestComponent)');
+      expect(ShallowMemoizedComponent.displayName).toBe('Tracked(TestComponent)');
     });
   });
 

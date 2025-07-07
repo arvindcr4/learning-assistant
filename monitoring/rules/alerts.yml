@@ -1,0 +1,250 @@
+groups:
+  - name: learning-assistant.rules
+    rules:
+      # Application Performance Alerts
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, api_request_duration_seconds_bucket) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.route }}"
+
+      - alert: CriticalResponseTime
+        expr: histogram_quantile(0.95, api_request_duration_seconds_bucket) > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Critical response time detected"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.route }}"
+
+      - alert: HighErrorRate
+        expr: rate(errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second"
+
+      - alert: CriticalErrorRate
+        expr: rate(errors_total[5m]) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is {{ $value }} errors per second"
+
+      # Infrastructure Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: CriticalCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Critical CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighDiskUsage
+        expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/"} * 100) / node_filesystem_size_bytes{mountpoint="/"}) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: CriticalDiskUsage
+        expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/"} * 100) / node_filesystem_size_bytes{mountpoint="/"}) > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Critical disk usage detected"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # Database Alerts
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, db_query_duration_seconds_bucket) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile database query time is {{ $value }}s for {{ $labels.table }}"
+
+      - alert: HighDatabaseConnections
+        expr: db_connections_active > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High database connections"
+          description: "Database has {{ $value }} active connections"
+
+      - alert: CriticalDatabaseConnections
+        expr: db_connections_active > 95
+        for: 2m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Critical database connections"
+          description: "Database has {{ $value }} active connections"
+
+      # Learning Analytics Alerts
+      - alert: LowLearningCompletionRate
+        expr: learning_completion_rate < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "Low learning completion rate"
+          description: "Learning completion rate is {{ $value }} for {{ $labels.content_type }}"
+
+      - alert: HighUserDropoffRate
+        expr: rate(learning_sessions_total[1h]) < 0.1
+        for: 30m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High user dropoff rate detected"
+          description: "Learning session rate has dropped to {{ $value }} per second"
+
+      - alert: LowUserEngagement
+        expr: avg(user_engagement_score) < 0.3
+        for: 15m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "Low user engagement detected"
+          description: "Average user engagement score is {{ $value }}"
+
+      # Security Alerts
+      - alert: HighSecurityEvents
+        expr: rate(security_events_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High security events rate"
+          description: "Security events rate is {{ $value }} per second"
+
+      - alert: CriticalSecurityEvents
+        expr: rate(security_events_total[5m]) > 0.5
+        for: 1m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Critical security events rate"
+          description: "Security events rate is {{ $value }} per second"
+
+      # Service Availability Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: HighLatency
+        expr: avg(api_request_duration_seconds) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High average latency"
+          description: "Average request latency is {{ $value }}s"
+
+      # Container Resource Alerts
+      - alert: HighContainerCPU
+        expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High container CPU usage"
+          description: "Container {{ $labels.name }} CPU usage is {{ $value }}%"
+
+      - alert: HighContainerMemory
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High container memory usage"
+          description: "Container {{ $labels.name }} memory usage is {{ $value }}%"
+
+      # Cost Monitoring Alerts
+      - alert: HighInfrastructureCost
+        expr: infrastructure_cost_daily > 50
+        for: 1h
+        labels:
+          severity: warning
+          service: learning-assistant
+        annotations:
+          summary: "High infrastructure cost"
+          description: "Daily infrastructure cost is ${{ $value }}"
+
+      - alert: CriticalInfrastructureCost
+        expr: infrastructure_cost_daily > 100
+        for: 30m
+        labels:
+          severity: critical
+          service: learning-assistant
+        annotations:
+          summary: "Critical infrastructure cost"
+          description: "Daily infrastructure cost is ${{ $value }}"

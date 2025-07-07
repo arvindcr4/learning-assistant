@@ -37,7 +37,7 @@ const monitoringState = {
 };
 
 // User analytics tracking
-export const userAnalytics = {
+const userAnalytics = {
   trackPageView: (userId: string, page: string, metadata?: any) => {
     if (!config.userAnalytics || !config.enabled) return;
     
@@ -147,7 +147,7 @@ export const userAnalytics = {
 };
 
 // Cost monitoring
-export const costMonitoring = {
+const costMonitoring = {
   trackApiUsage: (service: string, usage: number, cost: number) => {
     if (!config.costTracking || !config.enabled) return;
     
@@ -211,7 +211,7 @@ export const costMonitoring = {
 };
 
 // Security monitoring
-export const securityMonitoring = {
+const securityMonitoring = {
   trackSecurityEvent: (eventType: string, severity: 'low' | 'medium' | 'high' | 'critical', details: any) => {
     if (!config.securityMonitoring || !config.enabled) return;
     
@@ -270,7 +270,7 @@ export const securityMonitoring = {
 };
 
 // Error tracking
-export const errorTracking = {
+const errorTracking = {
   trackError: (error: Error, context?: any) => {
     if (!config.enabled) return;
     
@@ -323,7 +323,7 @@ export const errorTracking = {
 };
 
 // Performance monitoring
-export const performanceMonitoring = {
+const performanceMonitoring = {
   trackPerformanceIssue: (operation: string, duration: number, metadata?: any) => {
     if (!config.enabled) return;
     
@@ -354,7 +354,7 @@ export const performanceMonitoring = {
 };
 
 // Health check
-export const healthCheck = {
+const healthCheck = {
   performHealthCheck: async () => {
     const now = Date.now();
     monitoringState.lastHealthCheck = now;
@@ -386,7 +386,7 @@ export const healthCheck = {
 };
 
 // Configuration management
-export const monitoring = {
+const monitoring = {
   configure: (newConfig: Partial<MonitoringConfig>) => {
     config = { ...config, ...newConfig };
     logger.info('Monitoring configuration updated', newConfig);
@@ -431,7 +431,8 @@ if (config.enabled) {
   }
 }
 
-export default {
+// Default export (alternative access)
+const monitoringService = {
   userAnalytics,
   costMonitoring,
   securityMonitoring,
@@ -440,3 +441,5 @@ export default {
   healthCheck,
   monitoring,
 };
+
+export default monitoringService;

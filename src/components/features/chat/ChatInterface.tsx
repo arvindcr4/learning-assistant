@@ -7,6 +7,8 @@ import { formatDistanceToNow } from 'date-fns';
 
 import { ChatMessage, ChatSession, LearningContext, AIResponse, StreamingResponse } from '../../../types';
 import { aiService } from '../../../services/ai-service';
+import VoiceInput from './VoiceInput';
+import TextToSpeech from './TextToSpeech';
 
 interface ChatInterfaceProps {
   userId: string;
@@ -31,6 +33,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [streamingContent, setStreamingContent] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [autoPlayResponses, setAutoPlayResponses] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -226,6 +230,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
+  const handleVoiceTranscription = useCallback((transcribedText: string) => {
+    setInputMessage(transcribedText);
+    // Auto-send the message after transcription
+    setTimeout(() => {
+      if (transcribedText.trim()) {
+        handleSendMessage();
+      }
+    }, 500);
+  }, [handleSendMessage]);
+
+  const handleVoiceError = useCallback((error: string) => {
+    setError(`Voice input error: ${error}`);
+  }, []);
+
   const handleClearChat = () => {
     if (window.confirm('Are you sure you want to clear this conversation?')) {
       setMessages([]);
@@ -256,7 +274,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   ? 'bg-gray-100 text-gray-700 border'
                   : 'bg-white border text-gray-800'
             }`}>
-              <div className="whitespace-pre-wrap">{message.content}</div>
+              <div className="flex items-start justify-between">
+                <div className="whitespace-pre-wrap flex-1">{message.content}</div>
+                
+                {/* Text-to-Speech for assistant messages */}
+                {!isUser && voiceEnabled && (
+                  <div className="ml-3 flex-shrink-0">
+                    <TextToSpeech
+                      text={message.content}
+                      autoPlay={autoPlayResponses}
+                      showControls={true}
+                      onError={(error) => console.error('TTS Error:', error)}
+                    />
+                  </div>
+                )}
+              </div>
               
               {message.metadata?.followUpQuestions && message.metadata.followUpQuestions.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-200">
@@ -350,6 +382,91 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </div>
       </div>
 
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="bg-gray-100 border-b p-4">
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Chat Settings</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Voice Settings */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Voice Features</h4>
+                
+                <div className="flex items-center justify-between">
+                  <label className="text-sm">Enable Voice Input</label>
+                  <input
+                    type="checkbox"
+                    checked={voiceEnabled}
+                    onChange={(e) => setVoiceEnabled(e.target.checked)}
+                    className="rounded"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <label className="text-sm">Auto-play AI Responses</label>
+                  <input
+                    type="checkbox"
+                    checked={autoPlayResponses}
+                    onChange={(e) => setAutoPlayResponses(e.target.checked)}
+                    className="rounded"
+                  />
+                </div>
+              </div>
+
+              {/* AI Settings */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">AI Behavior</h4>
+                
+                <div className="flex items-center justify-between">
+                  <label className="text-sm">Adaptive Mode</label>
+                  <input
+                    type="checkbox"
+                    checked={session?.settings.adaptiveMode || false}
+                    onChange={(e) => {
+                      if (session) {
+                        const updatedSession = {
+                          ...session,
+                          settings: {
+                            ...session.settings,
+                            adaptiveMode: e.target.checked
+                          }
+                        };
+                        setSession(updatedSession);
+                        onSessionUpdate?.(updatedSession);
+                      }
+                    }}
+                    className="rounded"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <label className="text-sm">Tutorial Mode</label>
+                  <input
+                    type="checkbox"
+                    checked={session?.settings.tutorialMode || false}
+                    onChange={(e) => {
+                      if (session) {
+                        const updatedSession = {
+                          ...session,
+                          settings: {
+                            ...session.settings,
+                            tutorialMode: e.target.checked
+                          }
+                        };
+                        setSession(updatedSession);
+                        onSessionUpdate?.(updatedSession);
+                      }
+                    }}
+                    className="rounded"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, index) => renderMessage(message, index))}
@@ -375,6 +492,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={isLoading}
           />
+          
+          {/* Voice Input */}
+          {voiceEnabled && (
+            <VoiceInput
+              onTranscription={handleVoiceTranscription}
+              onError={handleVoiceError}
+              disabled={isLoading}
+              className="flex-shrink-0"
+            />
+          )}
+          
           <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputMessage.trim()}

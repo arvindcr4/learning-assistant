@@ -1,0 +1,18 @@
+{
+    "deployment_id": "fly_production_20250707_211201",
+    "platform": "fly",
+    "environment": "production",
+    "timestamp": "2025-07-07T23:15:00+05:30",
+    "current_deployment_url": "https://learning-assistant-lively-rain-3457.fly.dev",
+    "previous_deployment_id": "fly_production_20250707_210948",
+    "rollback_available": true,
+    "rollback_tested": false,
+    "created_by": "deployment_tester",
+    "rollback_commands": {
+        "platform_specific": [],
+        "cleanup_commands": [],
+        "validation_commands": []
+    },
+    "backup_files": [],
+    "configuration_snapshot": {}
+}

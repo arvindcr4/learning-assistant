@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withSecureAuth } from '@/middleware/secure-auth';
+import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
 import { mfaManager } from '@/lib/mfa/mfa-manager';
 
-async function handler(request: NextRequest) {
+async function handler(request: AuthenticatedRequest) {
   try {
     const userId = request.user!.id;
     const status = mfaManager.getMFAStatus(userId);

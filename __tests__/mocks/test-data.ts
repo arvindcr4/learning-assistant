@@ -598,3 +598,34 @@ export const createLargeDataset = (size: number) => {
   
   return { sessions, indicators }
 }
+
+// VARK Test Data Generator
+export const generateVARKResponses = (count = 64): VARKResponse[] => {
+  const responses: VARKResponse[] = []
+  
+  for (let i = 1; i <= count; i++) {
+    const questionId = `q${i}`
+    const optionIndex = Math.floor(Math.random() * 4) // Random option a, b, c, or d
+    const optionId = `${questionId}${String.fromCharCode(97 + optionIndex)}` // 97 is 'a'
+    
+    responses.push({
+      questionId,
+      selectedOptions: [optionId],
+    })
+  }
+  
+  return responses
+}
+
+export const generateValidVARKResponses = (): VARKResponse[] => {
+  // Generate responses that will pass validation (at least 80% of 80 questions = 64 responses)
+  return generateVARKResponses(64)
+}
+
+export const generatePartialVARKResponses = (): VARKResponse[] => {
+  // Generate responses that will fail validation (less than 80%)
+  return generateVARKResponses(30)
+}
+
+// Import VARKResponse type
+import { VARKResponse } from '@/lib/vark-questionnaire'

@@ -34,6 +34,39 @@ export function useDeepMemo<T>(factory: () => T, deps: React.DependencyList): T 
   return resultRef.current!;
 }
 
+// Optimized callback hook
+export function useOptimizedCallback<T extends (...args: any[]) => any>(
+  callback: T,
+  deps: React.DependencyList
+): T {
+  return useCallback(callback, deps);
+}
+
+// Optimized memo hook (alias for useMemo)
+export function useOptimizedMemo<T>(
+  factory: () => T,
+  deps: React.DependencyList
+): T {
+  return useMemo(factory, deps);
+}
+
+// Conditional render hook
+export function useConditionalRender<T>(
+  condition: boolean,
+  component: () => T
+): T | null {
+  return useMemo(() => {
+    return condition ? component() : null;
+  }, [condition, component]);
+}
+
+// Deferred value hook (for React 18 compatibility)
+export function useDeferredValue<T>(value: T): T {
+  // For backward compatibility, just return the value
+  // In React 18+, this would use React.useDeferredValue
+  return value;
+}
+
 // Memory leak prevention hook
 export function useMemoryLeakPrevention() {
   const mountedRef = useRef(true);
@@ -49,12 +82,82 @@ export function useMemoryLeakPrevention() {
   return { isMounted };
 }
 
+// Deep equality comparison function
+export function deepEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  
+  if (a === null || b === null) return false;
+  if (typeof a !== 'object' || typeof b !== 'object') return false;
+  
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  
+  if (keysA.length !== keysB.length) return false;
+  
+  for (const key of keysA) {
+    if (!keysB.includes(key)) return false;
+    if (!deepEqual(a[key], b[key])) return false;
+  }
+  
+  return true;
+}
+
+// Shallow equality comparison function
+export function shallowEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  
+  if (a === null || b === null) return false;
+  if (typeof a !== 'object' || typeof b !== 'object') return false;
+  
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  
+  if (keysA.length !== keysB.length) return false;
+  
+  for (const key of keysA) {
+    if (a[key] !== b[key]) return false;
+  }
+  
+  return true;
+}
+
 // Optimized memo wrapper with custom comparison
 export function createMemoComponent<T extends React.ComponentType<any>>(
   Component: T,
-  areEqual?: (prevProps: React.ComponentProps<T>, nextProps: React.ComponentProps<T>) => boolean
+  areEqual?: (prevProps: Readonly<React.ComponentProps<T>>, nextProps: Readonly<React.ComponentProps<T>>) => boolean
 ) {
   return memo(Component, areEqual);
+}
+
+// Create optimized memo component
+export function createOptimizedMemo<T extends React.ComponentType<any>>(
+  Component: T
+) {
+  const MemoizedComponent = memo(Component);
+  MemoizedComponent.displayName = `Memo(${Component.displayName || Component.name || 'Component'})`;
+  return MemoizedComponent;
+}
+
+// Create deep memo component
+export function createDeepMemo<T extends React.ComponentType<any>>(
+  Component: T
+) {
+  const MemoizedComponent = memo(Component, (prevProps: Readonly<React.ComponentProps<T>>, nextProps: Readonly<React.ComponentProps<T>>) => {
+    return deepEqual(prevProps, nextProps);
+  });
+  MemoizedComponent.displayName = `Memo(${Component.displayName || Component.name || 'Component'})`;
+  return MemoizedComponent;
+}
+
+// Create shallow memo component
+export function createShallowMemo<T extends React.ComponentType<any>>(
+  Component: T
+) {
+  const MemoizedComponent = memo(Component, (prevProps: Readonly<React.ComponentProps<T>>, nextProps: Readonly<React.ComponentProps<T>>) => {
+    return shallowEqual(prevProps, nextProps);
+  });
+  MemoizedComponent.displayName = `Tracked(${Component.displayName || Component.name || 'Component'})`;
+  return MemoizedComponent;
 }
 
 // Debounced state hook
@@ -270,9 +373,19 @@ export function useOptimizedFormField<T>(
   };
 }
 
-export default {
+// React optimizations export object for compatibility
+export const ReactOptimizations = {
+  createOptimizedMemo,
+  createDeepMemo,
+  createShallowMemo,
+  deepEqual,
+  shallowEqual,
   useStableCallback,
   useDeepMemo,
+  useOptimizedCallback,
+  useOptimizedMemo,
+  useConditionalRender,
+  useDeferredValue,
   useMemoryLeakPrevention,
   createMemoComponent,
   useDebouncedState,
@@ -282,4 +395,8 @@ export default {
   usePerformanceMonitor,
   createOptimizedProvider,
   useOptimizedFormField,
+};
+
+export default {
+  ...ReactOptimizations,
 };

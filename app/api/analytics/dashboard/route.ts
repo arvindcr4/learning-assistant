@@ -155,17 +155,21 @@ export async function GET(request: NextRequest) {
       ],
     };
     
-    // Filter metrics if specified
-    let filteredData = dashboardData;
+    // Filter metrics if specified with type safety
+    let filteredData: any = dashboardData;
     if (metrics.length > 0) {
-      filteredData = {};
+      const filtered: any = {
+        timestamp: dashboardData.timestamp,
+        timeRange: dashboardData.timeRange
+      };
+      
       metrics.forEach(metric => {
-        if (dashboardData[metric]) {
-          filteredData[metric] = dashboardData[metric];
+        if (metric && typeof metric === 'string' && metric in dashboardData) {
+          filtered[metric] = dashboardData[metric as keyof typeof dashboardData];
         }
       });
-      filteredData.timestamp = dashboardData.timestamp;
-      filteredData.timeRange = dashboardData.timeRange;
+      
+      filteredData = filtered;
     }
     
     apm.endTrace(traceId, { 

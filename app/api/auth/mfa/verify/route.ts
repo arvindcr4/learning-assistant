@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withSecureAuth } from '@/middleware/secure-auth';
+import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
 import { mfaManager } from '@/lib/mfa/mfa-manager';
 import { z } from 'zod';
 
@@ -10,7 +10,7 @@ const verifySchema = z.object({
   setup: z.boolean().optional(),
 });
 
-async function handler(request: NextRequest) {
+async function handler(request: AuthenticatedRequest) {
   try {
     const body = await request.json();
     const { deviceId, challengeId, token, setup } = verifySchema.parse(body);
