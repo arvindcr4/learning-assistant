@@ -1,7 +1,7 @@
-// Simple logger for production compatibility with Edge Runtime
+// Edge Runtime compatible logger
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-// Fallback console logger for production/Edge Runtime
+// Simple console logger that works everywhere
 const createSimpleLogger = () => {
   const log = (level: string, message: string, meta?: any) => {
     const timestamp = new Date().toISOString();
@@ -20,52 +20,8 @@ const createSimpleLogger = () => {
   };
 };
 
-// Create Winston logger only in development and server-side
-const createWinstonLogger = () => {
-  if (!isDevelopment || typeof window !== 'undefined') {
-    return null;
-  }
-
-  try {
-    const winston = require('winston');
-    const { combine, timestamp, errors, json, printf, colorize } = winston.format;
-    
-    // Custom log format for console output
-    const consoleFormat = printf(({ level, message, timestamp, stack, ...meta }: any) => {
-      const metaString = Object.keys(meta).length ? JSON.stringify(meta) : '';
-      return `${timestamp} [${level}]: ${message} ${stack || ''} ${metaString}`;
-    });
-
-    const logLevel = process.env.LOG_LEVEL || 'debug';
-    
-    return winston.createLogger({
-      level: logLevel,
-      format: combine(
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        errors({ stack: true }),
-        json()
-      ),
-      transports: [
-        new winston.transports.Console({
-          format: combine(
-            colorize({ all: true }),
-            timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-            errors({ stack: true }),
-            consoleFormat
-          ),
-          level: logLevel,
-        }),
-      ],
-    });
-  } catch (error) {
-    console.warn('Winston not available, using simple logger');
-    return null;
-  }
-};
-
-// Create the appropriate logger
-const winstonLogger = createWinstonLogger();
-const logger = winstonLogger || createSimpleLogger();
+// Use simple logger for Edge Runtime compatibility
+const logger = createSimpleLogger();
 
 // Request logging middleware
 export const requestLogger = (req: any, res: any, next: any) => {
@@ -74,7 +30,7 @@ export const requestLogger = (req: any, res: any, next: any) => {
   
   logger.http(`${method} ${url}`, {
     userAgent: headers['user-agent'],
-    ip: headers['x-forwarded-for'] || req.connection.remoteAddress,
+    ip: headers['x-forwarded-for'] || req.connection?.remoteAddress,
   });
 
   res.on('finish', () => {
