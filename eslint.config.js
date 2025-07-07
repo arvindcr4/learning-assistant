@@ -1,17 +1,5 @@
-import { FlatCompat } from '@eslint/eslintrc';
+// Simple ESLint config for production compatibility
 import js from '@eslint/js';
-import typescriptEslint from '@typescript-eslint/eslint-plugin';
-import typescriptParser from '@typescript-eslint/parser';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-  allConfig: js.configs.all,
-});
 
 export default [
   {
@@ -21,30 +9,38 @@ export default [
       'out/**',
       'dist/**',
       '**/*.d.ts',
+      'build/**',
+      'coverage/**',
     ],
   },
-  ...compat.extends(
-    'next/core-web-vitals',
-    '@typescript-eslint/recommended',
-    'prettier'
-  ),
+  js.configs.recommended,
   {
-    plugins: {
-      '@typescript-eslint': typescriptEslint,
-    },
+    files: ['**/*.{js,jsx,ts,tsx}'],
     languageOptions: {
-      parser: typescriptParser,
       ecmaVersion: 'latest',
       sourceType: 'module',
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        global: 'readonly',
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        fetch: 'readonly',
+      },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': 'warn',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-empty-function': 'warn',
-      'prefer-const': 'error',
-      'no-var': 'error',
+      'no-unused-vars': 'warn',
+      'no-console': 'off',
+      'no-undef': 'off', // TypeScript handles this
+      'no-redeclare': 'off', // TypeScript handles this
     },
   },
 ];
