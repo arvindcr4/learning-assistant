@@ -1,5 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import { TamboAI } from '@tambo-ai/typescript-sdk';
+
 import { 
   AIConfig, 
   AIPersona, 
@@ -98,12 +100,14 @@ export class AIService {
   private tokenBudget: TokenBudget;
   private requestQueue: Array<{ resolve: Function; reject: Function; request: any }> = [];
   private isProcessingQueue = false;
+  private tamboClient: TamboAI;
 
   constructor() {
     this.config = this.loadConfig();
     this.defaultPersona = this.createDefaultPersona();
     this.serviceConfig = this.loadServiceConfig();
     this.tokenBudget = this.initializeTokenBudget();
+    this.tamboClient = this.initializeTamboClient();
     this.startRateLimitReset();
   }
 
@@ -139,10 +143,17 @@ export class AIService {
     }, 10000); // Check every 10 seconds
   }
 
+  private initializeTamboClient(): TamboAI {
+    return new TamboAI({
+      apiKey: process.env.TAMBO_API_KEY || '',
+      environment: process.env.NODE_ENV === 'production' ? 'production' : 'staging',
+    });
+  }
+
   private loadConfig(): AIConfig {
     return {
-      apiKey: process.env.TAMBO_AI_API_KEY || '',
-      baseUrl: process.env.TAMBO_AI_BASE_URL || 'https://api.tambo.ai',
+      apiKey: process.env.TAMBO_API_KEY || '',
+      baseUrl: process.env.TAMBO_AI_BASE_URL || '',
       model: process.env.TAMBO_AI_MODEL || 'tambo-chat-v1',
       maxTokens: parseInt(process.env.TAMBO_AI_MAX_TOKENS || '2000'),
       temperature: parseFloat(process.env.TAMBO_AI_TEMPERATURE || '0.7'),
@@ -469,33 +480,64 @@ If the request is inappropriate or outside educational scope:
     userPrompt: string,
     conversationHistory: ChatMessage[]
   ): Promise<any> {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
-      { role: 'user', content: userPrompt }
-    ];
+    try {
+      // Convert chat messages to Tambo format
+      const messages = [
+        { role: 'system' as const, content: [{ type: 'text' as const, text: systemPrompt }] },
+        ...conversationHistory.map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: [{ type: 'text' as const, text: msg.content }]
+        })),
+        { role: 'user' as const, content: [{ type: 'text' as const, text: userPrompt }] }
+      ];
 
-    const response: AxiosResponse = await axios.post(
-      `${this.config.baseUrl}/chat/completions`,
-      {
-        model: this.config.model,
-        messages,
-        max_tokens: this.config.maxTokens,
-        temperature: this.config.temperature,
-        stream: false
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json'
+      // Use Tambo SDK to advance the thread
+      const response = await this.tamboClient.beta.threads.advance({
+        messageToAppend: messages[messages.length - 1] // Send the user message
+      });
+
+      // Transform Tambo response to match expected format
+      return {
+        id: response.id || uuidv4(),
+        choices: [{
+          message: {
+            content: this.extractTextFromTamboResponse(response)
+          }
+        }],
+        usage: {
+          total_tokens: this.estimateTokensFromResponse(response)
         }
-      }
-    );
+      };
+    } catch (error) {
+      console.error('Tambo API Error:', error);
+      throw new Error(`Tambo API call failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 
-    return response.data;
+  private extractTextFromTamboResponse(response: any): string {
+    // Extract text content from Tambo response format
+    if (response.content && Array.isArray(response.content)) {
+      return response.content
+        .filter((item: any) => item.type === 'text')
+        .map((item: any) => item.text)
+        .join(' ');
+    }
+    
+    // Fallback for different response formats
+    if (typeof response === 'string') {
+      return response;
+    }
+    
+    if (response.text) {
+      return response.text;
+    }
+    
+    return 'No response content available';
+  }
+
+  private estimateTokensFromResponse(response: any): number {
+    const text = this.extractTextFromTamboResponse(response);
+    return InputSanitizer.estimateTokens(text);
   }
 
   private async callTamboStreamingAPI(
@@ -504,96 +546,41 @@ If the request is inappropriate or outside educational scope:
     conversationHistory: ChatMessage[],
     onChunk?: (chunk: StreamingResponse) => void
   ): Promise<any> {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
-      { role: 'user', content: userPrompt }
-    ];
-
-    const response: AxiosResponse = await axios.post(
-      `${this.config.baseUrl}/chat/completions`,
-      {
-        model: this.config.model,
-        messages,
-        max_tokens: this.config.maxTokens,
-        temperature: this.config.temperature,
-        stream: true
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        responseType: 'stream'
-      }
-    );
-
-    let fullContent = '';
-    let chunkIndex = 0;
-    const responseId = uuidv4();
-
-    return new Promise((resolve, reject) => {
-      response.data.on('data', (chunk: any) => {
-        try {
-          const chunkStr = chunk.toString();
-          const lines = chunkStr.split('\n').filter((line: string) => line.trim() !== '');
+    try {
+      // For now, use the non-streaming API and simulate streaming
+      // This can be enhanced when Tambo SDK supports streaming
+      const response = await this.callTamboAPI(systemPrompt, userPrompt, conversationHistory);
+      
+      // Simulate streaming by chunking the response
+      if (onChunk && response.choices[0].message.content) {
+        const content = response.choices[0].message.content;
+        const words = content.split(' ');
+        let accumulatedContent = '';
+        
+        for (let i = 0; i < words.length; i++) {
+          accumulatedContent += (i > 0 ? ' ' : '') + words[i];
           
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') {
-                resolve({
-                  id: responseId,
-                  choices: [{ message: { content: fullContent } }],
-                  usage: { total_tokens: fullContent.length / 4 } // Rough estimate
-                });
-                return;
-              }
-              
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
-                  const content = parsed.choices[0].delta.content;
-                  fullContent += content;
-                  
-                  if (onChunk) {
-                    onChunk({
-                      id: responseId,
-                      content: fullContent,
-                      isComplete: false,
-                      timestamp: new Date(),
-                      metadata: {
-                        chunkIndex: chunkIndex++,
-                        confidence: 0.9
-                      }
-                    });
-                  }
-                }
-              } catch (parseError) {
-                console.warn('Failed to parse chunk:', data);
-              }
+          onChunk({
+            id: response.id,
+            content: accumulatedContent,
+            isComplete: i === words.length - 1,
+            timestamp: new Date(),
+            metadata: {
+              chunkIndex: i,
+              confidence: 0.9
             }
-          }
-        } catch (error) {
-          console.error('Error processing chunk:', error);
+          });
+          
+          // Small delay to simulate streaming
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
-      });
-
-      response.data.on('end', () => {
-        resolve({
-          id: responseId,
-          choices: [{ message: { content: fullContent } }],
-          usage: { total_tokens: fullContent.length / 4 }
-        });
-      });
-
-      response.data.on('error', (error: any) => {
-        reject(error);
-      });
-    });
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Tambo Streaming API Error:', error);
+      throw new Error(`Tambo streaming API call failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private processAIResponse(response: any, context: LearningContext): AIResponse {

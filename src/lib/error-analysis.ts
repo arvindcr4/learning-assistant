@@ -1,5 +1,5 @@
 // Comprehensive Error Analysis and Feedback Engine
-import { LearningSession, AdaptiveQuestion } from '@/types';
+import type { LearningSession, AdaptiveQuestion } from '@/types';
 
 export interface ErrorPattern {
   id: string;

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import { UIState, UIAction, ModalState, ToastState } from '@/types';
+
+import type { UIState, UIAction, ModalState, ToastState } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 // Initial state

@@ -1,10 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Avatar } from '@/components/ui/Avatar';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Progress } from '@/components/ui/Progress';
 import { 
   Settings, 
   Trophy, 
@@ -15,7 +9,14 @@ import {
   TrendingUp,
   User
 } from 'lucide-react';
-import { User as UserType, LearningStyleType } from '@/types';
+
+import { cn } from '@/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Progress } from '@/components/ui/Progress';
+import type { User as UserType, LearningStyleType } from '@/types';
 
 export interface ProfileCardProps extends React.HTMLAttributes<HTMLDivElement> {
   user: UserType;

@@ -128,8 +128,8 @@ export class LocalizedFormatters {
       'ar': { 'other': '' }
     };
 
-    const localeSuffixes = suffixes[this.locale] || suffixes['en'];
-    const suffix = localeSuffixes[rule] || localeSuffixes['other'];
+    const localeSuffixes = suffixes[this.locale] || suffixes['en']!;
+    const suffix = localeSuffixes![rule] || localeSuffixes!['other'];
     
     return `${number}${suffix}`;
   }
@@ -176,8 +176,8 @@ export class LocalizedFormatters {
       }
     };
 
-    const localeUnits = units[this.locale] || units['en'];
-    const unitText = value === 1 ? localeUnits[unit].singular : localeUnits[unit].plural;
+    const localeUnits = units[this.locale] || units['en']!;
+    const unitText = value === 1 ? localeUnits![unit]!.singular : localeUnits![unit]!.plural;
     
     return `${value} ${unitText}`;
   }

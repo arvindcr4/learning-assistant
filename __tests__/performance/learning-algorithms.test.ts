@@ -52,8 +52,8 @@ describe('Learning Algorithms Performance Tests', () => {
       })
       
       // Check that execution time scales reasonably (not exponentially)
-      const timeRatio = times[3] / times[0] // 2000 vs 100 items
-      const sizeRatio = sizes[3] / sizes[0] // 20x data
+      const timeRatio = times[3]! / times[0]! // 2000 vs 100 items
+      const sizeRatio = sizes[3]! / sizes[0]! // 20x data
       
       expect(timeRatio).toBeLessThan(sizeRatio * 2) // Should not be more than 2x the size ratio
     })
@@ -339,8 +339,8 @@ describe('Learning Algorithms Performance Tests', () => {
       
       // Check that time complexity is roughly linear
       for (let i = 1; i < times.length; i++) {
-        const timeRatio = times[i] / times[i - 1]
-        const sizeRatio = sizes[i] / sizes[i - 1]
+        const timeRatio = times[i]! / times[i - 1]!
+        const sizeRatio = sizes[i]! / sizes[i - 1]!
         
         // Time ratio should not exceed size ratio by more than 50%
         expect(timeRatio).toBeLessThan(sizeRatio * 1.5)

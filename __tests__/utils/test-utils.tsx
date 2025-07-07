@@ -1,10 +1,9 @@
 import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { setupMockServer } from '../mocks/server'
-
-// Setup MSW for all tests
-setupMockServer()
+// MSW disabled due to module resolution issues
+// import { setupMockServer } from '../mocks/server'
+// setupMockServer()
 
 // Custom render function that includes providers
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {

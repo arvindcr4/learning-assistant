@@ -1,11 +1,6 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/utils';
-import { Header, Main, Sidebar } from '@/components/layout/Layout';
-import { Avatar } from '@/components/ui/Avatar';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { 
   Home, 
   BookOpen, 
@@ -21,7 +16,13 @@ import {
   Target,
   Bell
 } from 'lucide-react';
-import { User } from '@/types';
+
+import { cn } from '@/utils';
+import { Header, Main, Sidebar } from '@/components/layout/Layout';
+import { Avatar } from '@/components/ui/Avatar';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import type { User } from '@/types';
 
 export interface DashboardLayoutProps extends React.HTMLAttributes<HTMLDivElement> {
   user: User;

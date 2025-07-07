@@ -90,6 +90,14 @@ export class PerformanceAnalyticsEngine {
   private readonly ANOMALY_THRESHOLD = 2.5; // Standard deviations for anomaly detection
   private readonly MIN_SESSIONS_FOR_ML = 20;
 
+  // Configuration object for analytics processing
+  private readonly config = {
+    PAGINATION_SIZE: 100,
+    TREND_MIN_POINTS: 5,
+    OUTLIER_THRESHOLD: 2.0,
+    MAX_MEMORY_SESSIONS: 10000
+  };
+
   /**
    * Analyzes comprehensive performance metrics from learning sessions
    */
@@ -365,17 +373,50 @@ export class PerformanceAnalyticsEngine {
   // Private helper methods
 
   private calculateAccuracy(sessions: LearningSession[]): number {
-    const totalQuestions = sessions.reduce((sum, session) => sum + session.totalQuestions, 0);
-    const correctAnswers = sessions.reduce((sum, session) => sum + session.correctAnswers, 0);
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return 0;
+    }
+
+    const totalQuestions = sessions.reduce((sum, session) => {
+      if (session && typeof session.totalQuestions === 'number' && !isNaN(session.totalQuestions)) {
+        return sum + session.totalQuestions;
+      }
+      return sum;
+    }, 0);
+    
+    const correctAnswers = sessions.reduce((sum, session) => {
+      if (session && typeof session.correctAnswers === 'number' && !isNaN(session.correctAnswers)) {
+        return sum + session.correctAnswers;
+      }
+      return sum;
+    }, 0);
     
     return totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
   }
 
   private calculateSpeed(sessions: LearningSession[]): number {
-    const speeds = sessions.map(session => {
-      const questionsPerMinute = session.totalQuestions / Math.max(session.duration, 1);
-      return questionsPerMinute;
-    });
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return 0;
+    }
+
+    const speeds = sessions
+      .filter(session => 
+        session && 
+        typeof session.totalQuestions === 'number' && 
+        typeof session.duration === 'number' &&
+        !isNaN(session.totalQuestions) && 
+        !isNaN(session.duration) &&
+        session.duration > 0
+      )
+      .map(session => {
+        const questionsPerMinute = session.totalQuestions / Math.max(session.duration, 1);
+        return isFinite(questionsPerMinute) ? questionsPerMinute : 0;
+      })
+      .filter(speed => speed > 0);
+
+    if (speeds.length === 0) {
+      return 0;
+    }
 
     const averageSpeed = speeds.reduce((sum, speed) => sum + speed, 0) / speeds.length;
     
@@ -384,11 +425,23 @@ export class PerformanceAnalyticsEngine {
   }
 
   private calculateConsistency(sessions: LearningSession[]): number {
-    if (sessions.length < 2) return 0;
+    if (!Array.isArray(sessions) || sessions.length < 2) return 0;
 
-    const accuracies = sessions.map(session => 
-      session.totalQuestions > 0 ? session.correctAnswers / session.totalQuestions : 0
-    );
+    const accuracies = sessions
+      .filter(session => 
+        session && 
+        typeof session.totalQuestions === 'number' && 
+        typeof session.correctAnswers === 'number' &&
+        !isNaN(session.totalQuestions) && 
+        !isNaN(session.correctAnswers) &&
+        session.totalQuestions > 0
+      )
+      .map(session => {
+        const accuracy = session.correctAnswers / session.totalQuestions;
+        return isFinite(accuracy) && accuracy >= 0 && accuracy <= 1 ? accuracy : 0;
+      });
+
+    if (accuracies.length < 2) return 0;
 
     const mean = accuracies.reduce((sum, acc) => sum + acc, 0) / accuracies.length;
     const variance = accuracies.reduce((sum, acc) => sum + Math.pow(acc - mean, 2), 0) / accuracies.length;
@@ -417,14 +470,39 @@ export class PerformanceAnalyticsEngine {
   }
 
   private calculateEngagement(sessions: LearningSession[]): number {
-    const engagementScores = sessions.map(session => {
-      const metrics = session.engagementMetrics;
-      const focusRatio = metrics.focusTime / Math.max(session.duration, 1);
-      const interactionScore = Math.min(metrics.interactionRate / 10, 1);
-      const attentionScore = Math.max(0, 1 - (metrics.distractionEvents / 20));
-      
-      return (focusRatio + interactionScore + attentionScore) / 3;
-    });
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return 0;
+    }
+
+    const engagementScores = sessions
+      .filter(session => 
+        session && 
+        session.engagementMetrics &&
+        typeof session.engagementMetrics === 'object' &&
+        typeof session.duration === 'number' &&
+        !isNaN(session.duration) &&
+        session.duration > 0
+      )
+      .map(session => {
+        const metrics = session.engagementMetrics;
+        
+        // Ensure all metrics are valid numbers
+        const focusTime = typeof metrics.focusTime === 'number' && !isNaN(metrics.focusTime) ? metrics.focusTime : 0;
+        const interactionRate = typeof metrics.interactionRate === 'number' && !isNaN(metrics.interactionRate) ? metrics.interactionRate : 0;
+        const distractionEvents = typeof metrics.distractionEvents === 'number' && !isNaN(metrics.distractionEvents) ? metrics.distractionEvents : 0;
+        
+        const focusRatio = focusTime / Math.max(session.duration, 1);
+        const interactionScore = Math.min(interactionRate / 10, 1);
+        const attentionScore = Math.max(0, 1 - (distractionEvents / 20));
+        
+        const totalScore = (focusRatio + interactionScore + attentionScore) / 3;
+        return isFinite(totalScore) ? Math.max(0, Math.min(1, totalScore)) : 0;
+      })
+      .filter(score => score >= 0);
+
+    if (engagementScores.length === 0) {
+      return 0;
+    }
 
     const averageEngagement = engagementScores.reduce((sum, score) => sum + score, 0) / engagementScores.length;
     return Math.round(averageEngagement * 100);
@@ -811,7 +889,9 @@ export class PerformanceAnalyticsEngine {
     sessions.forEach(session => {
       if (session && 
           session.startTime instanceof Date && 
+          typeof session.totalQuestions === 'number' &&
           session.totalQuestions > 0 &&
+          typeof session.correctAnswers === 'number' &&
           session.correctAnswers >= 0) {
         
         const hour = session.startTime.getHours();
@@ -821,7 +901,10 @@ export class PerformanceAnalyticsEngine {
           if (!hourlyPerformance.has(hour)) {
             hourlyPerformance.set(hour, []);
           }
-          hourlyPerformance.get(hour)!.push(accuracy);
+          const hourData = hourlyPerformance.get(hour);
+          if (hourData) {
+            hourData.push(accuracy);
+          }
         }
       }
     });
@@ -831,36 +914,41 @@ export class PerformanceAnalyticsEngine {
     let confidence = 0;
     const hourlyStats: any = {};
 
-    hourlyPerformance.forEach((accuracies, hour) => {
-      if (accuracies.length >= 2) {
-        // Remove outliers for more robust average
-        const cleanedAccuracies = this.removeOutliers(accuracies);
-        
-        if (cleanedAccuracies.length >= 1) {
-          const avgAccuracy = cleanedAccuracies.reduce((sum, acc) => sum + acc, 0) / cleanedAccuracies.length;
-          const stdDev = cleanedAccuracies.length > 1 ? 
-            Math.sqrt(cleanedAccuracies.reduce((sum, acc) => sum + Math.pow(acc - avgAccuracy, 2), 0) / (cleanedAccuracies.length - 1)) : 0;
+    if (hourlyPerformance.size > 0) {
+      hourlyPerformance.forEach((accuracies, hour) => {
+        if (Array.isArray(accuracies) && accuracies.length >= 2) {
+          // Remove outliers for more robust average
+          const cleanedAccuracies = this.removeOutliers(accuracies);
           
-          hourlyStats[hour] = {
-            average: parseFloat(avgAccuracy.toFixed(4)),
-            standardDeviation: parseFloat(stdDev.toFixed(4)),
-            sampleSize: cleanedAccuracies.length,
-            originalSampleSize: accuracies.length,
-            confidenceInterval: this.calculateConfidenceInterval(cleanedAccuracies, 0.95)
-          };
-          
-          // Update best hour with statistical significance consideration
-          const significance = Math.min(1, cleanedAccuracies.length / 5); // Need at least 5 for high confidence
-          const weightedScore = avgAccuracy * significance;
-          
-          if (weightedScore > bestAccuracy * confidence) {
-            bestAccuracy = avgAccuracy;
-            bestHour = hour;
-            confidence = significance;
+          if (cleanedAccuracies.length >= 1) {
+            const avgAccuracy = cleanedAccuracies.reduce((sum, acc) => sum + acc, 0) / cleanedAccuracies.length;
+            const stdDev = cleanedAccuracies.length > 1 ? 
+              Math.sqrt(cleanedAccuracies.reduce((sum, acc) => sum + Math.pow(acc - avgAccuracy, 2), 0) / (cleanedAccuracies.length - 1)) : 0;
+            
+            // Ensure hour is a valid number before using as object key
+            const hourKey = typeof hour === 'number' && !isNaN(hour) ? hour : 10;
+            
+            hourlyStats[hourKey] = {
+              average: parseFloat(avgAccuracy.toFixed(4)),
+              standardDeviation: parseFloat(stdDev.toFixed(4)),
+              sampleSize: cleanedAccuracies.length,
+              originalSampleSize: accuracies.length,
+              confidenceInterval: this.calculateConfidenceInterval(cleanedAccuracies, 0.95)
+            };
+            
+            // Update best hour with statistical significance consideration
+            const significance = Math.min(1, cleanedAccuracies.length / 5); // Need at least 5 for high confidence
+            const weightedScore = avgAccuracy * significance;
+            
+            if (weightedScore > bestAccuracy * confidence) {
+              bestAccuracy = avgAccuracy;
+              bestHour = hourKey;
+              confidence = significance;
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     return {
       peakTime: `${bestHour.toString().padStart(2, '0')}:00`,
@@ -1123,5 +1211,67 @@ export class PerformanceAnalyticsEngine {
     const sumXX = values.reduce((sum, val, index) => sum + index * index, 0);
     
     return (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  }
+
+  /**
+   * Detects outliers in a dataset using statistical methods
+   */
+  private detectOutliers(values: number[]): Array<{ value: number; index: number; zscore: number }> {
+    if (!Array.isArray(values) || values.length < 3) {
+      return [];
+    }
+
+    const validValues = values.filter(v => typeof v === 'number' && !isNaN(v) && isFinite(v));
+    if (validValues.length < 3) {
+      return [];
+    }
+
+    const mean = validValues.reduce((sum, val) => sum + val, 0) / validValues.length;
+    const variance = validValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / validValues.length;
+    const stdDev = Math.sqrt(variance);
+
+    if (stdDev === 0) {
+      return []; // No variation, no outliers
+    }
+
+    return values
+      .map((value, index) => ({
+        value,
+        index,
+        zscore: Math.abs(value - mean) / stdDev
+      }))
+      .filter(item => 
+        typeof item.value === 'number' && 
+        !isNaN(item.value) && 
+        isFinite(item.value) && 
+        item.zscore > this.config.OUTLIER_THRESHOLD
+      );
+  }
+
+  /**
+   * Removes outliers from a dataset using the interquartile range method
+   */
+  private removeOutliers(values: number[]): number[] {
+    if (!Array.isArray(values) || values.length < 4) {
+      return values.filter(v => typeof v === 'number' && !isNaN(v) && isFinite(v));
+    }
+
+    const validValues = values.filter(v => typeof v === 'number' && !isNaN(v) && isFinite(v));
+    if (validValues.length < 4) {
+      return validValues;
+    }
+
+    const sorted = [...validValues].sort((a, b) => a - b);
+    const q1Index = Math.floor(sorted.length * 0.25);
+    const q3Index = Math.floor(sorted.length * 0.75);
+    
+    const q1 = sorted[q1Index];
+    const q3 = sorted[q3Index];
+    const iqr = q3 - q1;
+    
+    const lowerBound = q1 - 1.5 * iqr;
+    const upperBound = q3 + 1.5 * iqr;
+    
+    return validValues.filter(value => value >= lowerBound && value <= upperBound);
   }
 }

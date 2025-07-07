@@ -1,6 +1,7 @@
-import { query, transaction } from './connection';
 import { PoolClient } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
+
+import { query, transaction } from './connection';
 
 // Seed data for development and testing
 export class DatabaseSeeder {

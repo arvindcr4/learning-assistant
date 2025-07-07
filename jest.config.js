@@ -4,16 +4,10 @@ const config = {
   testEnvironment: 'jsdom',
   
   // Setup files
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js', '<rootDir>/__tests__/setup.ts'],
   
-  // Global setup
-  globals: {
-    'ts-jest': {
-      tsconfig: {
-        jsx: 'react-jsx',
-      },
-    },
-  },
+  // Preset for TypeScript support
+  preset: 'ts-jest',
   
   // Module name mapping for path aliases
   moduleNameMapper: {
@@ -25,6 +19,8 @@ const config = {
     '^@/hooks/(.*)$': '<rootDir>/src/hooks/$1',
     '^@/contexts/(.*)$': '<rootDir>/src/contexts/$1',
     '^@/constants/(.*)$': '<rootDir>/src/constants/$1',
+    '^@/middleware/(.*)$': '<rootDir>/src/middleware/$1',
+    '^@/app/(.*)$': '<rootDir>/app/$1',
     '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': '<rootDir>/__mocks__/fileMock.js',
@@ -32,12 +28,14 @@ const config = {
   
   // Transform configuration
   transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', {
-      presets: [
-        ['@babel/preset-env', { targets: { node: 'current' } }],
-        ['@babel/preset-react', { runtime: 'automatic' }],
-        '@babel/preset-typescript',
-      ],
+    '^.+\\.(js|jsx|ts|tsx)$': ['ts-jest', {
+      tsconfig: {
+        jsx: 'react-jsx',
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+        target: 'ES2017',
+        module: 'CommonJS',
+      },
     }],
   },
   
@@ -77,7 +75,7 @@ const config = {
   
   // Transform ignore patterns
   transformIgnorePatterns: [
-    '/node_modules/(?!(.*\\.mjs$))',
+    '/node_modules/(?!(.*\\.mjs$|@supabase|@testing-library|msw|uuid))',
   ],
   
   // Module directories
@@ -96,7 +94,41 @@ const config = {
   maxWorkers: '50%',
   
   // Test timeout
-  testTimeout: 10000,
+  testTimeout: 15000,
+  
+  // Test environment options
+  testEnvironmentOptions: {
+    url: 'http://localhost:3000',
+  },
+  
+  // Global setup and teardown
+  globalSetup: '<rootDir>/__tests__/global-setup.js',
+  globalTeardown: '<rootDir>/__tests__/global-teardown.js',
+  
+  // Collect coverage from specific files
+  collectCoverageFrom: [
+    'src/**/*.{ts,tsx}',
+    'app/**/*.{ts,tsx}',
+    '!src/**/*.d.ts',
+    '!src/**/*.stories.{ts,tsx}',
+    '!src/**/__tests__/**',
+    '!src/**/__mocks__/**',
+    '!src/**/index.ts',
+    '!app/**/layout.tsx',
+    '!app/**/loading.tsx',
+    '!app/**/error.tsx',
+    '!app/**/not-found.tsx',
+  ],
+  
+  // Error handling
+  errorOnDeprecated: true,
+  
+  // Silent mode for CI
+  silent: process.env.CI === 'true',
+  
+  // Clear mocks between tests
+  clearMocks: true,
+  restoreMocks: true,
 }
 
 module.exports = config

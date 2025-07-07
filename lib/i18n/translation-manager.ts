@@ -87,7 +87,7 @@ export class TranslationManager {
     
     const translationKey: TranslationKey = {
       key: keyPath,
-      namespace,
+      namespace: namespace || 'default',
       defaultValue: locale === 'en' ? value : '',
       description: `Translation for ${keyPath}`,
       placeholders: this.extractPlaceholders(value)

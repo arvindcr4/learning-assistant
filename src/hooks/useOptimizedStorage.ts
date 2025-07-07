@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { useBatchedUpdates } from './usePerformance';
 
 // Storage event types

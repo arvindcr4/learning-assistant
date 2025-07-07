@@ -1,8 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { 
   CheckCircle, 
   XCircle, 
@@ -12,6 +8,11 @@ import {
   Trophy,
   Move
 } from 'lucide-react';
+
+import { cn } from '@/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 
 export interface DragDropItem {
   id: string;

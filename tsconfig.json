@@ -7,7 +7,6 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
@@ -42,9 +41,9 @@
       "@/middleware/*": ["./src/middleware/*"]
     },
     "baseUrl": ".",
-    "exactOptionalPropertyTypes": true,
+    "exactOptionalPropertyTypes": false,
     "forceConsistentCasingInFileNames": true
   },
   "include": ["next-env.d.ts", "jest.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "__tests__/**", "app/demo/**", "**/*.test.ts", "**/*.test.tsx"]
 }

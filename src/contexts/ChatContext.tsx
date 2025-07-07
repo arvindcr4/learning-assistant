@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import { ChatState, ChatAction, ChatMessage, ChatContext as ChatContextType } from '@/types';
+
+import type { ChatState, ChatAction, ChatMessage, ChatContext as ChatContextType } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 // Initial state

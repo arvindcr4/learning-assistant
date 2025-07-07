@@ -296,7 +296,8 @@ describe('RegisterForm', () => {
       renderRegisterForm();
       
       const passwordInput = screen.getByPlaceholderText('Create a password') as HTMLInputElement;
-      const toggleButton = screen.getAllByTestId('eye-icon')[0].parentElement as HTMLButtonElement;
+      const toggleButton = screen.getAllByTestId('eye-icon')[0]?.parentElement as HTMLButtonElement;
+      expect(toggleButton).toBeTruthy();
       
       expect(passwordInput.type).toBe('password');
       expect(screen.getAllByTestId('eye-icon')[0]).toBeInTheDocument();
@@ -311,7 +312,8 @@ describe('RegisterForm', () => {
       renderRegisterForm();
       
       const confirmPasswordInput = screen.getByPlaceholderText('Confirm your password') as HTMLInputElement;
-      const toggleButton = screen.getAllByTestId('eye-icon')[1].parentElement as HTMLButtonElement;
+      const toggleButton = screen.getAllByTestId('eye-icon')[1]?.parentElement as HTMLButtonElement;
+      expect(toggleButton).toBeTruthy();
       
       expect(confirmPasswordInput.type).toBe('password');
       expect(screen.getAllByTestId('eye-icon')[1]).toBeInTheDocument();

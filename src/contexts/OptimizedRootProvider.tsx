@@ -1,8 +1,10 @@
 'use client';
 
 import React, { ReactNode, useEffect, Suspense, lazy } from 'react';
+
 import { EnhancedErrorBoundary, ContextErrorBoundary } from '@/components/ErrorBoundary';
 import { usePerformanceMonitoring, useRenderTracking } from '@/hooks/usePerformanceMonitoring';
+
 import { composeProviders } from './OptimizedContext';
 
 // Lazy load non-critical providers

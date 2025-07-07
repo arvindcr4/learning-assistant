@@ -40,6 +40,18 @@ export const config = {
       duration: 300,
     },
   },
+  email: {
+    service: 'resend',
+    enabled: process.env.NODE_ENV === 'production' || process.env.ENABLE_EMAIL === 'true',
+    fromName: process.env.RESEND_FROM_NAME || 'Learning Assistant',
+    fromEmail: process.env.RESEND_FROM_EMAIL || 'noreply@learningassistant.com',
+    replyTo: process.env.RESEND_REPLY_TO,
+    rateLimiting: {
+      enabled: true,
+      maxPerMinute: 10,
+      maxPerHour: 100,
+    },
+  },
 } as const;
 
 export type Config = typeof config;

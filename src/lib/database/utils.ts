@@ -1,6 +1,7 @@
-import { query, transaction } from './connection';
 import { PoolClient, QueryResult as PgQueryResult } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
+
+import { query, transaction } from './connection';
 import { LearningStyleType } from './models';
 
 // Generic query result interface

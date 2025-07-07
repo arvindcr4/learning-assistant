@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, ReactNode, useMemo } from 'react';
+
 import { 
   LearningState, 
   LearningAction, 
@@ -13,6 +14,7 @@ import {
 } from '@/types';
 import { useOptimizedStorage } from '@/hooks/useOptimizedStorage';
 import { useStateUpdateTracking } from '@/hooks/usePerformanceMonitoring';
+
 import { 
   createOptimizedContext, 
   createOptimizedProvider, 

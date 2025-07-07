@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Eye, EyeOff, Mail, Lock, User, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react';
+
 import { cn } from '@/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Eye, EyeOff, Mail, Lock, User, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { userRegistrationSchema, type UserRegistration } from '@/lib/validation/schemas';
 
 export interface RegisterFormProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onSubmit'> {
@@ -46,14 +47,14 @@ const RegisterForm = React.forwardRef<HTMLDivElement, RegisterFormProps>(
     const watchedEmail = watch('email');
     const watchedName = watch('name');
 
-    const onFormSubmit = (data: UserRegistration) => {
+    const onFormSubmit = useCallback((data: UserRegistration) => {
       // Clear any previous errors
       clearErrors();
       
       // Remove confirmPassword and termsAccepted from data before submitting
-      const { confirmPassword, termsAccepted, ...submitData } = data;
+      const { confirmPassword, termsAccepted, marketing, ...submitData } = data;
       onSubmit?.(submitData);
-    };
+    }, [clearErrors, onSubmit]);
 
     const getFieldError = (fieldName: keyof UserRegistration) => {
       return errors[fieldName]?.message;

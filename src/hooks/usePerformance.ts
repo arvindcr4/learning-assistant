@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+
 import { useDebounce as useDebounceHook } from './useDebounce';
 
 // Hook for debounced values (local implementation)
@@ -126,7 +127,7 @@ export function useIntersectionObserver(
   return entry;
 }
 
-// Hook for performance monitoring
+// Hook for performance monitoring with better error handling
 export function usePerformanceMonitor(): {
   startMeasure: (name: string) => void;
   endMeasure: (name: string) => number | null;
@@ -140,33 +141,51 @@ export function usePerformanceMonitor(): {
   });
 
   const startMeasure = useCallback((name: string) => {
-    performance.mark(`${name}-start`);
+    try {
+      if (typeof performance !== 'undefined' && performance.mark) {
+        performance.mark(`${name}-start`);
+      }
+    } catch (error) {
+      console.warn('Performance measurement not available:', error);
+    }
   }, []);
 
   const endMeasure = useCallback((name: string) => {
-    performance.mark(`${name}-end`);
-    performance.measure(name, `${name}-start`, `${name}-end`);
-    
-    const measure = performance.getEntriesByName(name, 'measure')[0];
-    if (measure) {
-      return measure.duration;
+    try {
+      if (typeof performance !== 'undefined' && performance.mark && performance.measure) {
+        performance.mark(`${name}-end`);
+        performance.measure(name, `${name}-start`, `${name}-end`);
+        
+        const measures = performance.getEntriesByName(name, 'measure');
+        if (measures.length > 0) {
+          return measures[0]?.duration ?? null;
+        }
+      }
+    } catch (error) {
+      console.warn('Performance measurement failed:', error);
     }
     return null;
   }, []);
 
   const getMetrics = useCallback(() => {
-    // Update memory usage if available
-    if ('memory' in performance) {
-      const memInfo = (performance as any).memory;
-      metricsRef.current.memoryUsage.push({
-        used: memInfo.usedJSHeapSize,
-        total: memInfo.totalJSHeapSize,
-        limit: memInfo.jsHeapSizeLimit,
-        timestamp: Date.now(),
-      });
+    try {
+      // Update memory usage if available (Chrome only)
+      if (typeof performance !== 'undefined' && 'memory' in performance) {
+        const memInfo = (performance as any).memory;
+        if (memInfo) {
+          metricsRef.current.memoryUsage.push({
+            used: memInfo.usedJSHeapSize,
+            total: memInfo.totalJSHeapSize,
+            limit: memInfo.jsHeapSizeLimit,
+            timestamp: Date.now(),
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('Memory monitoring not available:', error);
     }
 
-    return metricsRef.current;
+    return { ...metricsRef.current };
   }, []);
 
   return { startMeasure, endMeasure, getMetrics };
@@ -197,7 +216,7 @@ export function useRenderPerformance(componentName: string): void {
     return () => {
       endMeasure(`${componentName}-render`);
     };
-  });
+  }, [componentName, startMeasure, endMeasure]);
 }
 
 // Hook for batch updates

@@ -1,9 +1,10 @@
 import React from 'react';
+import { TrendingUp, TrendingDown, Minus, LucideIcon } from 'lucide-react';
+
 import { cn } from '@/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Progress } from '@/components/ui/Progress';
-import { TrendingUp, TrendingDown, Minus, LucideIcon } from 'lucide-react';
 
 export interface StatsCardProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;

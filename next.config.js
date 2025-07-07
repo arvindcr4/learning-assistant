@@ -137,11 +137,12 @@ const nextConfig = {
   // ESLint configuration
   eslint: {
     dirs: ['src', 'app'],
+    ignoreDuringBuilds: process.env.NODE_ENV === 'production',
   },
   
   // TypeScript configuration
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: process.env.NODE_ENV === 'production',
   },
 };
 

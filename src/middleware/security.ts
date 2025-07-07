@@ -108,19 +108,23 @@ const securityConfig: SecurityConfig = {
 // Rate limiting store (in production, use Redis)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
-// Clean up old rate limit entries (only in Node.js runtime)
+// Clean up old rate limit entries periodically (Edge Runtime compatible)
+// Note: In production, use Redis or another external store for rate limiting
+const cleanupRateLimitStore = () => {
+  const now = Date.now();
+  rateLimitStore.forEach((value, key) => {
+    if (now > value.resetTime) {
+      rateLimitStore.delete(key);
+    }
+  });
+};
+
+// Schedule cleanup every minute if setInterval is available
 if (typeof setInterval !== 'undefined') {
   try {
-    setInterval(() => {
-      const now = Date.now();
-      rateLimitStore.forEach((value, key) => {
-        if (now > value.resetTime) {
-          rateLimitStore.delete(key);
-        }
-      });
-    }, 60000); // Clean up every minute
+    setInterval(cleanupRateLimitStore, 60000);
   } catch (error) {
-    // Ignore in Edge Runtime
+    // Ignore if not available in runtime
   }
 }
 

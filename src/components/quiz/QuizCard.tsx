@@ -1,9 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Progress } from '@/components/ui/Progress';
 import { 
   Clock, 
   Target, 
@@ -16,7 +11,13 @@ import {
   Users,
   TrendingUp
 } from 'lucide-react';
-import { Quiz } from '@/types';
+
+import { cn } from '@/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Progress } from '@/components/ui/Progress';
+import type { Quiz } from '@/types';
 
 export interface QuizCardProps extends React.HTMLAttributes<HTMLDivElement> {
   quiz: Quiz;
@@ -34,7 +35,7 @@ export interface QuizCardProps extends React.HTMLAttributes<HTMLDivElement> {
   showProgress?: boolean;
 }
 
-const QuizCard = React.forwardRef<HTMLDivElement, QuizCardProps>(
+const QuizCard = React.memo(React.forwardRef<HTMLDivElement, QuizCardProps>(
   ({ 
     className, 
     quiz, 
@@ -263,7 +264,7 @@ const QuizCard = React.forwardRef<HTMLDivElement, QuizCardProps>(
       </Card>
     );
   }
-);
+));
 
 QuizCard.displayName = 'QuizCard';
 

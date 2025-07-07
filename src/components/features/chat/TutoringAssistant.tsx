@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { GraduationCap, Target, Clock, Award, TrendingUp, CheckCircle, XCircle, HelpCircle, BookOpen, Brain, Lightbulb, MessageSquare } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
+
 import { 
   TutoringSession, 
   TutoringProgress, 
@@ -12,7 +14,6 @@ import {
   ChatMessage 
 } from '../../../types';
 import { aiService } from '../../../services/ai-service';
-import { v4 as uuidv4 } from 'uuid';
 
 interface TutoringAssistantProps {
   userId: string;

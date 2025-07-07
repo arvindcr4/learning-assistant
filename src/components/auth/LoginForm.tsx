@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Eye, EyeOff, Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
+
 import { cn } from '@/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Eye, EyeOff, Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
 import { userLoginSchema, type UserLogin } from '@/lib/validation/schemas';
 
 export interface LoginFormProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onSubmit'> {
-  onSubmit?: (data: UserLogin) => void;
+  onSubmit?: (email: string, password: string) => void;
   onForgotPassword?: () => void;
   onSignUp?: () => void;
   isLoading?: boolean;
@@ -41,11 +42,11 @@ const LoginForm = React.forwardRef<HTMLDivElement, LoginFormProps>(
     const watchedEmail = watch('email');
     const watchedPassword = watch('password');
 
-    const onFormSubmit = (data: UserLogin) => {
+    const onFormSubmit = useCallback((data: UserLogin) => {
       // Clear any previous errors
       clearErrors();
-      onSubmit?.(data);
-    };
+      onSubmit?.(data.email, data.password);
+    }, [clearErrors, onSubmit]);
 
     const getFieldError = (fieldName: keyof UserLogin) => {
       return errors[fieldName]?.message;

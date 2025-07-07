@@ -1,7 +1,7 @@
 // Enhanced Content Recommendation System
 // Addresses cold start problem, diversity, and performance optimization
 
-import { LearningProfile, LearningSession, LearningStyleType, AdaptiveContent } from '@/types';
+import type { LearningProfile, LearningSession, LearningStyleType, AdaptiveContent } from '@/types';
 import { generateUUID } from '@/utils/uuid';
 
 /**

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Settings, User, Bot, Zap, Target, MessageCircle, Volume2, Eye, BookOpen, Move } from 'lucide-react';
+
 import { ChatSettings as ChatSettingsType, AIPersona, LearningStyleType } from '../../../types';
 import { AI_PERSONAS, CONVERSATION_STYLES } from '../../../lib/ai-config';
 

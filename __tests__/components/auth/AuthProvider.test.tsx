@@ -555,7 +555,7 @@ describe('AuthProvider', () => {
             <div data-testid="user-email">{userEmail}</div>
             <div data-testid="access-token">{accessToken}</div>
             <div data-testid="is-auth">{isAuth ? 'true' : 'false'}</div>
-            <div data-testid="is-loading">{isLoading ? 'true' : 'false'}</div>
+            <div data-testid="is-loading">{loading ? 'true' : 'false'}</div>
           </div>
         );
       };

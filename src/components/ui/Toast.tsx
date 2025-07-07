@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/utils';
 import { X } from 'lucide-react';
+
+import { cn } from '@/utils';
 
 export interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;

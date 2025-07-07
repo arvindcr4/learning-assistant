@@ -1,7 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
 import { 
   LineChart, 
   Line, 
@@ -22,6 +19,10 @@ import {
   PolarRadiusAxis,
   Radar
 } from 'recharts';
+
+import { cn } from '@/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
 
 export interface ProgressChartProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;

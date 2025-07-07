@@ -2,6 +2,8 @@ import { LearningService } from '@/services/learning-service';
 import { VARKResponse } from '@/lib/vark-questionnaire';
 import {
   LearningStyleType,
+} from '@/types';
+import type {
   LearningProfile,
   LearningSession,
   BehavioralIndicator,

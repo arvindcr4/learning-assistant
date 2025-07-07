@@ -1,20 +1,28 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QuizCard } from '@/components/quiz/QuizCard'
-import { Quiz } from '@/types'
+import type { Quiz } from '@/types'
 import { mockQuiz, mockQuestions } from '../../mocks/test-data'
 
 // Create a complete mock quiz for testing
-const createMockQuiz = (overrides: Partial<Quiz> = {}): Quiz => ({
-  id: 'quiz-123',
-  moduleId: 'module-123',
-  title: 'JavaScript Fundamentals Quiz',
-  description: 'Test your knowledge of JavaScript basics',
-  questions: mockQuestions,
-  timeLimit: 30,
-  passingScore: 70,
-  ...overrides,
-})
+const createMockQuiz = (overrides: Partial<Quiz> = {}): Quiz => {
+  const base = {
+    id: 'quiz-123',
+    moduleId: 'module-123',
+    title: 'JavaScript Fundamentals Quiz',
+    description: 'Test your knowledge of JavaScript basics',
+    questions: mockQuestions,
+    timeLimit: 30,
+    passingScore: 70,
+  };
+  
+  // Filter out undefined values from overrides to avoid exactOptionalPropertyTypes errors
+  const filteredOverrides = Object.fromEntries(
+    Object.entries(overrides).filter(([_, value]) => value !== undefined)
+  );
+  
+  return { ...base, ...filteredOverrides };
+}
 
 describe('QuizCard Component', () => {
   const defaultQuiz = createMockQuiz()
@@ -209,10 +217,14 @@ describe('QuizCard Component', () => {
   })
 
   it('handles quiz without time limit', () => {
+    // Create a quiz without timeLimit property
+    const quizWithoutTimeLimit = createMockQuiz();
+    delete (quizWithoutTimeLimit as any).timeLimit;
+    
     render(
       <QuizCard 
         {...defaultProps} 
-        quiz={createMockQuiz({ timeLimit: undefined })} 
+        quiz={quizWithoutTimeLimit} 
       />
     )
     

@@ -1,7 +1,9 @@
-import { query, transaction } from '../connection';
-import { PoolClient } from 'pg';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+
+import { PoolClient } from 'pg';
+
+import { query, transaction } from '../connection';
 
 // Migration metadata
 export interface Migration {

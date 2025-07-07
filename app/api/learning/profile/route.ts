@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+
 import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
 import { csrfProtection } from '@/lib/csrf';
 

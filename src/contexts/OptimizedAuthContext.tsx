@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect, ReactNode, useRef } from 'react';
-import { AuthState, AuthAction, User } from '@/types';
+
+import type { AuthState, AuthAction, User } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+
 import { 
   createOptimizedContext, 
   createOptimizedProvider, 

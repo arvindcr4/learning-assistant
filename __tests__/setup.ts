@@ -6,6 +6,16 @@
 // Import test utilities and setup
 import './utils/test-utils'
 
+// Define global test state
+declare global {
+  var testState: any
+  var testCleanup: (() => void) | undefined
+}
+
+// Initialize global test state
+global.testState = {}
+global.testCleanup = undefined
+
 // Global test configuration
 beforeAll(() => {
   // Mock HTMLCanvasElement.getContext to fix axe-core color contrast testing
@@ -79,47 +89,107 @@ beforeAll(() => {
     configurable: true
   })
 
-  // Console warnings and errors can be noisy during tests
+  // Mock TextEncoder/TextDecoder for JSDOM
+  if (typeof global.TextEncoder === 'undefined') {
+    global.TextEncoder = require('util').TextEncoder
+  }
+  if (typeof global.TextDecoder === 'undefined') {
+    global.TextDecoder = require('util').TextDecoder
+  }
+  
+  // Mock URL.createObjectURL for file uploads
+  if (typeof global.URL.createObjectURL === 'undefined') {
+    global.URL.createObjectURL = jest.fn(() => 'mocked-object-url')
+  }
+  if (typeof global.URL.revokeObjectURL === 'undefined') {
+    global.URL.revokeObjectURL = jest.fn()
+  }
+  
+  // Mock window.scrollTo
+  if (typeof window.scrollTo === 'undefined') {
+    window.scrollTo = jest.fn()
+  }
+  
+  // Mock window.alert, confirm, prompt
+  if (typeof window.alert === 'undefined') {
+    window.alert = jest.fn()
+  }
+  if (typeof window.confirm === 'undefined') {
+    window.confirm = jest.fn(() => true)
+  }
+  if (typeof window.prompt === 'undefined') {
+    window.prompt = jest.fn(() => 'test-input')
+  }
+  
+  // Mock performance.mark and performance.measure
+  if (typeof performance.mark === 'undefined') {
+    performance.mark = jest.fn()
+  }
+  if (typeof performance.measure === 'undefined') {
+    performance.measure = jest.fn()
+  }
+  if (typeof performance.clearMarks === 'undefined') {
+    performance.clearMarks = jest.fn()
+  }
+  if (typeof performance.clearMeasures === 'undefined') {
+    performance.clearMeasures = jest.fn()
+  }
+  
+  // Mock console methods but allow important errors to show
   const originalError = console.error
   const originalWarn = console.warn
   
-  console.error = (...args: any[]) => {
-    // Allow specific errors that we want to see
+  console.error = jest.fn((...args: any[]) => {
     const message = args[0]
     if (
       typeof message === 'string' && 
       (
         message.includes('Warning: ReactDOM.render is deprecated') ||
         message.includes('Warning: validateDOMNesting') ||
-        message.includes('Error: Not implemented')
+        message.includes('Error: Not implemented') ||
+        message.includes('Warning: Each child in a list should have a unique "key" prop')
       )
     ) {
       // Suppress these warnings during tests
       return
     }
     originalError.apply(console, args)
-  }
+  })
   
-  console.warn = (...args: any[]) => {
+  console.warn = jest.fn((...args: any[]) => {
     const message = args[0]
     if (
       typeof message === 'string' && 
       (
         message.includes('componentWillReceiveProps') ||
         message.includes('componentWillMount') ||
-        message.includes('componentWillUpdate')
+        message.includes('componentWillUpdate') ||
+        message.includes('Warning: Function components cannot be given refs')
       )
     ) {
       // Suppress these warnings during tests
       return
     }
     originalWarn.apply(console, args)
-  }
+  })
 })
 
 afterAll(() => {
   // Cleanup after all tests
   jest.restoreAllMocks()
+  
+  // Clean up any persistent state
+  if (global.testCleanup) {
+    global.testCleanup()
+  }
+  
+  // Reset console methods
+  if (console.error.mockRestore) {
+    console.error.mockRestore()
+  }
+  if (console.warn.mockRestore) {
+    console.warn.mockRestore()
+  }
 })
 
 beforeEach(() => {
@@ -131,10 +201,35 @@ beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
   }
+  
+  // Clear any pending timers
+  jest.clearAllTimers()
+  
+  // Reset DOM state
+  document.body.innerHTML = ''
+  document.head.innerHTML = ''
+  
+  // Reset any global state
+  if (global.testState) {
+    global.testState = {}
+  }
 })
 
 afterEach(() => {
   // Cleanup after each test
   jest.clearAllTimers()
   jest.useRealTimers()
+  
+  // Clean up any React roots
+  const rootElements = document.querySelectorAll('[data-testid="test-wrapper"]')
+  rootElements.forEach(element => {
+    if (element.parentNode) {
+      element.parentNode.removeChild(element)
+    }
+  })
+  
+  // Reset fetch mock
+  if (global.fetch && global.fetch.mockReset) {
+    global.fetch.mockReset()
+  }
 })

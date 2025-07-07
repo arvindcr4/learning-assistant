@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import { QuizState, QuizAction, Quiz, AdaptiveAssessment, AdaptiveQuestion, QuizResults } from '@/types';
+
+import type { QuizState, QuizAction, Quiz, AdaptiveAssessment, AdaptiveQuestion, QuizResults } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 // Initial state

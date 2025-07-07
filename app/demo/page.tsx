@@ -2,6 +2,17 @@
 
 import React from 'react';
 import { 
+  BookOpen, 
+  TrendingUp, 
+  Users, 
+  Clock,
+  Trophy,
+  Target,
+  Star,
+  CheckCircle
+} from 'lucide-react';
+
+import { 
   Card, 
   CardContent, 
   CardDescription, 
@@ -24,17 +35,7 @@ import {
   ToastProvider,
   useToastHelpers
 } from '@/components';
-import { 
-  BookOpen, 
-  TrendingUp, 
-  Users, 
-  Clock,
-  Trophy,
-  Target,
-  Star,
-  CheckCircle
-} from 'lucide-react';
-import { User, LearningStyleType, Quiz, LearningModule, LearningProfile } from '@/types';
+import type { User, LearningStyleType, Quiz, LearningModule, LearningProfile } from '@/types';
 
 // Demo data
 const demoUser: User = {
@@ -429,10 +430,12 @@ export default function DemoPage() {
                 onEdit={() => console.log('Edit profile')}
                 onViewProgress={() => console.log('View progress')}
               />
-              <LearningStyleIndicator
-                profile={demoUser.learningProfile}
-                variant="detailed"
-              />
+              {demoUser.learningProfile && (
+                <LearningStyleIndicator
+                  profile={demoUser.learningProfile}
+                  variant="detailed"
+                />
+              )}
             </div>
           </section>
 

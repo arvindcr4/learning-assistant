@@ -1,8 +1,15 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import { NotificationState, NotificationAction, Notification as AppNotification, Alert, NotificationSettings } from '@/types';
+
+import type { NotificationState, NotificationAction, Notification as AppNotification, Alert, NotificationSettings } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { 
+  sendWelcomeEmail, 
+  sendProgressUpdateEmail, 
+  sendStudyReminderEmail, 
+  sendSystemAlertEmail 
+} from '@/lib/email';
 
 // Initial state
 const initialState: NotificationState = {
@@ -100,6 +107,10 @@ interface NotificationContextType {
   requestPermission: () => Promise<boolean>;
   scheduleReminder: (message: string, delay: number) => void;
   showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info', duration?: number) => void;
+  sendWelcomeNotification: (userEmail: string, userName: string, activationLink?: string) => Promise<void>;
+  sendProgressNotification: (userEmail: string, userName: string, progressData: any) => Promise<void>;
+  sendStudyReminder: (userEmail: string, userName: string, reminderData: any) => Promise<void>;
+  sendSystemAlert: (userEmail: string, userName: string, alertData: any) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -273,6 +284,149 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }, duration);
   }, []);
 
+  const sendWelcomeNotification = useCallback(async (
+    userEmail: string,
+    userName: string,
+    activationLink?: string
+  ) => {
+    if (!state.settings.email) return;
+
+    try {
+      const result = await sendWelcomeEmail(userEmail, userName, activationLink);
+      if (result.success) {
+        addNotification({
+          type: 'success',
+          title: 'Welcome Email Sent',
+          message: `Welcome email sent to ${userEmail}`,
+        });
+      } else {
+        addNotification({
+          type: 'error',
+          title: 'Email Send Failed',
+          message: `Failed to send welcome email: ${result.error}`,
+        });
+      }
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        title: 'Email Service Error',
+        message: 'Failed to send welcome email due to service error',
+      });
+    }
+  }, [state.settings.email, addNotification]);
+
+  const sendProgressNotification = useCallback(async (
+    userEmail: string,
+    userName: string,
+    progressData: {
+      completedModules: number;
+      totalModules: number;
+      currentStreak: number;
+      timeSpent: number;
+      achievements: string[];
+      nextGoals: string[];
+    }
+  ) => {
+    if (!state.settings.email || !state.settings.progressUpdates) return;
+
+    try {
+      const result = await sendProgressUpdateEmail(userEmail, userName, progressData);
+      if (result.success) {
+        addNotification({
+          type: 'success',
+          title: 'Progress Update Sent',
+          message: `Progress update email sent to ${userEmail}`,
+        });
+      } else {
+        addNotification({
+          type: 'error',
+          title: 'Email Send Failed',
+          message: `Failed to send progress update: ${result.error}`,
+        });
+      }
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        title: 'Email Service Error',
+        message: 'Failed to send progress update due to service error',
+      });
+    }
+  }, [state.settings.email, state.settings.progressUpdates, addNotification]);
+
+  const sendStudyReminder = useCallback(async (
+    userEmail: string,
+    userName: string,
+    reminderData: {
+      nextModule: string;
+      suggestedDuration: number;
+      streakAtRisk: boolean;
+      motivationalMessage: string;
+    }
+  ) => {
+    if (!state.settings.email || !state.settings.studyReminders) return;
+
+    try {
+      const result = await sendStudyReminderEmail(userEmail, userName, reminderData);
+      if (result.success) {
+        addNotification({
+          type: 'success',
+          title: 'Study Reminder Sent',
+          message: `Study reminder sent to ${userEmail}`,
+        });
+      } else {
+        addNotification({
+          type: 'error',
+          title: 'Email Send Failed',
+          message: `Failed to send study reminder: ${result.error}`,
+        });
+      }
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        title: 'Email Service Error',
+        message: 'Failed to send study reminder due to service error',
+      });
+    }
+  }, [state.settings.email, state.settings.studyReminders, addNotification]);
+
+  const sendSystemAlert = useCallback(async (
+    userEmail: string,
+    userName: string,
+    alertData: {
+      type: 'maintenance' | 'security' | 'feature' | 'issue';
+      title: string;
+      description: string;
+      actionRequired: boolean;
+      actionUrl?: string;
+      actionText?: string;
+    }
+  ) => {
+    if (!state.settings.email || !state.settings.systemAlerts) return;
+
+    try {
+      const result = await sendSystemAlertEmail(userEmail, userName, alertData);
+      if (result.success) {
+        addNotification({
+          type: 'success',
+          title: 'System Alert Sent',
+          message: `System alert sent to ${userEmail}`,
+        });
+      } else {
+        addNotification({
+          type: 'error',
+          title: 'Email Send Failed',
+          message: `Failed to send system alert: ${result.error}`,
+        });
+      }
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        title: 'Email Service Error',
+        message: 'Failed to send system alert due to service error',
+      });
+    }
+  }, [state.settings.email, state.settings.systemAlerts, addNotification]);
+
   const value: NotificationContextType = {
     state,
     dispatch,
@@ -287,6 +441,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     requestPermission,
     scheduleReminder,
     showToast,
+    sendWelcomeNotification,
+    sendProgressNotification,
+    sendStudyReminder,
+    sendSystemAlert,
   };
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

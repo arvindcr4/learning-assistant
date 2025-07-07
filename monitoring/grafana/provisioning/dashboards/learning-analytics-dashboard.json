@@ -1,0 +1,172 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Learning Assistant - Learning Analytics",
+    "tags": ["learning-assistant", "analytics", "learning"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Learning Sessions by Content Type",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "learning_sessions_total",
+            "legendFormat": "{{content_type}}"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "User Engagement Score",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "avg(user_engagement_score)",
+            "legendFormat": "Engagement Score"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Learning Path Progress",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "learning_path_progress_percent",
+            "legendFormat": "Path {{path_id}}"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 9
+        }
+      },
+      {
+        "id": 4,
+        "title": "Assessment Scores Distribution",
+        "type": "histogram",
+        "targets": [
+          {
+            "expr": "assessment_scores",
+            "legendFormat": "{{assessment_type}}"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 9
+        }
+      },
+      {
+        "id": 5,
+        "title": "Content Engagement Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, content_engagement_time_seconds_bucket)",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, content_engagement_time_seconds_bucket)",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 18
+        }
+      },
+      {
+        "id": 6,
+        "title": "Adaptive Changes",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(adaptive_changes_total[1h])",
+            "legendFormat": "{{change_type}}"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 18
+        }
+      },
+      {
+        "id": 7,
+        "title": "Learning Goals Completed",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(learning_goals_completed_total[1h])",
+            "legendFormat": "{{goal_type}}"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 27
+        }
+      },
+      {
+        "id": 8,
+        "title": "Recommendation Acceptance Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "recommendation_acceptance_rate",
+            "legendFormat": "{{recommendation_type}}"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 27
+        }
+      },
+      {
+        "id": 9,
+        "title": "User Retention",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "avg(user_retention_days)",
+            "legendFormat": "Average Retention Days"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 24,
+          "x": 0,
+          "y": 36
+        }
+      }
+    ],
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "refresh": "1m"
+  }
+}

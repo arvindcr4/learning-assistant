@@ -13,12 +13,13 @@ import {
   LearningAnalytics,
   Recommendation
 } from '@/types';
+import { generateUUID } from '@/utils/uuid';
+
 import { VARKAssessment, VARKResponse } from './vark-questionnaire';
 import { AdaptiveAssessmentEngine, AssessmentState } from './adaptive-assessment';
 import { PerformanceAnalyticsEngine, PerformanceMetrics, MLInsight } from './performance-analytics';
 import { SpacedRepetitionEngine, SpacedRepetitionCard, RepetitionSchedule } from './spaced-repetition';
 import { BehavioralTrackingEngine, BehavioralEvent, BehavioralPattern, RealTimeInsight } from './behavioral-tracking';
-import { generateUUID } from '@/utils/uuid';
 import { 
   ContentRecommendation, 
   LearningPathOptimization, 

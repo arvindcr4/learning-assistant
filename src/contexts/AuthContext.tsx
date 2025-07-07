@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import { AuthState, AuthAction, User } from '@/types';
+
+import type { AuthState, AuthAction, User } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 // Initial state
@@ -173,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
     }
-  }, [persistedAuth]);
+  }, [persistedAuth.token, persistedAuth.user, persistedAuth.refreshToken]);
 
   // Persist auth state changes
   useEffect(() => {
@@ -206,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => clearTimeout(timeout);
       }
     }
-  }, [state.sessionExpiry, state.refreshToken]);
+  }, [state.sessionExpiry, state.refreshToken, refreshToken]);
 
   const login = useCallback(async (email: string, password: string) => {
     dispatch({ type: 'LOGIN_START' });

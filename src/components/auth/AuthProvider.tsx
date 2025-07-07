@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo } from 'react';
+
 import { useSession } from '@/lib/auth-client';
 import type { Session, User } from '@/lib/auth';
 
@@ -14,19 +15,23 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: session, isPending } = useSession();
+  const sessionResult = useSession();
   const [loading, setLoading] = useState(true);
+
+  // Handle different return types from useSession
+  const session = sessionResult?.data;
+  const isPending = sessionResult?.isPending ?? sessionResult?.isLoading ?? false;
 
   useEffect(() => {
     setLoading(isPending);
   }, [isPending]);
 
-  const value = {
+  const value = useMemo(() => ({
     user: session?.user || null,
-    session: session?.session || null,
+    session: session || null,
     loading,
     isAuthenticated: !!session?.user,
-  };
+  }), [session, loading]);
 
   return (
     <AuthContext.Provider value={value}>

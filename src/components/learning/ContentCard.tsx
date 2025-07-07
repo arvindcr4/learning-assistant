@@ -1,10 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Progress } from '@/components/ui/Progress';
-import { Avatar } from '@/components/ui/Avatar';
 import { 
   BookOpen, 
   Clock, 
@@ -20,7 +14,14 @@ import {
   Target,
   Calendar
 } from 'lucide-react';
-import { LearningModule, LearningStyleType, ContentFormat } from '@/types';
+
+import { cn } from '@/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Progress } from '@/components/ui/Progress';
+import { Avatar } from '@/components/ui/Avatar';
+import type { LearningModule, LearningStyleType, ContentFormat } from '@/types';
 
 export interface ContentCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'content'> {
   content: LearningModule;
@@ -39,7 +40,7 @@ export interface ContentCardProps extends Omit<React.HTMLAttributes<HTMLDivEleme
   recommendationScore?: number;
 }
 
-const ContentCard = React.forwardRef<HTMLDivElement, ContentCardProps>(
+const ContentCard = React.memo(React.forwardRef<HTMLDivElement, ContentCardProps>(
   ({ 
     className, 
     content, 
@@ -351,7 +352,7 @@ const ContentCard = React.forwardRef<HTMLDivElement, ContentCardProps>(
       </Card>
     );
   }
-);
+));
 
 ContentCard.displayName = 'ContentCard';
 

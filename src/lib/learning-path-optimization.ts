@@ -1,5 +1,5 @@
 // Learning Path Optimization Engine
-import { LearningPath, LearningProfile, LearningSession } from '@/types';
+import type { LearningPath, LearningProfile, LearningSession } from '@/types';
 
 export interface OptimizedLearningPath {
   pathId: string;

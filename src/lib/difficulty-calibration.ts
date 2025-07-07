@@ -1,5 +1,5 @@
 // Advanced Content Difficulty Calibration Engine
-import { LearningSession, LearningProfile, AdaptiveContent } from '@/types';
+import type { LearningSession, LearningProfile, AdaptiveContent } from '@/types';
 
 export interface DifficultyCalibration {
   contentId: string;

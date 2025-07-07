@@ -1,9 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Progress } from '@/components/ui/Progress';
-import { Badge } from '@/components/ui/Badge';
 import { 
   Play, 
   Pause, 
@@ -18,6 +13,12 @@ import {
   MessageSquare,
   Clock
 } from 'lucide-react';
+
+import { cn } from '@/utils';
+import { Card, CardContent } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Progress } from '@/components/ui/Progress';
+import { Badge } from '@/components/ui/Badge';
 
 export interface VideoPlayerProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onProgress'> {
   src: string;
@@ -70,18 +71,50 @@ const VideoPlayer = React.forwardRef<HTMLDivElement, VideoPlayerProps>(
       const video = videoRef.current;
       if (!video) return;
 
+      const handleTimeUpdateRef = () => {
+        if (video) {
+          const current = video.currentTime;
+          const total = video.duration;
+          setCurrentTime(current);
+          onProgress?.(current, total);
+
+          // Check for quiz points
+          if (interactive) {
+            const activeQuizPoint = quizPoints.find(
+              point => Math.abs(point.timestamp - current) < 1
+            );
+            if (activeQuizPoint) {
+              video.pause();
+              setIsPlaying(false);
+              // Trigger quiz modal (would be handled by parent component)
+            }
+          }
+        }
+      };
+
+      const handleLoadedMetadataRef = () => {
+        if (video) {
+          setVideoDuration(video.duration);
+        }
+      };
+
+      const handleEndedRef = () => {
+        setIsPlaying(false);
+        onComplete?.();
+      };
+
       // Add event listeners
-      video.addEventListener('timeupdate', handleTimeUpdate);
-      video.addEventListener('loadedmetadata', handleLoadedMetadata);
-      video.addEventListener('ended', handleEnded);
+      video.addEventListener('timeupdate', handleTimeUpdateRef);
+      video.addEventListener('loadedmetadata', handleLoadedMetadataRef);
+      video.addEventListener('ended', handleEndedRef);
 
       // Cleanup function
       return () => {
-        video.removeEventListener('timeupdate', handleTimeUpdate);
-        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        video.removeEventListener('ended', handleEnded);
+        video.removeEventListener('timeupdate', handleTimeUpdateRef);
+        video.removeEventListener('loadedmetadata', handleLoadedMetadataRef);
+        video.removeEventListener('ended', handleEndedRef);
       };
-    }, []);
+    }, [interactive, quizPoints, onProgress, onComplete]);
 
     const formatTime = (time: number) => {
       const minutes = Math.floor(time / 60);
@@ -100,37 +133,6 @@ const VideoPlayer = React.forwardRef<HTMLDivElement, VideoPlayerProps>(
       }
     };
 
-    const handleTimeUpdate = () => {
-      if (videoRef.current) {
-        const current = videoRef.current.currentTime;
-        const total = videoRef.current.duration;
-        setCurrentTime(current);
-        onProgress?.(current, total);
-
-        // Check for quiz points
-        if (interactive) {
-          const activeQuizPoint = quizPoints.find(
-            point => Math.abs(point.timestamp - current) < 1
-          );
-          if (activeQuizPoint) {
-            videoRef.current.pause();
-            setIsPlaying(false);
-            // Trigger quiz modal (would be handled by parent component)
-          }
-        }
-      }
-    };
-
-    const handleLoadedMetadata = () => {
-      if (videoRef.current) {
-        setVideoDuration(videoRef.current.duration);
-      }
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      onComplete?.();
-    };
 
     const handleSeek = (percentage: number) => {
       if (videoRef.current) {
@@ -215,9 +217,6 @@ const VideoPlayer = React.forwardRef<HTMLDivElement, VideoPlayerProps>(
               ref={videoRef}
               src={src}
               className="w-full aspect-video"
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-              onEnded={handleEnded}
               autoPlay={autoPlay}
               playsInline
             />

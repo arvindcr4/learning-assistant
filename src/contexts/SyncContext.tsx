@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode, useRef } from 'react';
-import { SyncState, SyncAction, PendingChange, SyncConflict } from '@/types';
+
+import type { SyncState, SyncAction, PendingChange, SyncConflict } from '@/types';
 import { useLocalStorage } from '@/hooks/useStorage';
 
 // Initial state

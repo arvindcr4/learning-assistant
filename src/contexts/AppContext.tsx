@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { User, LearningPath, StudySession } from '@/types';
+
+import type { User, LearningPath, StudySession } from '@/types';
 
 interface AppState {
   user: User | null;

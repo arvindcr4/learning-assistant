@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import { LearningState, LearningAction, LearningPath, StudySession, Progress, LearningProfile, PaceProfile, LearningAnalytics } from '@/types';
+
+import type { LearningState, LearningAction, LearningPath, StudySession, Progress, LearningProfile, PaceProfile, LearningAnalytics } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 // Initial state

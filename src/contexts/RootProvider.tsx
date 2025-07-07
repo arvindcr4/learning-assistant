@@ -1,6 +1,9 @@
 'use client';
 
 import React, { ReactNode, useEffect } from 'react';
+
+import { usePerformanceMonitor } from '@/hooks/usePerformance';
+
 import { AuthProvider } from './AuthContext';
 import { LearningProvider } from './LearningContext';
 import { QuizProvider } from './QuizContext';
@@ -8,7 +11,6 @@ import { ChatProvider } from './ChatContext';
 import { NotificationProvider } from './NotificationContext';
 import { SyncProvider } from './SyncContext';
 import { UIProvider } from './UIContext';
-import { usePerformanceMonitor } from '@/hooks/usePerformance';
 
 // Error boundary for the entire application
 class StateErrorBoundary extends React.Component<

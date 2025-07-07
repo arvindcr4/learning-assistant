@@ -1,5 +1,5 @@
 // Spaced Repetition Engine - Advanced memory retention optimization
-import { LearningSession, LearningProfile, LearningStyleType } from '@/types';
+import type { LearningSession, LearningProfile, LearningStyleType } from '@/types';
 
 export interface SpacedRepetitionCard {
   id: string;

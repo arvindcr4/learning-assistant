@@ -1,9 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Progress } from '@/components/ui/Progress';
-import { CircularProgress } from '@/components/ui/CircularProgress';
 import { 
   Eye, 
   Headphones, 
@@ -15,7 +10,13 @@ import {
   Target,
   Users
 } from 'lucide-react';
-import { LearningStyleType, LearningStyle, LearningProfile } from '@/types';
+
+import { cn } from '@/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Progress } from '@/components/ui/Progress';
+import { CircularProgress } from '@/components/ui/CircularProgress';
+import type { LearningStyleType, LearningStyle, LearningProfile } from '@/types';
 
 export interface LearningStyleIndicatorProps extends React.HTMLAttributes<HTMLDivElement> {
   profile: LearningProfile;

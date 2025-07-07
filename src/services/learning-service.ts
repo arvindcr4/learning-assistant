@@ -1,7 +1,6 @@
 // Learning Service - Service layer for learning system operations
-import { 
+import type { 
   LearningProfile, 
-  LearningStyleType, 
   StyleAssessment, 
   BehavioralIndicator,
   PaceProfile,
@@ -13,6 +12,7 @@ import {
   User,
   AdaptiveChange
 } from '@/types';
+import { LearningStyleType } from '@/types';
 import { generateUUID } from '@/utils/uuid';
 import { 
   LearningStyleDetector, 
@@ -728,7 +728,10 @@ export class LearningService {
     const today = new Date().toDateString();
     
     for (let i = uniqueDates.length - 1; i >= 0; i--) {
-      const date = new Date(uniqueDates[i]);
+      const dateString = uniqueDates[i];
+      if (!dateString) continue;
+      
+      const date = new Date(dateString);
       const expectedDate = new Date();
       expectedDate.setDate(expectedDate.getDate() - streak);
       

@@ -1,7 +1,8 @@
 // Fatigue Detection and Break Recommendation Engine
-import { LearningSession, BehavioralIndicator } from '@/types';
-import { BehavioralEvent } from './behavioral-tracking';
+import type { LearningSession, BehavioralIndicator } from '@/types';
 import { generateUUID } from '@/utils/uuid';
+
+import { BehavioralEvent } from './behavioral-tracking';
 
 export interface FatigueIndicators {
   performanceDecline: number; // 0-100

@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { cn } from '@/utils';
 
 export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {

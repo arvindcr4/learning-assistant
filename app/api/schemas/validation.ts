@@ -18,6 +18,14 @@ export const SanitizedOptionalStringSchema = z.string()
   .refine((val) => !/<script|javascript:|on\w+=/i.test(val), 'Invalid characters detected')
   .optional();
 
+// Helper function to create sanitized string schemas with custom max length
+export const createSanitizedStringSchema = (maxLength: number = 10000, errorMessage?: string) => 
+  z.string()
+    .min(1, 'Field cannot be empty')
+    .max(maxLength, errorMessage || 'Field too long')
+    .trim()
+    .refine((val) => !/<script|javascript:|on\w+=/i.test(val), 'Invalid characters detected');
+
 // Learning Context Schema
 export const LearningContextSchema = z.object({
   userId: UserIdSchema,
@@ -37,7 +45,7 @@ export const LearningContextSchema = z.object({
 // Chat Message Schema
 export const ChatMessageSchema = z.object({
   id: z.string().uuid(),
-  content: SanitizedStringSchema.max(5000, 'Message too long'),
+  content: createSanitizedStringSchema(5000, 'Message too long'),
   role: z.enum(['user', 'assistant', 'system']),
   timestamp: TimestampSchema,
   context: LearningContextSchema.optional(),
@@ -75,7 +83,7 @@ export const SessionUpdateSchema = z.object({
 
 // Chat Request Schema
 export const ChatRequestSchema = z.object({
-  message: SanitizedStringSchema.max(2000, 'Message too long'),
+  message: createSanitizedStringSchema(2000, 'Message too long'),
   sessionId: SessionIdSchema.optional(),
   userId: UserIdSchema,
   learningContext: LearningContextSchema,
@@ -188,7 +196,7 @@ export const ContentAdaptationSchema = z.object({
     learningStyle: z.enum(['visual', 'auditory', 'kinesthetic', 'reading']).optional(),
     preferences: z.object({
       difficulty: z.enum(['adaptive', 'fixed']).default('adaptive'),
-      pace: z.enum(['self-paced', 'guided']).default('adaptive')
+      pace: z.enum(['self-paced', 'guided']).default('self-paced')
     }).optional()
   })
 });
@@ -226,7 +234,7 @@ export const RecommendationFiltersSchema = z.object({
 export const GoalSchema = z.object({
   id: z.string().uuid().optional(),
   userId: UserIdSchema,
-  title: SanitizedStringSchema.max(200),
+  title: createSanitizedStringSchema(200),
   description: SanitizedOptionalStringSchema,
   targetValue: z.number().min(0).max(1000000),
   currentValue: z.number().min(0).max(1000000).default(0),

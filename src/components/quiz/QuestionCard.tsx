@@ -1,10 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { Textarea } from '@/components/ui/Textarea';
-import { Progress } from '@/components/ui/Progress';
 import { 
   Clock, 
   HelpCircle, 
@@ -16,7 +10,14 @@ import {
   ArrowRight,
   ArrowLeft
 } from 'lucide-react';
-import { Question } from '@/types';
+
+import { cn } from '@/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Textarea } from '@/components/ui/Textarea';
+import { Progress } from '@/components/ui/Progress';
+import type { Question } from '@/types';
 
 export interface QuestionCardProps extends React.HTMLAttributes<HTMLDivElement> {
   question: Question;

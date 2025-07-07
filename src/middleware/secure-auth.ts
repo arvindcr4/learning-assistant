@@ -1,5 +1,6 @@
 // Secure Authentication middleware for API routes
 import { NextRequest, NextResponse } from 'next/server';
+
 import { jwtService, JWTPayload } from '@/lib/jwt';
 import { sessionManager } from '@/lib/session-manager';
 import { auth } from '@/lib/auth';

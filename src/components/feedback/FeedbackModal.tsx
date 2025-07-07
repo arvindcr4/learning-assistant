@@ -1,10 +1,4 @@
 import React from 'react';
-import { cn } from '@/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Textarea } from '@/components/ui/Textarea';
-import { Badge } from '@/components/ui/Badge';
-import { Progress } from '@/components/ui/Progress';
 import { 
   X, 
   Star, 
@@ -19,6 +13,13 @@ import {
   Clock,
   Trophy
 } from 'lucide-react';
+
+import { cn } from '@/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Textarea';
+import { Badge } from '@/components/ui/Badge';
+import { Progress } from '@/components/ui/Progress';
 
 export interface FeedbackModalProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onSubmit'> {
   isOpen: boolean;

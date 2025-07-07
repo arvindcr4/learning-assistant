@@ -9,6 +9,7 @@ import {
   StudySession,
   ConversationState
 } from '../types';
+
 import { conversationService } from './conversation-service';
 import { chatStorage } from './chat-storage';
 
@@ -549,8 +550,12 @@ export class LearningProgressIntegration {
     let currentStreak = 1;
 
     for (let i = 1; i < sessionDates.length; i++) {
-      const prevDate = new Date(sessionDates[i - 1]);
-      const currentDate = new Date(sessionDates[i]);
+      const prevDateString = sessionDates[i - 1];
+      const currentDateString = sessionDates[i];
+      if (!prevDateString || !currentDateString) continue;
+      
+      const prevDate = new Date(prevDateString);
+      const currentDate = new Date(currentDateString);
       const dayDiff = (currentDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24);
 
       if (dayDiff === 1) {

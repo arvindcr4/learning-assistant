@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Search, Filter, Clock, User, Bot, ChevronRight, Trash2, Star, Archive } from 'lucide-react';
-import { ChatSession, ChatMessage } from '../../../types';
 import { formatDistanceToNow, format } from 'date-fns';
+
+import { ChatSession, ChatMessage } from '../../../types';
 
 interface ChatHistoryProps {
   userId: string;

@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Bot, User, Settings, RefreshCw, MessageSquare, Loader2 } from 'lucide-react';
-import { ChatMessage, ChatSession, LearningContext, AIResponse, StreamingResponse } from '../../../types';
-import { aiService } from '../../../services/ai-service';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDistanceToNow } from 'date-fns';
+
+import { ChatMessage, ChatSession, LearningContext, AIResponse, StreamingResponse } from '../../../types';
+import { aiService } from '../../../services/ai-service';
 
 interface ChatInterfaceProps {
   userId: string;

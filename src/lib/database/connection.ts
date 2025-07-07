@@ -1,8 +1,9 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+
 import { getDatabaseConfig, getPoolConfig, getCurrentEnvironment, getEnvironmentSettings } from './config';
 
 // Global connection pool instance
-let pool: Pool | null = null;
+const pool: Pool | null = null;
 
 // Connection pool statistics
 interface PoolStats {

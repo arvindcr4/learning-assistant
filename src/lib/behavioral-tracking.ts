@@ -1,5 +1,5 @@
 // Behavioral Tracking Engine - Real-time pattern recognition and analysis
-import { BehavioralIndicator, LearningStyleType, LearningProfile } from '@/types';
+import type { BehavioralIndicator, LearningStyleType, LearningProfile } from '@/types';
 import { generateUUID } from '@/utils/uuid';
 
 export interface BehavioralEvent {

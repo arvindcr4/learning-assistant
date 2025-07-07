@@ -318,7 +318,11 @@ Take your time to reflect, and share whatever feels relevant to you.`;
 
     // Sort by score and return the best match
     scoredPrompts.sort((a, b) => b.score - a.score);
-    return scoredPrompts[0].prompt;
+    const bestMatch = scoredPrompts[0];
+    if (!bestMatch) {
+      throw new Error('No suitable prompt found for the given context');
+    }
+    return bestMatch.prompt;
   }
 
   private scorePromptMatch(prompt: LearningPrompt, context: LearningContext): number {

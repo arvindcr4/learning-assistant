@@ -1,7 +1,7 @@
 // API service for the Personal Learning Assistant
 
 import { config } from '@/lib/config';
-import { APIResponse } from '@/types';
+import type { APIResponse } from '@/types';
 
 class ApiService {
   private baseUrl: string;
@@ -55,7 +55,7 @@ class ApiService {
   async post<T>(endpoint: string, data?: any): Promise<APIResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      ...(data && { body: JSON.stringify(data) }),
     });
   }
 
@@ -63,7 +63,7 @@ class ApiService {
   async put<T>(endpoint: string, data?: any): Promise<APIResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
+      ...(data && { body: JSON.stringify(data) }),
     });
   }
 
@@ -76,7 +76,7 @@ class ApiService {
   async patch<T>(endpoint: string, data?: any): Promise<APIResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PATCH',
-      body: data ? JSON.stringify(data) : undefined,
+      ...(data && { body: JSON.stringify(data) }),
     });
   }
 }
