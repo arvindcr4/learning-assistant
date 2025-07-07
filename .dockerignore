@@ -108,6 +108,7 @@ docker-compose*
 # Git
 .git
 .gitignore
+.husky
 README.md
 
 # CI/CD
