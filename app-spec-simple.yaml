@@ -1,0 +1,31 @@
+name: learning-assistant
+services:
+- name: web
+  source_dir: /
+  github:
+    repo: arvindcr4/learning-assistant
+    branch: main
+  run_command: npm start
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  http_port: 3000
+  routes:
+  - path: /
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: NEXT_TELEMETRY_DISABLED
+    value: "1"
+  - key: DATABASE_URL
+    value: sqlite:./app.db
+  - key: BETTER_AUTH_SECRET
+    value: do-secure-secret-learning-assistant-2025
+  - key: PORT
+    value: "3000"
+  - key: FEATURE_ANALYTICS_ENABLED
+    value: "true"
+  - key: FEATURE_RECOMMENDATIONS_ENABLED
+    value: "true"
+  - key: FEATURE_CHAT_ENABLED
+    value: "false"
