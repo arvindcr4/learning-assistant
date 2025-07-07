@@ -17,7 +17,12 @@ import { VARKAssessment, VARKResponse } from './vark-questionnaire';
 import { AdaptiveAssessmentEngine, AssessmentState } from './adaptive-assessment';
 import { PerformanceAnalyticsEngine, PerformanceMetrics, MLInsight } from './performance-analytics';
 import { SpacedRepetitionEngine, SpacedRepetitionCard, RepetitionSchedule } from './spaced-repetition';
-import { BehavioralTrackingEngine, BehavioralEvent, BehavioralPattern } from './behavioral-tracking';
+import { BehavioralTrackingEngine, BehavioralEvent, BehavioralPattern, RealTimeInsight } from './behavioral-tracking';
+import { 
+  ContentRecommendation, 
+  LearningPathOptimization, 
+  LearningEfficiencyMetrics 
+} from './learning-algorithms';
 
 /**
  * Learning Style Detection Engine
@@ -181,7 +186,7 @@ export class LearningStyleDetector {
     const latestAssessment = assessments[assessments.length - 1];
     return Object.entries(latestAssessment.results).map(([type, score]) => ({
       type: type as LearningStyleType,
-      score: Math.round(score * 100),
+      score: Math.round((score as number) * 100),
       confidence: latestAssessment.confidence,
       lastUpdated: latestAssessment.completedAt
     }));
@@ -679,7 +684,7 @@ export class AdvancedLearningEngine {
     return recommendations.sort((a, b) => b.estimatedImpact - a.estimatedImpact);
   }
   
-  private generateRealTimeActions(insights: any[], attentionMetrics: any): string[] {
+  private generateRealTimeActions(insights: RealTimeInsight[], attentionMetrics: any): string[] {
     const actions: string[] = [];
     
     insights.forEach(insight => {
@@ -694,7 +699,7 @@ export class AdvancedLearningEngine {
       actions.push('Reduce task complexity to prevent cognitive overload');
     }
     
-    return [...new Set(actions)]; // Remove duplicates
+    return Array.from(new Set(actions)); // Remove duplicates
   }
   
   private calculateScheduleEffectiveness(schedule: RepetitionSchedule[]): number {
@@ -843,7 +848,7 @@ export interface ComprehensiveLearningAnalysis {
 }
 
 export interface RealTimeOptimization {
-  insights: any[];
+  insights: RealTimeInsight[];
   attentionMetrics: any;
   engagementMetrics: any;
   adaptiveActions: string[];

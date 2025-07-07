@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
       },
     },
     // Enable PPR (Partial Prerendering) for better performance
-    ppr: true,
+    // ppr: true, // Only available in canary versions
   },
   
   // Image optimization

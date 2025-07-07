@@ -1,0 +1,12 @@
+name: deploy-droplet
+
+resources:
+  cloud: do
+  cpus: 2+
+  memory: 4+
+  disk_size: 80
+  region: nyc3
+
+setup: |
+  # Initial setup will be done after SSH access
+  echo "Droplet created successfully"

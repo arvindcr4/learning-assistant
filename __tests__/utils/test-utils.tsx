@@ -312,7 +312,7 @@ export const renderWithProviders = (ui: ReactElement, options?: RenderOptions) =
   return customRender(ui, options)
 }
 
-export const createMockProps = <T>(defaults: T, overrides: Partial<T> = {}): T => {
+export const createMockProps = <T,>(defaults: T, overrides: Partial<T> = {}): T => {
   return { ...defaults, ...overrides }
 }
 

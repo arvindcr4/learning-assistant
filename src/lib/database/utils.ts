@@ -1,12 +1,12 @@
 import { query, transaction } from './connection';
-import { PoolClient } from 'pg';
+import { PoolClient, QueryResult as PgQueryResult } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { LearningStyleType } from './models';
 
 // Generic query result interface
-export interface QueryResult<T = any> {
+export interface QueryResult<T = any> extends PgQueryResult<T> {
   rows: T[];
-  rowCount: number;
+  rowCount: number | null;
   command: string;
 }
 

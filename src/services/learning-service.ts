@@ -10,7 +10,8 @@ import {
   ContentVariant,
   LearningAnalytics,
   Recommendation,
-  User
+  User,
+  AdaptiveChange
 } from '@/types';
 import { 
   LearningStyleDetector, 
@@ -97,7 +98,7 @@ export class LearningService {
     userId: string
   ): Promise<{
     updatedProfile: LearningProfile;
-    paceAdjustments: any[];
+    paceAdjustments: AdaptiveChange[];
     recommendations: Recommendation[];
   }> {
     try {
@@ -720,7 +721,7 @@ export class LearningService {
     const sessionDates = sessions.map(session => 
       new Date(session.startTime).toDateString()
     );
-    const uniqueDates = [...new Set(sessionDates)].sort();
+    const uniqueDates = Array.from(new Set(sessionDates)).sort();
     
     let streak = 0;
     const today = new Date().toDateString();

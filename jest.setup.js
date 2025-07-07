@@ -39,9 +39,11 @@ jest.mock('next/navigation', () => ({
 }))
 
 // Mock crypto.randomUUID for tests
-global.crypto = {
-  randomUUID: () => 'test-uuid-' + Math.random().toString(36).substr(2, 9),
-}
+Object.defineProperty(global, 'crypto', {
+  value: {
+    randomUUID: () => 'test-uuid-' + Math.random().toString(36).substr(2, 9),
+  },
+})
 
 // Mock ResizeObserver
 global.ResizeObserver = jest.fn().mockImplementation(() => ({

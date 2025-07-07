@@ -100,7 +100,7 @@ export class DatabaseConnection {
         
         if (attempt < retries) {
           if (logQuery) {
-            console.warn(`Query attempt ${attempt + 1} failed, retrying:`, error.message);
+            console.warn(`Query attempt ${attempt + 1} failed, retrying:`, (error as Error).message);
           }
           await this.delay(Math.pow(2, attempt) * 1000); // Exponential backoff
         }

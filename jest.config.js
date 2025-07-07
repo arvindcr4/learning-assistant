@@ -6,6 +6,15 @@ const config = {
   // Setup files
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   
+  // Global setup
+  globals: {
+    'ts-jest': {
+      tsconfig: {
+        jsx: 'react-jsx',
+      },
+    },
+  },
+  
   // Module name mapping for path aliases
   moduleNameMapper: {
     '^@/components/(.*)$': '<rootDir>/src/components/$1',

@@ -19,27 +19,41 @@ jest.mock('@/lib/learning-engine', () => ({
       dataPoints: 16,
       completedAt: new Date(),
     }),
-    createLearningProfile: jest.fn().mockReturnValue({
+    createLearningProfile: jest.fn().mockImplementation((userId) => ({
       id: 'test-profile-id',
-      userId: 'test-user-id',
+      userId: userId || 'test-user-id',
       styles: [
-        { type: LearningStyleType.VISUAL, score: 80, confidence: 0.8, lastUpdated: new Date() },
-        { type: LearningStyleType.AUDITORY, score: 60, confidence: 0.7, lastUpdated: new Date() },
-        { type: LearningStyleType.READING, score: 70, confidence: 0.6, lastUpdated: new Date() },
-        { type: LearningStyleType.KINESTHETIC, score: 50, confidence: 0.5, lastUpdated: new Date() },
+        { type: 'visual', score: 80, confidence: 0.8, lastUpdated: new Date() },
+        { type: 'auditory', score: 60, confidence: 0.7, lastUpdated: new Date() },
+        { type: 'reading', score: 70, confidence: 0.6, lastUpdated: new Date() },
+        { type: 'kinesthetic', score: 50, confidence: 0.5, lastUpdated: new Date() },
       ],
-      dominantStyle: LearningStyleType.VISUAL,
+      dominantStyle: 'visual',
       isMultimodal: true,
       assessmentHistory: [],
       behavioralIndicators: [],
       adaptationLevel: 75,
       createdAt: new Date(),
       updatedAt: new Date(),
-    }),
+    })),
     updateLearningProfile: jest.fn().mockImplementation((profile) => ({
       ...profile,
       updatedAt: new Date(),
     })),
+    generateVARKRecommendations: jest.fn().mockReturnValue([
+      {
+        id: 'rec-vark-1',
+        type: 'style',
+        title: 'Visual Learning Recommendation',
+        description: 'Focus on visual learning materials',
+        reasoning: 'Based on VARK assessment results',
+        confidence: 85,
+        priority: 'medium',
+        actionRequired: false,
+        estimatedImpact: 70,
+        createdAt: new Date(),
+      },
+    ]),
   })),
   AdaptivePaceManager: jest.fn().mockImplementation(() => ({
     createAdaptiveChange: jest.fn().mockReturnValue(null),
@@ -64,6 +78,15 @@ jest.mock('@/lib/learning-engine', () => ({
       },
     ]),
   })),
+  AdvancedLearningEngine: jest.fn().mockImplementation(() => ({})),
+  AdaptiveAssessmentEngine: jest.fn().mockImplementation(() => ({})),
+  PerformanceAnalyticsEngine: jest.fn().mockImplementation(() => ({})),
+  SpacedRepetitionEngine: jest.fn().mockImplementation(() => ({})),
+  LearningPathOptimizer: jest.fn().mockImplementation(() => ({})),
+  FatigueDetector: jest.fn().mockImplementation(() => ({})),
+  ErrorAnalyzer: jest.fn().mockImplementation(() => ({})),
+  BehavioralTracker: jest.fn().mockImplementation(() => ({})),
+  DifficultyCalibrator: jest.fn().mockImplementation(() => ({})),
 }))
 
 describe('LearningService', () => {
@@ -89,7 +112,7 @@ describe('LearningService', () => {
       expect(profile).toBeDefined()
       expect(profile.userId).toBe(userId)
       expect(profile.styles).toHaveLength(4)
-      expect(profile.dominantStyle).toBe(LearningStyleType.VISUAL)
+      expect(profile.dominantStyle).toBe('visual')
       expect(profile.isMultimodal).toBe(true)
     })
 
