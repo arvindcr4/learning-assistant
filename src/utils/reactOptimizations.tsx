@@ -1,6 +1,7 @@
 'use client';
 
-import React, { memo, useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import React, { memo, useMemo, useCallback, useState, useRef, useEffect, startTransition } from 'react';
+
 import { useRenderTracking } from '@/hooks/usePerformanceMonitoring';
 
 // Enhanced memo with deep comparison options
@@ -9,6 +10,24 @@ interface MemoOptions {
   compareChildren?: boolean;
   trackRenders?: boolean;
   componentName?: string;
+}
+
+// Modern React 18 utilities
+export function useTransition(): {
+  startTransition: (callback: () => void) => void;
+  isPending: boolean;
+} {
+  const [isPending, setIsPending] = useState(false);
+  
+  const startTransitionWrapper = useCallback((callback: () => void) => {
+    setIsPending(true);
+    startTransition(() => {
+      callback();
+      setIsPending(false);
+    });
+  }, []);
+  
+  return { startTransition: startTransitionWrapper, isPending };
 }
 
 export function createOptimizedMemo<P extends object>(
@@ -54,7 +73,7 @@ export function createOptimizedMemo<P extends object>(
   if (trackRenders) {
     const TrackedComponent = (props: P) => {
       useRenderTracking(componentName, props as Record<string, any>);
-      return <MemoizedComponent {...props} />;
+      return <MemoizedComponent {...(props as any)} />;
     };
 
     TrackedComponent.displayName = `Tracked(${componentName})`;
@@ -62,20 +81,46 @@ export function createOptimizedMemo<P extends object>(
   }
 
   MemoizedComponent.displayName = `Memo(${componentName})`;
-  return MemoizedComponent;
+  return MemoizedComponent as React.ComponentType<P>;
 }
 
-// Deep comparison memo
+// Deep comparison memo with improved comparison
 export function createDeepMemo<P extends object>(
   Component: React.ComponentType<P>,
   componentName?: string
 ): React.ComponentType<P> {
   return createOptimizedMemo(Component, {
     compareProps: (prevProps, nextProps) => {
-      return JSON.stringify(prevProps) === JSON.stringify(nextProps);
+      // More efficient deep comparison than JSON.stringify
+      return deepEqual(prevProps, nextProps);
     },
     componentName: componentName || Component.displayName || Component.name,
   });
+}
+
+// Efficient deep equality check
+export function deepEqual(obj1: any, obj2: any): boolean {
+  if (obj1 === obj2) return true;
+  
+  if (obj1 == null || obj2 == null) return obj1 === obj2;
+  
+  if (typeof obj1 !== typeof obj2) return false;
+  
+  if (typeof obj1 !== 'object') return obj1 === obj2;
+  
+  if (Array.isArray(obj1) !== Array.isArray(obj2)) return false;
+  
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+  
+  if (keys1.length !== keys2.length) return false;
+  
+  for (const key of keys1) {
+    if (!keys2.includes(key)) return false;
+    if (!deepEqual(obj1[key], obj2[key])) return false;
+  }
+  
+  return true;
 }
 
 // Shallow comparison memo (default React.memo behavior but with tracking)
@@ -192,7 +237,7 @@ export function withRenderOptimization<P extends object>(
   // Apply memo if requested
   if (useMemo) {
     OptimizedComponent = createOptimizedMemo(OptimizedComponent, {
-      compareProps: preventRerender,
+      compareProps: preventRerender || undefined,
       trackRenders,
     });
   }
@@ -214,7 +259,7 @@ export function useConditionalRender<T>(
 // Hook for lazy component loading
 export function useLazyComponent<P extends object>(
   importFn: () => Promise<{ default: React.ComponentType<P> }>,
-  fallback?: React.ComponentNode
+  fallback?: React.ReactNode
 ): React.ComponentType<P> | null {
   const [Component, setComponent] = useState<React.ComponentType<P> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -356,6 +401,7 @@ export function createOptimizedProvider<T>(
 }
 
 // Render batching utility
+// Note: React 18 automatically batches updates, so this is mainly for legacy compatibility
 export function useBatchedRender(): {
   batchRender: (callback: () => void) => void;
   flushBatch: () => void;
@@ -364,10 +410,10 @@ export function useBatchedRender(): {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const flushBatch = useCallback(() => {
-    React.unstable_batchedUpdates(() => {
-      batchRef.current.forEach(callback => callback());
-      batchRef.current = [];
-    });
+    // React 18+ automatically batches updates, so we just execute the callbacks
+    // For React 17 and below, you would need to use unstable_batchedUpdates
+    batchRef.current.forEach(callback => callback());
+    batchRef.current = [];
 
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -412,6 +458,56 @@ export function RenderTracker({
   return <>{children}</>;
 }
 
+// React 18 concurrent features helper
+export function useConcurrentFeatures(): {
+  deferredValue: (value: any) => any;
+  startTransition: (callback: () => void) => void;
+  isPending: boolean;
+} {
+  const [deferredValue, setDeferredValue] = useState<any>(null);
+  const [isPending, setIsPending] = useState(false);
+  
+  const deferredValueWrapper = useCallback((value: any): any => {
+    // Simple deferred value implementation
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        setDeferredValue(value);
+      }, 0);
+      return () => clearTimeout(timer);
+    }, [value]);
+    
+    return deferredValue ?? value;
+  }, [deferredValue]);
+  
+  const startTransitionWrapper = useCallback((callback: () => void) => {
+    setIsPending(true);
+    startTransition(() => {
+      callback();
+      setIsPending(false);
+    });
+  }, []);
+  
+  return {
+    deferredValue: deferredValueWrapper,
+    startTransition: startTransitionWrapper,
+    isPending
+  };
+}
+
+// Generic deferred value hook
+export function useDeferredValue<T>(value: T): T {
+  const [deferredValue, setDeferredValue] = useState<T>(value);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDeferredValue(value);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [value]);
+  
+  return deferredValue;
+}
+
 // Export all optimizations
 export const ReactOptimizations = {
   createOptimizedMemo,
@@ -427,4 +523,8 @@ export const ReactOptimizations = {
   createOptimizedProvider,
   useBatchedRender,
   RenderTracker,
+  useTransition,
+  useConcurrentFeatures,
+  useDeferredValue,
+  deepEqual,
 };
