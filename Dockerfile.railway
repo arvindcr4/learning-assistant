@@ -1,0 +1,194 @@
+# Railway-optimized Docker build for Learning Assistant
+# Multi-stage build with security best practices and Railway-specific optimizations
+
+# =============================================================================
+# Stage 1: Base Dependencies
+# =============================================================================
+FROM node:20-alpine AS base
+
+# Install security updates and essential packages
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+    dumb-init \
+    curl \
+    ca-certificates \
+    tzdata \
+    tini && \
+    rm -rf /var/cache/apk/*
+
+# Set timezone to UTC for consistent deployments
+ENV TZ=UTC
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY package*.json ./
+
+# =============================================================================
+# Stage 2: Development Dependencies
+# =============================================================================
+FROM base AS deps
+
+# Install all dependencies including dev dependencies
+RUN npm ci --include=dev --ignore-scripts --no-audit --no-fund
+
+# =============================================================================
+# Stage 3: Production Dependencies
+# =============================================================================
+FROM base AS prod-deps
+
+# Install only production dependencies
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && \
+    npm cache clean --force
+
+# =============================================================================
+# Stage 4: Build Stage
+# =============================================================================
+FROM base AS builder
+
+# Copy all dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy source code
+COPY . .
+
+# Set build environment variables
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV SKIP_ENV_VALIDATION=1
+
+# Build the application
+RUN npm run build
+
+# =============================================================================
+# Stage 5: Production Runtime
+# =============================================================================
+FROM base AS runner
+
+# Set production environment
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+
+# Copy production dependencies
+COPY --from=prod-deps /app/node_modules ./node_modules
+
+# Copy package.json for runtime
+COPY --from=builder /app/package.json ./package.json
+
+# Copy built application
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Copy additional configuration files
+COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./
+COPY --from=builder --chown=nextjs:nodejs /app/tailwind.config.js ./
+
+# Create necessary directories and set permissions
+RUN mkdir -p /app/.next/cache && \
+    mkdir -p /app/tmp && \
+    mkdir -p /app/logs && \
+    mkdir -p /app/uploads && \
+    chown -R nextjs:nodejs /app/.next/cache && \
+    chown -R nextjs:nodejs /app/tmp && \
+    chown -R nextjs:nodejs /app/logs && \
+    chown -R nextjs:nodejs /app/uploads && \
+    chmod -R 755 /app/.next/cache && \
+    chmod -R 755 /app/tmp && \
+    chmod -R 755 /app/logs && \
+    chmod -R 755 /app/uploads
+
+# Security: Remove unnecessary packages and files
+RUN rm -rf /var/cache/apk/* && \
+    rm -rf /tmp/* && \
+    rm -rf /root/.npm && \
+    rm -rf /usr/local/share/.cache
+
+# Set resource limits (Railway will override these)
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
+# Expose port
+EXPOSE 3000
+
+# Switch to non-root user
+USER nextjs
+
+# Health check for Railway
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Use tini as init system for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# Start the application
+CMD ["node", "server.js"]
+
+# =============================================================================
+# Build Arguments and Labels
+# =============================================================================
+ARG BUILD_DATE
+ARG BUILD_VERSION
+ARG BUILD_REVISION
+
+# Metadata labels
+LABEL maintainer="Learning Assistant Team"
+LABEL org.opencontainers.image.title="Learning Assistant"
+LABEL org.opencontainers.image.description="AI-powered personalized learning assistant"
+LABEL org.opencontainers.image.version=${BUILD_VERSION}
+LABEL org.opencontainers.image.revision=${BUILD_REVISION}
+LABEL org.opencontainers.image.created=${BUILD_DATE}
+LABEL org.opencontainers.image.source="https://github.com/your-org/learning-assistant"
+LABEL org.opencontainers.image.documentation="https://docs.learning-assistant.com"
+LABEL org.opencontainers.image.vendor="Learning Assistant"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.url="https://learning-assistant.com"
+
+# Railway-specific labels
+LABEL railway.app="learning-assistant"
+LABEL railway.service="web"
+LABEL railway.port="3000"
+LABEL railway.healthcheck="/api/health"
+LABEL railway.build.dockerfile="Dockerfile.railway"
+
+# Security labels
+LABEL security.non-root="true"
+LABEL security.user="nextjs"
+LABEL security.group="nodejs"
+LABEL security.capabilities="none"
+LABEL security.selinux="disabled"
+LABEL security.apparmor="unconfined"
+
+# Performance labels
+LABEL performance.cpu.limit="0.5"
+LABEL performance.memory.limit="512Mi"
+LABEL performance.disk.limit="1Gi"
+LABEL performance.network.limit="100Mbps"
+
+# Environment labels
+LABEL environment.runtime="node"
+LABEL environment.version="20"
+LABEL environment.framework="nextjs"
+LABEL environment.framework.version="15"
+LABEL environment.database="postgresql"
+LABEL environment.cache="redis"
+LABEL environment.platform="railway"
+
+# =============================================================================
+# Railway-specific Optimizations
+# =============================================================================
+# 1. Multi-stage build reduces final image size
+# 2. Non-root user for security
+# 3. Proper signal handling with tini
+# 4. Health check endpoint for Railway monitoring
+# 5. Optimized layer caching
+# 6. Security updates and minimal attack surface
+# 7. Proper file permissions and ownership
+# 8. Environment variable optimization
+# 9. Resource limit awareness
+# 10. Comprehensive labeling for Railway metadata

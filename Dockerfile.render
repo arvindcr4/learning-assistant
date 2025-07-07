@@ -1,0 +1,189 @@
+# Render.com Optimized Dockerfile for Learning Assistant
+# Multi-stage build optimized for Render's deployment pipeline
+# Supports PostgreSQL, Redis, and production-ready Next.js deployment
+
+# Stage 1: Base Dependencies
+FROM node:20-alpine AS base
+
+# Install system dependencies required for production
+RUN apk add --no-cache \
+    curl \
+    postgresql-client \
+    redis \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/cache/apk/*
+
+# Set timezone
+ENV TZ=UTC
+
+# Create application directory
+WORKDIR /app
+
+# Stage 2: Dependencies Installation
+FROM base AS deps
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies with production optimizations
+RUN npm ci --omit=dev --ignore-scripts --prefer-offline --no-audit --no-fund
+
+# Stage 3: Development Dependencies (for build)
+FROM base AS build-deps
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev) for build
+RUN npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+
+# Stage 4: Builder
+FROM build-deps AS builder
+
+# Copy source code
+COPY . .
+
+# Set build environment variables
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV SKIP_ENV_VALIDATION=1
+
+# Create necessary directories
+RUN mkdir -p /app/.next/cache
+RUN mkdir -p /app/public
+RUN mkdir -p /app/tmp
+
+# Build the application
+RUN npm run build
+
+# Stage 5: Production Runner
+FROM base AS runner
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Set working directory
+WORKDIR /app
+
+# Copy production dependencies
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy application files
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/next.config.ts ./
+COPY --from=builder /app/tailwind.config.js ./
+COPY --from=builder /app/postcss.config.mjs ./
+
+# Copy Next.js build output
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+
+# Copy additional application files
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/messages ./messages
+COPY --from=builder /app/i18n ./i18n
+COPY --from=builder /app/middleware.ts ./middleware.ts
+
+# Copy database and migration files
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/dbsetup.js ./dbsetup.js
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app/.next/cache
+RUN mkdir -p /app/tmp && chown -R nextjs:nodejs /app/tmp
+RUN mkdir -p /app/logs && chown -R nextjs:nodejs /app/logs
+RUN mkdir -p /app/uploads && chown -R nextjs:nodejs /app/uploads
+
+# Create database initialization script
+RUN echo '#!/bin/sh\n\
+# Database initialization and migration script\n\
+echo "Starting database initialization..."\n\
+\n\
+# Wait for database to be ready\n\
+echo "Waiting for database connection..."\n\
+until pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER; do\n\
+  echo "Database is not ready yet. Waiting..."\n\
+  sleep 2\n\
+done\n\
+\n\
+echo "Database is ready!"\n\
+\n\
+# Run database migrations\n\
+if [ "$NODE_ENV" = "production" ]; then\n\
+  echo "Running database migrations..."\n\
+  node scripts/migrate.js || echo "Migration failed or already up to date"\n\
+  \n\
+  echo "Running database seeding..."\n\
+  node scripts/seed.js || echo "Seeding failed or already done"\n\
+fi\n\
+\n\
+echo "Database initialization complete!"\n\
+' > /app/init-db.sh && chmod +x /app/init-db.sh
+
+# Create startup script
+RUN echo '#!/bin/sh\n\
+# Render.com startup script for Learning Assistant\n\
+\n\
+echo "=== Learning Assistant Startup ==="\n\
+echo "Node.js version: $(node --version)"\n\
+echo "NPM version: $(npm --version)"\n\
+echo "Environment: $NODE_ENV"\n\
+echo "Port: $PORT"\n\
+echo "Database Host: $DB_HOST"\n\
+echo "Redis Host: $REDIS_HOST"\n\
+echo "=================================="\n\
+\n\
+# Initialize database if needed\n\
+if [ "$DB_HOST" != "" ]; then\n\
+  echo "Initializing database..."\n\
+  /app/init-db.sh\n\
+fi\n\
+\n\
+# Start the application\n\
+echo "Starting Next.js application..."\n\
+exec npm start\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Create health check script
+RUN echo '#!/bin/sh\n\
+# Enhanced health check for Render deployment\n\
+\n\
+# Check if the application is responding\n\
+if curl -f http://localhost:$PORT/api/health > /dev/null 2>&1; then\n\
+  echo "Health check passed"\n\
+  exit 0\n\
+else\n\
+  echo "Health check failed"\n\
+  exit 1\n\
+fi\n\
+' > /app/health-check.sh && chmod +x /app/health-check.sh
+
+# Set production environment variables
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# Expose port
+EXPOSE 3000
+
+# Switch to non-root user
+USER nextjs
+
+# Health check configuration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD /app/health-check.sh
+
+# Start the application using the startup script
+CMD ["/app/start.sh"]
+
+# Labels for better container management
+LABEL maintainer="Learning Assistant Team"
+LABEL version="1.0.0"
+LABEL description="Learning Assistant Next.js application optimized for Render.com"
+LABEL platform="render"
+LABEL database="postgresql"
+LABEL cache="redis"

@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
-import createNextIntlPlugin from "next-intl/plugin";
-
-const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
+  // Output configuration for Docker deployment
+  output: "standalone",
   
   // Disable ESLint during build for production deployment
   eslint: {
@@ -174,4 +173,4 @@ const nextConfig: NextConfig = {
   }),
 };
 
-export default withNextIntl(nextConfig);
+export default nextConfig;
