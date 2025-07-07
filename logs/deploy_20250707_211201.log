@@ -1,0 +1,30 @@
+Learning Assistant Deployment Log - Mon Jul  7 21:12:01 IST 2025
+2025-07-07 21:12:01 [INFO] [0;34mℹ️  Deployment Configuration:[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Platform: fly[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Environment: production[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Region: auto[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Instance Type: auto[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Dry Run: false[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Verbose: true[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Skip Health Check: false[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Skip Validation: false[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Enable Rollback: true[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️    Cleanup on Failure: true[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️  Starting deployment process...[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️  Starting deployment for fly (production)[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️  Running pre-deployment validation...[0m
+2025-07-07 21:12:01 [SUCCESS] [0;32m✅ All dependencies are available[0m
+2025-07-07 21:12:01 [SUCCESS] [0;32m✅ Application configuration is valid[0m
+2025-07-07 21:12:01 [INFO] [0;34mℹ️  Validating Docker configuration...[0m
+2025-07-07 21:12:56 [SUCCESS] [0;32m✅ Docker configuration is valid[0m
+2025-07-07 21:12:56 [INFO] [0;34mℹ️  Loading environment configuration from /Users/arvindcr/learning-assistant/deploy/config/fly/production.env[0m
+2025-07-07 21:12:56 [SUCCESS] [0;32m✅ Environment validation passed[0m
+2025-07-07 21:12:56 [INFO] [0;34mℹ️  Rollback point created: /Users/arvindcr/learning-assistant/logs/rollback_fly_fly_production_20250707_211201.json[0m
+2025-07-07 21:12:56 [INFO] [0;34mℹ️  Deploying to Fly.io...[0m
+2025-07-07 21:12:56 [INFO] [0;34mℹ️  Initializing Fly.io deployment...[0m
+2025-07-07 21:12:57 [INFO] [0;34mℹ️  Deploying application to Fly.io...[0m
+2025-07-07 21:12:57 [INFO] [0;34mℹ️  Updating fly.toml configuration...[0m
+2025-07-07 21:12:57 [SUCCESS] [0;32m✅ fly.toml configuration updated[0m
+2025-07-07 21:12:57 [INFO] [0;34mℹ️  Setting Fly.io environment variables...[0m
+2025-07-07 21:13:23 [DEBUG] [0;36m🔍 Set environment variable: NODE_ENV[0m
+2025-07-07 21:13:47 [DEBUG] [0;36m🔍 Set environment variable: DATABASE_URL[0m

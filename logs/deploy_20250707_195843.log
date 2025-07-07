@@ -1,0 +1,14 @@
+Learning Assistant Deployment Log - Mon Jul  7 19:58:43 IST 2025
+2025-07-07 19:58:43 [INFO] [0;34mℹ️  Deployment Configuration:[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Platform: fly[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Environment: production[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Region: auto[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Instance Type: auto[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Dry Run: true[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Verbose: true[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Skip Health Check: false[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Skip Validation: false[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Enable Rollback: true[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️    Cleanup on Failure: true[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️  DRY RUN MODE - No actual deployment will be performed[0m
+2025-07-07 19:58:43 [INFO] [0;34mℹ️  Would deploy to: fly (production)[0m

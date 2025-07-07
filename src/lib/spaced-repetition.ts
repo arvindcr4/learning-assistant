@@ -122,75 +122,157 @@ export interface DemotionRule {
   threshold: number;
 }
 
+/**
+ * Spaced Repetition Configuration
+ */
+interface SpacedRepetitionConfig {
+  DEFAULT_EASE_FACTOR: number;
+  MIN_EASE_FACTOR: number;
+  MAX_EASE_FACTOR: number;
+  INITIAL_INTERVAL: number;
+  GRADUATION_INTERVAL: number;
+  EASY_BONUS: number;
+  HARD_PENALTY: number;
+  MIN_INTERVAL: number;
+  MAX_INTERVAL: number;
+  QUALITY_THRESHOLD: number;
+  MIN_SAMPLE_SIZE: number;
+}
+
 export class SpacedRepetitionEngine {
-  private readonly DEFAULT_EASE_FACTOR = 2.5;
-  private readonly MIN_EASE_FACTOR = 1.3;
-  private readonly MAX_EASE_FACTOR = 2.5;
-  private readonly INITIAL_INTERVAL = 1; // days
-  private readonly GRADUATION_INTERVAL = 4; // days
-  private readonly EASY_BONUS = 1.3;
-  private readonly HARD_PENALTY = 0.85;
+  private readonly config: SpacedRepetitionConfig = {
+    DEFAULT_EASE_FACTOR: 2.5,
+    MIN_EASE_FACTOR: 1.3,
+    MAX_EASE_FACTOR: 2.5,
+    INITIAL_INTERVAL: 1, // days
+    GRADUATION_INTERVAL: 4, // days
+    EASY_BONUS: 1.3,
+    HARD_PENALTY: 0.85,
+    MIN_INTERVAL: 1,
+    MAX_INTERVAL: 365,
+    QUALITY_THRESHOLD: 3,
+    MIN_SAMPLE_SIZE: 5
+  };
 
   /**
-   * Implements the SM-2 algorithm with adaptive enhancements
+   * Implements the SM-2 algorithm with proper error handling and validation
    */
   public calculateNextReview(card: SpacedRepetitionCard, quality: number): SpacedRepetitionCard {
-    const newCard = { ...card };
-    const now = new Date();
+    try {
+      // Input validation
+      if (!card || !card.id) {
+        throw new Error('Invalid card provided');
+      }
 
-    // Validate quality score (0-5)
-    quality = Math.max(0, Math.min(5, Math.round(quality)));
+      if (typeof quality !== 'number') {
+        throw new Error('Quality must be a number');
+      }
 
-    // Update ease factor based on quality
-    if (quality >= 3) {
-      newCard.easeFactor = Math.min(
-        this.MAX_EASE_FACTOR,
-        newCard.easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-      );
-    } else {
-      newCard.easeFactor = Math.max(
-        this.MIN_EASE_FACTOR,
-        newCard.easeFactor - 0.2
-      );
-    }
+      // Create deep copy to avoid mutations
+      const newCard: SpacedRepetitionCard = {
+        ...card,
+        reviews: [...(card.reviews || [])],
+        updatedAt: new Date()
+      };
 
-    // Calculate new interval
-    let newInterval: number;
-    
-    if (quality < 3) {
-      // Failed review - reset interval but keep ease factor history
-      newInterval = 1;
-      newCard.repetitions = 0;
-    } else {
-      // Successful review
-      newCard.repetitions += 1;
-      
-      if (newCard.repetitions === 1) {
-        newInterval = this.INITIAL_INTERVAL;
-      } else if (newCard.repetitions === 2) {
-        newInterval = this.GRADUATION_INTERVAL;
+      const now = new Date();
+
+      // Validate and normalize quality score (0-5)
+      const normalizedQuality = Math.max(0, Math.min(5, Math.round(quality)));
+
+      // Validate current ease factor
+      if (typeof newCard.easeFactor !== 'number' || 
+          newCard.easeFactor < this.config.MIN_EASE_FACTOR || 
+          newCard.easeFactor > this.config.MAX_EASE_FACTOR) {
+        newCard.easeFactor = this.config.DEFAULT_EASE_FACTOR;
+      }
+
+      // Validate repetition count
+      if (typeof newCard.repetitions !== 'number' || newCard.repetitions < 0) {
+        newCard.repetitions = 0;
+      }
+
+      // Validate current interval
+      if (typeof newCard.interval !== 'number' || newCard.interval < 1) {
+        newCard.interval = this.config.INITIAL_INTERVAL;
+      }
+
+      // Update ease factor based on quality (SM-2 algorithm)
+      if (normalizedQuality >= this.config.QUALITY_THRESHOLD) {
+        const easeDelta = 0.1 - (5 - normalizedQuality) * (0.08 + (5 - normalizedQuality) * 0.02);
+        newCard.easeFactor = Math.min(
+          this.config.MAX_EASE_FACTOR,
+          Math.max(this.config.MIN_EASE_FACTOR, newCard.easeFactor + easeDelta)
+        );
       } else {
-        newInterval = Math.round(newCard.interval * newCard.easeFactor);
+        newCard.easeFactor = Math.max(
+          this.config.MIN_EASE_FACTOR,
+          newCard.easeFactor - 0.2
+        );
       }
 
-      // Apply quality-based adjustments
-      if (quality === 5) {
-        newInterval = Math.round(newInterval * this.EASY_BONUS);
-      } else if (quality === 3) {
-        newInterval = Math.round(newInterval * this.HARD_PENALTY);
+      // Calculate new interval
+      let newInterval: number;
+      
+      if (normalizedQuality < this.config.QUALITY_THRESHOLD) {
+        // Failed review - reset to initial interval
+        newInterval = this.config.INITIAL_INTERVAL;
+        newCard.repetitions = 0;
+      } else {
+        // Successful review
+        newCard.repetitions += 1;
+        
+        if (newCard.repetitions === 1) {
+          newInterval = this.config.INITIAL_INTERVAL;
+        } else if (newCard.repetitions === 2) {
+          newInterval = this.config.GRADUATION_INTERVAL;
+        } else {
+          // Ensure proper multiplication
+          const baseInterval = Math.max(this.config.INITIAL_INTERVAL, newCard.interval);
+          const easeFactor = Math.max(this.config.MIN_EASE_FACTOR, newCard.easeFactor);
+          newInterval = Math.round(baseInterval * easeFactor);
+        }
+
+        // Apply quality-based adjustments
+        if (normalizedQuality === 5) {
+          newInterval = Math.round(newInterval * this.config.EASY_BONUS);
+        } else if (normalizedQuality === 3) {
+          newInterval = Math.round(newInterval * this.config.HARD_PENALTY);
+        }
       }
+
+      // Apply minimum and maximum interval constraints
+      newInterval = Math.max(this.config.MIN_INTERVAL, Math.min(this.config.MAX_INTERVAL, newInterval));
+
+      // Record review history
+      const reviewRecord: ReviewHistory = {
+        reviewDate: now,
+        quality: normalizedQuality,
+        responseTime: 0, // This would come from the review session
+        previousInterval: newCard.interval,
+        newInterval,
+        easeFactor: newCard.easeFactor,
+        wasCorrect: normalizedQuality >= this.config.QUALITY_THRESHOLD
+      };
+
+      newCard.reviews.push(reviewRecord);
+
+      // Update card properties
+      newCard.interval = newInterval;
+      newCard.lastReviewDate = now;
+      newCard.nextReviewDate = new Date(now.getTime() + newInterval * 24 * 60 * 60 * 1000);
+
+      return newCard;
+    } catch (error) {
+      console.error('Error calculating next review:', error);
+      // Return original card with minimal update on error
+      return {
+        ...card,
+        lastReviewDate: new Date(),
+        nextReviewDate: new Date(Date.now() + this.config.INITIAL_INTERVAL * 24 * 60 * 60 * 1000),
+        updatedAt: new Date()
+      };
     }
-
-    // Apply minimum and maximum interval constraints
-    newInterval = Math.max(1, Math.min(365, newInterval)); // 1 day to 1 year
-
-    // Update card properties
-    newCard.interval = newInterval;
-    newCard.lastReviewDate = now;
-    newCard.nextReviewDate = new Date(now.getTime() + newInterval * 24 * 60 * 60 * 1000);
-    newCard.updatedAt = now;
-
-    return newCard;
   }
 
   /**
@@ -545,29 +627,75 @@ export class SpacedRepetitionEngine {
   }
 
   private calculateOverallRetention(cards: SpacedRepetitionCard[]): number {
-    const totalReviews = cards.reduce((sum, card) => sum + card.reviews.length, 0);
-    const successfulReviews = cards.reduce((sum, card) => 
-      sum + card.reviews.filter(review => review.quality >= 3).length, 0
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return 0;
+    }
+
+    const validCards = cards.filter(card => 
+      card && Array.isArray(card.reviews)
     );
 
-    return totalReviews > 0 ? successfulReviews / totalReviews : 0;
+    if (validCards.length === 0) {
+      return 0;
+    }
+
+    let totalReviews = 0;
+    let successfulReviews = 0;
+
+    validCards.forEach(card => {
+      const validReviews = card.reviews.filter(review => 
+        review && 
+        typeof review.quality === 'number' && 
+        review.quality >= 0 && 
+        review.quality <= 5
+      );
+      
+      totalReviews += validReviews.length;
+      successfulReviews += validReviews.filter(review => 
+        review.quality >= this.config.QUALITY_THRESHOLD
+      ).length;
+    });
+
+    return totalReviews > 0 ? Math.max(0, Math.min(1, successfulReviews / totalReviews)) : 0;
   }
 
   private calculateRetentionByDifficulty(cards: SpacedRepetitionCard[]): { [key: number]: number } {
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return {};
+    }
+
     const retentionByDifficulty: { [key: number]: number } = {};
 
     for (let difficulty = 1; difficulty <= 10; difficulty++) {
       const relevantCards = cards.filter(card => 
-        Math.round(card.difficulty) === difficulty && card.reviews.length > 0
+        card &&
+        typeof card.difficulty === 'number' &&
+        Math.round(card.difficulty) === difficulty &&
+        Array.isArray(card.reviews) &&
+        card.reviews.length > 0
       );
 
       if (relevantCards.length > 0) {
-        const totalReviews = relevantCards.reduce((sum, card) => sum + card.reviews.length, 0);
-        const successfulReviews = relevantCards.reduce((sum, card) => 
-          sum + card.reviews.filter(review => review.quality >= 3).length, 0
-        );
+        let totalReviews = 0;
+        let successfulReviews = 0;
 
-        retentionByDifficulty[difficulty] = totalReviews > 0 ? successfulReviews / totalReviews : 0;
+        relevantCards.forEach(card => {
+          const validReviews = card.reviews.filter(review => 
+            review && 
+            typeof review.quality === 'number' &&
+            review.quality >= 0 &&
+            review.quality <= 5
+          );
+          
+          totalReviews += validReviews.length;
+          successfulReviews += validReviews.filter(review => 
+            review.quality >= this.config.QUALITY_THRESHOLD
+          ).length;
+        });
+
+        if (totalReviews > 0) {
+          retentionByDifficulty[difficulty] = Math.max(0, Math.min(1, successfulReviews / totalReviews));
+        }
       }
     }
 
@@ -632,23 +760,43 @@ export class SpacedRepetitionEngine {
   }
 
   private generateForgettingCurve(cards: SpacedRepetitionCard[]): ForgettingCurvePoint[] {
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return [];
+    }
+
     const curve: ForgettingCurvePoint[] = [];
     const intervals = [1, 3, 7, 14, 30, 60, 120, 365];
 
     intervals.forEach(interval => {
-      const relevantReviews = cards.flatMap(card => 
-        card.reviews.filter(review => {
-          const daysSinceLastReview = Math.abs(review.previousInterval - interval) <= 1;
-          return daysSinceLastReview;
-        })
-      );
+      const relevantReviews = cards
+        .filter(card => card && Array.isArray(card.reviews))
+        .flatMap(card => 
+          card.reviews.filter(review => {
+            if (!review || typeof review.previousInterval !== 'number') {
+              return false;
+            }
+            return Math.abs(review.previousInterval - interval) <= 1;
+          })
+        )
+        .filter(review => 
+          review &&
+          typeof review.quality === 'number' &&
+          review.quality >= 0 &&
+          review.quality <= 5
+        );
 
-      if (relevantReviews.length >= 5) { // Minimum sample size
-        const retention = relevantReviews.filter(review => review.quality >= 3).length / relevantReviews.length;
+      if (relevantReviews.length >= this.config.MIN_SAMPLE_SIZE) {
+        const successfulReviews = relevantReviews.filter(review => 
+          review.quality >= this.config.QUALITY_THRESHOLD
+        ).length;
+        
+        const retention = successfulReviews / relevantReviews.length;
+        const confidence = Math.min(1, relevantReviews.length / 20);
+        
         curve.push({
           interval,
-          retentionRate: retention,
-          confidence: Math.min(1, relevantReviews.length / 20),
+          retentionRate: Math.max(0, Math.min(1, retention)),
+          confidence: Math.max(0, Math.min(1, confidence)),
           sampleSize: relevantReviews.length
         });
       }

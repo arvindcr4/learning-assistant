@@ -1,18 +1,24 @@
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
+import { env } from "./env-validation";
 
 export const auth = betterAuth({
   database: {
     provider: "sqlite",
-    url: process.env.DATABASE_URL || "file:./learning-assistant.db",
+    url: env.DATABASE_URL,
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false, // Set to true in production
+    requireEmailVerification: env.NODE_ENV === "production", // Require email verification in production
+    autoSignIn: env.NODE_ENV === "development", // Auto sign in during development
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minutes
+    },
   },
   user: {
     additionalFields: {
@@ -33,25 +39,49 @@ export const auth = betterAuth({
         type: "string", // JSON string for user preferences
         required: false,
       },
+      lastLoginAt: {
+        type: "date",
+        required: false,
+      },
+      loginAttempts: {
+        type: "number",
+        required: false,
+        defaultValue: 0,
+      },
+      lockedUntil: {
+        type: "date",
+        required: false,
+      },
     },
   },
   plugins: [
     nextCookies({
-      // Optional: customize cookie settings
-      secure: process.env.NODE_ENV === "production",
+      secure: env.NODE_ENV === "production",
       sameSite: "lax",
+      httpOnly: true,
+      domain: env.NODE_ENV === "production" ? undefined : "localhost",
     }),
   ],
-  secret: process.env.BETTER_AUTH_SECRET || (() => {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('BETTER_AUTH_SECRET is required in production');
-    }
-    return 'dev-secret-key-not-for-production';
-  })(),
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+  secret: env.BETTER_AUTH_SECRET,
+  baseURL: env.BETTER_AUTH_URL || env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   trustedOrigins: [
-    process.env.BETTER_AUTH_URL || "http://localhost:3000",
+    env.BETTER_AUTH_URL || env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    ...(env.CORS_ORIGIN ? env.CORS_ORIGIN.split(',') : []),
   ],
+  advanced: {
+    generateId: () => crypto.randomUUID(),
+    crossSubDomainCookies: {
+      enabled: env.NODE_ENV === "production",
+      domain: env.NODE_ENV === "production" ? undefined : "localhost",
+    },
+  },
+  rateLimit: {
+    enabled: true,
+    storage: "memory",
+    tableName: "rate_limit",
+    window: env.RATE_LIMIT_WINDOW / 1000, // Convert to seconds
+    max: env.RATE_LIMIT_MAX,
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;

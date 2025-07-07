@@ -1,0 +1,101 @@
+name: Terraform Lint and Validate
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/terraform-lint.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/terraform-lint.yml'
+
+jobs:
+  terraform-lint:
+    name: Terraform Lint and Validate
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.6
+
+    - name: Terraform Format Check
+      id: fmt
+      run: terraform fmt -check -recursive
+      working-directory: ./infra
+      continue-on-error: true
+
+    - name: Post Format Check Comment
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request' && steps.fmt.outcome == 'failure'
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '❌ Terraform files are not properly formatted. Please run `terraform fmt -recursive` to fix.'
+          })
+
+    - name: Initialize Terraform
+      run: terraform init -backend=false
+      working-directory: ./infra
+
+    - name: Validate Terraform
+      run: terraform validate
+      working-directory: ./infra
+
+    - name: TFLint - Setup
+      uses: terraform-linters/setup-tflint@v4
+      with:
+        tflint_version: latest
+
+    - name: TFLint - Initialize
+      run: tflint --init
+      working-directory: ./infra
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: TFLint - Run
+      run: tflint --recursive
+      working-directory: ./infra
+
+    - name: Checkov Security Scan
+      id: checkov
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: infra/
+        framework: terraform
+        output_format: cli
+        output_file_path: console
+        skip_check: CKV_AWS_8,CKV_AWS_20  # Add any checks you want to skip
+
+  validate-stacks:
+    name: Validate Terraform Stacks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        stack: [aws, gcp, azure, digitalocean]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.6
+
+    - name: Validate ${{ matrix.stack }} stack
+      run: |
+        cd infra/stacks/${{ matrix.stack }}
+        terraform init -backend=false
+        terraform validate

@@ -20,7 +20,7 @@ import {
   Trophy
 } from 'lucide-react';
 
-export interface FeedbackModalProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface FeedbackModalProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onSubmit'> {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (feedback: FeedbackData) => void;

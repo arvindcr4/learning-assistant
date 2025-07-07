@@ -26,11 +26,31 @@ export interface DifficultyAdaptation {
   adaptationStrength: number;
 }
 
+/**
+ * Difficulty Calibration Configuration
+ */
+interface DifficultyCalibrationConfig {
+  TARGET_ACCURACY: number;
+  MIN_DIFFICULTY: number;
+  MAX_DIFFICULTY: number;
+  CALIBRATION_SENSITIVITY: number;
+  MIN_SESSIONS_FOR_CALIBRATION: number;
+  STATISTICAL_CONFIDENCE_LEVEL: number;
+  OUTLIER_THRESHOLD: number;
+  PRECISION_DECIMALS: number;
+}
+
 export class DifficultyCalibrationEngine {
-  private readonly TARGET_ACCURACY = 0.8;
-  private readonly MIN_DIFFICULTY = 1;
-  private readonly MAX_DIFFICULTY = 10;
-  private readonly CALIBRATION_SENSITIVITY = 0.3;
+  private readonly config: DifficultyCalibrationConfig = {
+    TARGET_ACCURACY: 0.8,
+    MIN_DIFFICULTY: 1,
+    MAX_DIFFICULTY: 10,
+    CALIBRATION_SENSITIVITY: 0.3,
+    MIN_SESSIONS_FOR_CALIBRATION: 5,
+    STATISTICAL_CONFIDENCE_LEVEL: 0.95,
+    OUTLIER_THRESHOLD: 2.0, // Standard deviations
+    PRECISION_DECIMALS: 4
+  };
 
   /**
    * Calibrates content difficulty based on user performance data
@@ -191,14 +211,48 @@ export class DifficultyCalibrationEngine {
   }
 
   private applyCalibrationFactors(baseDifficulty: number, factors: CalibrationFactor[]): number {
-    let adjustedDifficulty = baseDifficulty;
+    if (typeof baseDifficulty !== 'number' || !isFinite(baseDifficulty)) {
+      return this.config.MIN_DIFFICULTY;
+    }
 
+    if (!Array.isArray(factors) || factors.length === 0) {
+      return Math.max(this.config.MIN_DIFFICULTY, Math.min(this.config.MAX_DIFFICULTY, baseDifficulty));
+    }
+
+    let adjustedDifficulty = baseDifficulty;
+    let totalWeight = 0;
+    let weightedAdjustment = 0;
+
+    // Calculate weighted adjustment with proper bounds checking
     factors.forEach(factor => {
-      const adjustment = factor.impact * factor.weight * this.CALIBRATION_SENSITIVITY;
-      adjustedDifficulty += adjustment;
+      if (factor && 
+          typeof factor.impact === 'number' && 
+          typeof factor.weight === 'number' &&
+          isFinite(factor.impact) && 
+          isFinite(factor.weight) &&
+          factor.weight > 0) {
+        
+        // Bound impact and weight to reasonable ranges
+        const boundedImpact = Math.max(-5, Math.min(5, factor.impact));
+        const boundedWeight = Math.max(0, Math.min(1, factor.weight));
+        
+        const adjustment = boundedImpact * boundedWeight * this.config.CALIBRATION_SENSITIVITY;
+        
+        if (isFinite(adjustment)) {
+          weightedAdjustment += adjustment * boundedWeight;
+          totalWeight += boundedWeight;
+        }
+      }
     });
 
-    return Math.max(this.MIN_DIFFICULTY, Math.min(this.MAX_DIFFICULTY, adjustedDifficulty));
+    // Apply weighted adjustment
+    if (totalWeight > 0) {
+      adjustedDifficulty += weightedAdjustment / totalWeight;
+    }
+
+    // Ensure result is within bounds and properly formatted
+    const result = Math.max(this.config.MIN_DIFFICULTY, Math.min(this.config.MAX_DIFFICULTY, adjustedDifficulty));
+    return parseFloat(result.toFixed(this.config.PRECISION_DECIMALS));
   }
 
   private personalizeForUser(calibratedDifficulty: number, learningProfile: LearningProfile): number {
@@ -217,10 +271,32 @@ export class DifficultyCalibrationEngine {
   }
 
   private calculateCurrentAccuracy(sessions: LearningSession[]): number {
-    const totalQuestions = sessions.reduce((sum, session) => sum + session.totalQuestions, 0);
-    const correctAnswers = sessions.reduce((sum, session) => sum + session.correctAnswers, 0);
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return 0;
+    }
+
+    const validSessions = sessions.filter(session => 
+      session &&
+      typeof session.totalQuestions === 'number' &&
+      typeof session.correctAnswers === 'number' &&
+      session.totalQuestions >= 0 &&
+      session.correctAnswers >= 0 &&
+      session.correctAnswers <= session.totalQuestions
+    );
+
+    if (validSessions.length === 0) {
+      return 0;
+    }
+
+    const totalQuestions = validSessions.reduce((sum, session) => sum + session.totalQuestions, 0);
+    const correctAnswers = validSessions.reduce((sum, session) => sum + session.correctAnswers, 0);
     
-    return totalQuestions > 0 ? correctAnswers / totalQuestions : 0;
+    if (totalQuestions === 0) {
+      return 0;
+    }
+
+    const accuracy = correctAnswers / totalQuestions;
+    return Math.max(0, Math.min(1, parseFloat(accuracy.toFixed(this.config.PRECISION_DECIMALS))));
   }
 
   private calculatePerformanceImpact(accuracy: number): number {
@@ -288,22 +364,66 @@ export class DifficultyCalibrationEngine {
   }
 
   private predictAccuracyAtDifficulty(difficulty: number, recentPerformance: LearningSession[]): number {
-    if (recentPerformance.length === 0) return this.TARGET_ACCURACY;
+    // Input validation
+    if (typeof difficulty !== 'number' || !isFinite(difficulty)) {
+      return this.config.TARGET_ACCURACY;
+    }
+
+    if (!Array.isArray(recentPerformance) || recentPerformance.length === 0) {
+      return this.config.TARGET_ACCURACY;
+    }
 
     const currentAccuracy = this.calculateCurrentAccuracy(recentPerformance);
-    const currentDifficulties = recentPerformance.map(session => {
-      // This would need to be stored with each session
-      return 5; // Default difficulty placeholder
-    });
+    
+    // Get difficulties from session metadata (with fallback)
+    const sessionDifficulties = recentPerformance
+      .map(session => {
+        // Try to extract difficulty from session metadata
+        if (session.metadata && typeof session.metadata.difficulty === 'number') {
+          return session.metadata.difficulty;
+        }
+        // Fallback: estimate difficulty from performance
+        if (session.totalQuestions > 0) {
+          const sessionAccuracy = session.correctAnswers / session.totalQuestions;
+          // Inverse relationship: lower accuracy suggests higher difficulty
+          return Math.max(1, Math.min(10, 11 - (sessionAccuracy * 10)));
+        }
+        return 5; // Default middle difficulty
+      })
+      .filter(d => typeof d === 'number' && isFinite(d));
 
-    const averageCurrentDifficulty = currentDifficulties.reduce((sum, d) => sum + d, 0) / currentDifficulties.length;
+    if (sessionDifficulties.length === 0) {
+      // No difficulty data available, use simple model
+      const accuracyDeviation = currentAccuracy - this.config.TARGET_ACCURACY;
+      const difficultyAdjustment = (difficulty - 5) * 0.05; // 5% per difficulty level from median
+      return Math.max(0, Math.min(1, this.config.TARGET_ACCURACY + accuracyDeviation - difficultyAdjustment));
+    }
+
+    const averageCurrentDifficulty = sessionDifficulties.reduce((sum, d) => sum + d, 0) / sessionDifficulties.length;
     const difficultyChange = difficulty - averageCurrentDifficulty;
 
-    // Estimate accuracy change based on difficulty change
-    // Assume roughly 5% accuracy drop per difficulty level increase
-    const estimatedAccuracyChange = -difficultyChange * 0.05;
+    // Use empirical model: accuracy decreases with difficulty
+    // Rate depends on current performance level
+    let accuracyDropRate = 0.05; // Base rate: 5% per difficulty level
     
-    return Math.max(0, Math.min(1, currentAccuracy + estimatedAccuracyChange));
+    // Adjust rate based on current accuracy (adaptive model)
+    if (currentAccuracy > 0.9) {
+      accuracyDropRate = 0.04; // High performers more resilient
+    } else if (currentAccuracy < 0.6) {
+      accuracyDropRate = 0.07; // Struggling learners more sensitive
+    }
+    
+    const estimatedAccuracyChange = -difficultyChange * accuracyDropRate;
+    const predictedAccuracy = currentAccuracy + estimatedAccuracyChange;
+    
+    // Apply bounds and statistical confidence adjustment
+    const bounded = Math.max(0, Math.min(1, predictedAccuracy));
+    
+    // Add confidence interval based on data quality
+    const confidence = this.calculateStatisticalConfidence(recentPerformance.length);
+    const uncertaintyAdjustment = (1 - confidence) * 0.1; // Max 10% uncertainty
+    
+    return parseFloat(Math.max(0, Math.min(1, bounded - uncertaintyAdjustment)).toFixed(this.config.PRECISION_DECIMALS));
   }
 
   private inferDifficultyFromPerformance(sessions: LearningSession[]): number {
@@ -322,28 +442,72 @@ export class DifficultyCalibrationEngine {
   }
 
   private calculateConfidenceLevel(userSessions: LearningSession[], populationData?: LearningSession[]): number {
-    let confidence = 0;
-
-    // Base confidence on amount of user data
-    if (userSessions.length >= 10) confidence += 0.4;
-    else if (userSessions.length >= 5) confidence += 0.2;
-    else confidence += userSessions.length * 0.04;
-
-    // Add confidence from population data
-    if (populationData && populationData.length >= 20) confidence += 0.3;
-    else if (populationData && populationData.length >= 10) confidence += 0.2;
-
-    // Add confidence from consistency
-    if (userSessions.length >= 3) {
-      const accuracies = userSessions.map(session => 
-        session.totalQuestions > 0 ? session.correctAnswers / session.totalQuestions : 0
-      );
-      const stdDev = this.calculateStandardDeviation(accuracies);
-      const consistency = Math.max(0, 1 - stdDev); // Lower std dev = higher consistency
-      confidence += consistency * 0.3;
+    if (!Array.isArray(userSessions)) {
+      return 0;
     }
 
-    return Math.min(1, confidence);
+    let confidence = 0;
+    const sessionCount = userSessions.length;
+
+    // Base confidence on amount of user data (with diminishing returns)
+    if (sessionCount >= 20) {
+      confidence += 0.5;
+    } else if (sessionCount >= 10) {
+      confidence += 0.4;
+    } else if (sessionCount >= this.config.MIN_SESSIONS_FOR_CALIBRATION) {
+      confidence += 0.2 + (sessionCount - this.config.MIN_SESSIONS_FOR_CALIBRATION) * 0.04;
+    } else {
+      confidence += sessionCount * 0.04;
+    }
+
+    // Add confidence from population data
+    if (populationData && Array.isArray(populationData)) {
+      const popCount = populationData.length;
+      if (popCount >= 50) {
+        confidence += 0.3;
+      } else if (popCount >= 20) {
+        confidence += 0.25;
+      } else if (popCount >= 10) {
+        confidence += 0.15;
+      }
+    }
+
+    // Add confidence from performance consistency
+    if (sessionCount >= 3) {
+      const accuracies = userSessions
+        .filter(session => 
+          session &&
+          typeof session.totalQuestions === 'number' &&
+          typeof session.correctAnswers === 'number' &&
+          session.totalQuestions > 0
+        )
+        .map(session => session.correctAnswers / session.totalQuestions);
+      
+      if (accuracies.length >= 3) {
+        const stdDev = this.calculateStandardDeviation(accuracies);
+        // Convert std dev to consistency score (lower std dev = higher consistency)
+        const consistency = Math.max(0, Math.min(1, 1 - (stdDev * 2))); // Scale appropriately
+        confidence += consistency * 0.2;
+      }
+    }
+
+    // Calculate statistical confidence based on sample size
+    const statisticalConfidence = this.calculateStatisticalConfidence(sessionCount);
+    confidence = Math.max(confidence, statisticalConfidence);
+
+    return Math.max(0, Math.min(1, parseFloat(confidence.toFixed(this.config.PRECISION_DECIMALS))));
+  }
+
+  /**
+   * Calculate statistical confidence based on sample size
+   */
+  private calculateStatisticalConfidence(sampleSize: number): number {
+    if (sampleSize < 3) return 0.1;
+    if (sampleSize < 5) return 0.3;
+    if (sampleSize < 10) return 0.5;
+    if (sampleSize < 20) return 0.7;
+    if (sampleSize < 50) return 0.85;
+    return 0.95;
   }
 
   private calculateValidationConfidence(testSessions: LearningSession[]): number {
@@ -354,12 +518,40 @@ export class DifficultyCalibrationEngine {
   }
 
   private calculateStandardDeviation(values: number[]): number {
-    if (values.length < 2) return 0;
+    if (!Array.isArray(values) || values.length < 2) {
+      return 0;
+    }
 
-    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-    const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+    // Filter out invalid values
+    const validValues = values.filter(val => 
+      typeof val === 'number' && 
+      !isNaN(val) && 
+      isFinite(val)
+    );
+
+    if (validValues.length < 2) {
+      return 0;
+    }
+
+    // Calculate mean
+    const mean = validValues.reduce((sum, val) => sum + val, 0) / validValues.length;
     
-    return Math.sqrt(variance);
+    if (!isFinite(mean)) {
+      return 0;
+    }
+
+    // Calculate sample variance (using n-1 denominator for unbiased estimate)
+    const variance = validValues.reduce((sum, val) => {
+      const diff = val - mean;
+      return sum + (diff * diff);
+    }, 0) / (validValues.length - 1);
+    
+    if (variance < 0 || !isFinite(variance)) {
+      return 0;
+    }
+
+    const stdDev = Math.sqrt(variance);
+    return isFinite(stdDev) ? parseFloat(stdDev.toFixed(this.config.PRECISION_DECIMALS)) : 0;
   }
 }
 

@@ -78,4 +78,15 @@ export const loggerUtils = {
   },
 };
 
+// Health check function for monitoring
+export const loggerHealthCheck = (): boolean => {
+  try {
+    logger.info('Logger health check');
+    return true;
+  } catch (error) {
+    console.error('Logger health check failed:', error);
+    return false;
+  }
+};
+
 export default logger;

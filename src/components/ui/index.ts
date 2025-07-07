@@ -8,6 +8,7 @@ export { Progress } from './Progress';
 export { CircularProgress } from './CircularProgress';
 export { Avatar } from './Avatar';
 export { Toast } from './Toast';
+export { ErrorBoundary, ChatErrorFallback, VideoErrorFallback, withErrorBoundary } from './ErrorBoundary';
 
 export type { ButtonProps } from './Button';
 export type { InputProps } from './Input';

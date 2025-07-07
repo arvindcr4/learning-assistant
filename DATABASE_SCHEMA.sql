@@ -86,9 +86,7 @@ CREATE TABLE style_assessments (
     data_points INTEGER DEFAULT 0,
     completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_style_assessments_profile (profile_id),
-    INDEX idx_style_assessments_type (assessment_type)
+    -- Indexes will be created separately
 );
 
 -- Behavioral indicators
@@ -102,10 +100,7 @@ CREATE TABLE behavioral_indicators (
     time_spent INTEGER NOT NULL, -- minutes
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_behavioral_indicators_profile (profile_id),
-    INDEX idx_behavioral_indicators_timestamp (timestamp),
-    INDEX idx_behavioral_indicators_content_type (content_type)
+    -- Indexes will be created separately
 );
 
 -- ==========================================
@@ -138,9 +133,7 @@ CREATE TABLE pace_adjustments (
     reason VARCHAR(50) NOT NULL CHECK (reason IN ('performance', 'fatigue', 'difficulty', 'time_pressure')),
     effectiveness INTEGER CHECK (effectiveness >= 0 AND effectiveness <= 100),
     
-    -- Indexes
-    INDEX idx_pace_adjustments_profile (pace_profile_id),
-    INDEX idx_pace_adjustments_timestamp (timestamp)
+    -- Indexes will be created separately
 );
 
 -- ==========================================
@@ -170,10 +163,7 @@ CREATE TABLE learning_sessions (
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_learning_sessions_user (user_id),
-    INDEX idx_learning_sessions_content (content_id),
-    INDEX idx_learning_sessions_start_time (start_time)
+    -- Indexes will be created separately
 );
 
 -- Adaptive changes during sessions
@@ -187,9 +177,7 @@ CREATE TABLE adaptive_changes (
     reason TEXT NOT NULL,
     user_response VARCHAR(20) CHECK (user_response IN ('accepted', 'declined', 'ignored')),
     
-    -- Indexes
-    INDEX idx_adaptive_changes_session (session_id),
-    INDEX idx_adaptive_changes_type (change_type)
+    -- Indexes will be created separately
 );
 
 -- ==========================================
@@ -218,10 +206,7 @@ CREATE TABLE adaptive_content (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_adaptive_content_difficulty (difficulty),
-    INDEX idx_adaptive_content_concept (concept),
-    INDEX idx_adaptive_content_tags (tags)
+    -- Indexes will be created separately
 );
 
 -- Content variants for different learning styles
@@ -243,10 +228,7 @@ CREATE TABLE content_variants (
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_content_variants_content (content_id),
-    INDEX idx_content_variants_style (style_type),
-    INDEX idx_content_variants_format (format)
+    -- Indexes will be created separately
 );
 
 -- Media content (videos, audio, images)
@@ -264,9 +246,7 @@ CREATE TABLE media_content (
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_media_content_variant (variant_id),
-    INDEX idx_media_content_type (media_type)
+    -- Indexes will be created separately
 );
 
 -- ==========================================
@@ -295,9 +275,7 @@ CREATE TABLE adaptive_assessments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_adaptive_assessments_content (content_id),
-    INDEX idx_adaptive_assessments_type (assessment_type)
+    -- Indexes will be created separately
 );
 
 -- Adaptive questions
@@ -316,10 +294,7 @@ CREATE TABLE adaptive_questions (
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_adaptive_questions_assessment (assessment_id),
-    INDEX idx_adaptive_questions_difficulty (difficulty),
-    INDEX idx_adaptive_questions_type (question_type)
+    -- Indexes will be created separately
 );
 
 -- Question options (for multiple choice)
@@ -331,8 +306,7 @@ CREATE TABLE question_options (
     feedback TEXT,
     order_index INTEGER NOT NULL,
     
-    -- Indexes
-    INDEX idx_question_options_question (question_id),
+    -- Indexes will be created separately,
     UNIQUE(question_id, order_index)
 );
 
@@ -349,10 +323,7 @@ CREATE TABLE assessment_attempts (
     questions_answered INTEGER DEFAULT 0,
     correct_answers INTEGER DEFAULT 0,
     
-    -- Indexes
-    INDEX idx_assessment_attempts_user (user_id),
-    INDEX idx_assessment_attempts_assessment (assessment_id),
-    INDEX idx_assessment_attempts_started (started_at)
+    -- Indexes will be created separately
 );
 
 -- Question responses
@@ -367,9 +338,7 @@ CREATE TABLE question_responses (
     hints_used INTEGER DEFAULT 0,
     response_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_question_responses_attempt (attempt_id),
-    INDEX idx_question_responses_question (question_id),
+    -- Indexes will be created separately,
     UNIQUE(attempt_id, question_id)
 );
 
@@ -403,9 +372,7 @@ CREATE TABLE learning_analytics (
     
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_learning_analytics_user (user_id),
-    INDEX idx_learning_analytics_time_range (time_range_start, time_range_end)
+    -- Indexes will be created separately
 );
 
 -- Style effectiveness metrics
@@ -419,9 +386,7 @@ CREATE TABLE style_effectiveness (
     time_to_mastery INTEGER NOT NULL, -- minutes
     preference_strength INTEGER NOT NULL CHECK (preference_strength >= 0 AND preference_strength <= 100),
     
-    -- Indexes
-    INDEX idx_style_effectiveness_analytics (analytics_id),
-    INDEX idx_style_effectiveness_style (style_type)
+    -- Indexes will be created separately
 );
 
 -- Content engagement metrics
@@ -436,9 +401,7 @@ CREATE TABLE content_engagement (
     time_spent INTEGER NOT NULL, -- minutes
     user_rating INTEGER CHECK (user_rating >= 1 AND user_rating <= 5),
     
-    -- Indexes
-    INDEX idx_content_engagement_analytics (analytics_id),
-    INDEX idx_content_engagement_content (content_id)
+    -- Indexes will be created separately
 );
 
 -- Performance trends
@@ -453,9 +416,7 @@ CREATE TABLE performance_trends (
     significance DECIMAL(3,2) NOT NULL CHECK (significance >= 0 AND significance <= 1),
     factors TEXT[],
     
-    -- Indexes
-    INDEX idx_performance_trends_analytics (analytics_id),
-    INDEX idx_performance_trends_metric (metric)
+    -- Indexes will be created separately
 );
 
 -- ==========================================
@@ -484,11 +445,7 @@ CREATE TABLE recommendations (
     expires_at TIMESTAMP,
     responded_at TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_recommendations_user (user_id),
-    INDEX idx_recommendations_type (recommendation_type),
-    INDEX idx_recommendations_priority (priority),
-    INDEX idx_recommendations_status (status)
+    -- Indexes will be created separately
 );
 
 -- Learning predictions
@@ -510,10 +467,7 @@ CREATE TABLE learning_predictions (
     target_date TIMESTAMP NOT NULL,
     validated_at TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_learning_predictions_user (user_id),
-    INDEX idx_learning_predictions_metric (metric),
-    INDEX idx_learning_predictions_target_date (target_date)
+    -- Indexes will be created separately
 );
 
 -- ==========================================
@@ -529,8 +483,7 @@ CREATE TABLE system_config (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    INDEX idx_system_config_key (config_key)
+    -- Indexes will be created separately
 );
 
 -- ==========================================

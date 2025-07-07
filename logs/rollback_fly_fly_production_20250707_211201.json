@@ -1,0 +1,7 @@
+{
+    "platform": "fly",
+    "deployment_id": "fly_production_20250707_211201",
+    "timestamp": "20250707_211201",
+    "rollback_available": true,
+    "rollback_commands": []
+}

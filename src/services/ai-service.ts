@@ -12,13 +12,131 @@ import {
   LearningStyleType
 } from '../types';
 
+/**
+ * Rate limiting and token management interfaces
+ */
+interface RateLimit {
+  requests: number;
+  tokens: number;
+  resetTime: number;
+}
+
+interface TokenBudget {
+  daily: number;
+  monthly: number;
+  used: number;
+  remaining: number;
+}
+
+interface AIServiceConfig {
+  MAX_REQUESTS_PER_MINUTE: number;
+  MAX_TOKENS_PER_REQUEST: number;
+  MAX_DAILY_TOKENS: number;
+  MAX_MONTHLY_TOKENS: number;
+  PROMPT_INJECTION_PATTERNS: RegExp[];
+  MAX_INPUT_LENGTH: number;
+  RATE_LIMIT_WINDOW: number;
+}
+
+/**
+ * Input sanitization utilities
+ */
+class InputSanitizer {
+  private static readonly DANGEROUS_PATTERNS = [
+    /(?:ignore|forget|disregard)\s+(?:previous|above|prior)\s+(?:instructions?|prompts?|context)/gi,
+    /\b(?:system|admin|root)\s*:?\s*["']?[^"'\n]*["']?/gi,
+    /\b(?:execute|eval|run)\s*\(/gi,
+    /<script[^>]*>[\s\S]*?<\/script>/gi,
+    /javascript:/gi,
+    /on\w+\s*=/gi,
+    /\$\{[^}]*\}/g,
+    /\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)\b/gi
+  ];
+
+  static sanitize(input: string): string {
+    if (typeof input !== 'string') {
+      throw new Error('Input must be a string');
+    }
+
+    let sanitized = input.trim();
+    
+    // Remove potentially dangerous patterns
+    this.DANGEROUS_PATTERNS.forEach(pattern => {
+      sanitized = sanitized.replace(pattern, '[FILTERED]');
+    });
+
+    // Limit length
+    if (sanitized.length > 10000) {
+      sanitized = sanitized.substring(0, 10000) + '...';
+    }
+
+    return sanitized;
+  }
+
+  static validatePromptInjection(input: string): boolean {
+    const injectionPatterns = [
+      /(?:ignore|forget|disregard).*(?:previous|above|prior)/i,
+      /(?:you are|act as|pretend to be).*(?:different|another|new)/i,
+      /(?:roleplay|role-play).*(?:as|being)/i,
+      /(?:new|different)\s+(?:instructions?|prompts?|rules?)/i
+    ];
+
+    return !injectionPatterns.some(pattern => pattern.test(input));
+  }
+
+  static estimateTokens(text: string): number {
+    // Rough token estimation (4 characters ≈ 1 token)
+    return Math.ceil(text.length / 4);
+  }
+}
+
 export class AIService {
   private config: AIConfig;
   private defaultPersona: AIPersona;
+  private serviceConfig: AIServiceConfig;
+  private rateLimits: Map<string, RateLimit> = new Map();
+  private tokenBudget: TokenBudget;
+  private requestQueue: Array<{ resolve: Function; reject: Function; request: any }> = [];
+  private isProcessingQueue = false;
 
   constructor() {
     this.config = this.loadConfig();
     this.defaultPersona = this.createDefaultPersona();
+    this.serviceConfig = this.loadServiceConfig();
+    this.tokenBudget = this.initializeTokenBudget();
+    this.startRateLimitReset();
+  }
+
+  private loadServiceConfig(): AIServiceConfig {
+    return {
+      MAX_REQUESTS_PER_MINUTE: parseInt(process.env.AI_MAX_REQUESTS_PER_MINUTE || '60'),
+      MAX_TOKENS_PER_REQUEST: parseInt(process.env.AI_MAX_TOKENS_PER_REQUEST || '4000'),
+      MAX_DAILY_TOKENS: parseInt(process.env.AI_MAX_DAILY_TOKENS || '100000'),
+      MAX_MONTHLY_TOKENS: parseInt(process.env.AI_MAX_MONTHLY_TOKENS || '1000000'),
+      PROMPT_INJECTION_PATTERNS: [],
+      MAX_INPUT_LENGTH: parseInt(process.env.AI_MAX_INPUT_LENGTH || '10000'),
+      RATE_LIMIT_WINDOW: 60000 // 1 minute
+    };
+  }
+
+  private initializeTokenBudget(): TokenBudget {
+    return {
+      daily: this.serviceConfig.MAX_DAILY_TOKENS,
+      monthly: this.serviceConfig.MAX_MONTHLY_TOKENS,
+      used: 0,
+      remaining: this.serviceConfig.MAX_DAILY_TOKENS
+    };
+  }
+
+  private startRateLimitReset(): void {
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, limit] of this.rateLimits.entries()) {
+        if (now >= limit.resetTime) {
+          this.rateLimits.delete(key);
+        }
+      }
+    }, 10000); // Check every 10 seconds
   }
 
   private loadConfig(): AIConfig {
@@ -60,14 +178,48 @@ export class AIService {
     persona?: AIPersona
   ): Promise<AIResponse> {
     try {
+      // Input validation and sanitization
+      if (!message || typeof message !== 'string') {
+        throw new Error('Invalid message input');
+      }
+
+      if (!context || !context.userId) {
+        throw new Error('Invalid learning context');
+      }
+
+      // Sanitize input
+      const sanitizedMessage = InputSanitizer.sanitize(message);
+      
+      // Check for prompt injection
+      if (!InputSanitizer.validatePromptInjection(sanitizedMessage)) {
+        throw new Error('Potential prompt injection detected');
+      }
+
+      // Check rate limits
+      await this.checkRateLimit(context.userId);
+
+      // Estimate token usage
+      const estimatedTokens = this.estimateRequestTokens(sanitizedMessage, conversationHistory, persona);
+      
+      // Check token budget
+      if (!this.checkTokenBudget(estimatedTokens)) {
+        throw new Error('Token budget exceeded');
+      }
+
       const systemPrompt = this.buildSystemPrompt(persona || this.defaultPersona, context);
-      const userPrompt = this.buildUserPrompt(message, context);
+      const userPrompt = this.buildUserPrompt(sanitizedMessage, context);
       
       const response = await this.callTamboAPI(systemPrompt, userPrompt, conversationHistory);
+      
+      // Update token usage
+      this.updateTokenUsage(response.usage?.total_tokens || estimatedTokens);
       
       return this.processAIResponse(response, context);
     } catch (error) {
       console.error('AI Service Error:', error);
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error('Failed to generate AI response');
     }
   }
@@ -80,8 +232,31 @@ export class AIService {
     onChunk?: (chunk: StreamingResponse) => void
   ): Promise<AIResponse> {
     try {
+      // Input validation and sanitization (same as generateResponse)
+      if (!message || typeof message !== 'string') {
+        throw new Error('Invalid message input');
+      }
+
+      if (!context || !context.userId) {
+        throw new Error('Invalid learning context');
+      }
+
+      const sanitizedMessage = InputSanitizer.sanitize(message);
+      
+      if (!InputSanitizer.validatePromptInjection(sanitizedMessage)) {
+        throw new Error('Potential prompt injection detected');
+      }
+
+      await this.checkRateLimit(context.userId);
+      
+      const estimatedTokens = this.estimateRequestTokens(sanitizedMessage, conversationHistory, persona);
+      
+      if (!this.checkTokenBudget(estimatedTokens)) {
+        throw new Error('Token budget exceeded');
+      }
+
       const systemPrompt = this.buildSystemPrompt(persona || this.defaultPersona, context);
-      const userPrompt = this.buildUserPrompt(message, context);
+      const userPrompt = this.buildUserPrompt(sanitizedMessage, context);
       
       const response = await this.callTamboStreamingAPI(
         systemPrompt, 
@@ -90,14 +265,31 @@ export class AIService {
         onChunk
       );
       
+      this.updateTokenUsage(response.usage?.total_tokens || estimatedTokens);
+      
       return this.processAIResponse(response, context);
     } catch (error) {
       console.error('AI Streaming Service Error:', error);
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error('Failed to generate streaming AI response');
     }
   }
 
   private buildSystemPrompt(persona: AIPersona, context: LearningContext): string {
+    // Sanitize all context inputs
+    const sanitizedContext = {
+      userId: InputSanitizer.sanitize(context.userId || ''),
+      currentModule: InputSanitizer.sanitize(context.currentModule || 'None'),
+      currentPath: InputSanitizer.sanitize(context.currentPath || 'None'),
+      learningStyle: InputSanitizer.sanitize(context.learningStyle || 'Not determined'),
+      difficultyLevel: InputSanitizer.sanitize(context.difficultyLevel?.toString() || 'Not set'),
+      strengths: context.strengths?.map(s => InputSanitizer.sanitize(s)).slice(0, 5) || [],
+      weaknesses: context.weaknesses?.map(w => InputSanitizer.sanitize(w)).slice(0, 5) || [],
+      recentMistakes: context.recentMistakes?.map(m => InputSanitizer.sanitize(m)).slice(0, 3) || []
+    };
+
     const basePrompt = `You are ${persona.name}, a ${persona.type} with expertise in ${persona.expertise.join(', ')}.
 
 Personality: ${persona.personality}
@@ -105,17 +297,24 @@ Personality: ${persona.personality}
 Communication Style: ${persona.communicationStyle}
 
 Current Learning Context:
-- User ID: ${context.userId}
-- Current Module: ${context.currentModule || 'None'}
-- Learning Path: ${context.currentPath || 'None'}
-- Learning Style: ${context.learningStyle || 'Not determined'}
-- Difficulty Level: ${context.difficultyLevel || 'Not set'}
+- User ID: [PROTECTED]
+- Current Module: ${sanitizedContext.currentModule}
+- Learning Path: ${sanitizedContext.currentPath}
+- Learning Style: ${sanitizedContext.learningStyle}
+- Difficulty Level: ${sanitizedContext.difficultyLevel}
 - Progress: ${context.progress ? `${context.progress.completedModules.length} modules completed, current score: ${context.progress.currentScore}` : 'No progress data'}
 
 Recent Context:
-- Strengths: ${context.strengths?.join(', ') || 'None identified'}
-- Weaknesses: ${context.weaknesses?.join(', ') || 'None identified'}
-- Recent Mistakes: ${context.recentMistakes?.join(', ') || 'None recorded'}
+- Strengths: ${sanitizedContext.strengths.join(', ') || 'None identified'}
+- Weaknesses: ${sanitizedContext.weaknesses.join(', ') || 'None identified'}
+- Recent Mistakes: ${sanitizedContext.recentMistakes.join(', ') || 'None recorded'}
+
+Safety Guidelines:
+1. Never execute code or commands
+2. Don't access external systems or files
+3. Focus only on educational content
+4. Report inappropriate requests
+5. Maintain user privacy and data protection
 
 Instructions:
 1. Adapt your responses to the user's learning style and difficulty level
@@ -135,16 +334,22 @@ Remember: Your goal is to facilitate learning, not just provide information. Gui
   }
 
   private buildUserPrompt(message: string, context: LearningContext): string {
-    const contextualPrompt = `Current learning context: ${context.currentModule || 'General discussion'}
+    const sanitizedModule = InputSanitizer.sanitize(context.currentModule || 'General discussion');
+    const sanitizedStyle = InputSanitizer.sanitize(context.learningStyle || 'unknown');
+    const sanitizedDifficulty = InputSanitizer.sanitize(context.difficultyLevel?.toString() || 'unknown');
+    
+    const contextualPrompt = `Current learning context: ${sanitizedModule}
 
 User message: ${message}
 
 Please respond in a way that:
 1. Addresses the user's specific question or need
-2. Considers their learning style (${context.learningStyle || 'unknown'})
-3. Matches their difficulty level (${context.difficultyLevel || 'unknown'})
+2. Considers their learning style (${sanitizedStyle})
+3. Matches their difficulty level (${sanitizedDifficulty})
 4. Builds upon their current progress
 5. Provides appropriate educational support
+6. Stays within educational boundaries
+7. Maintains appropriate content safety
 
 If this appears to be a question about a specific concept, provide:
 - A clear, tailored explanation
@@ -156,9 +361,107 @@ If the user seems confused or frustrated, provide:
 - Encouragement and support
 - Simpler explanations
 - Different approaches to the same concept
-- Offer to break down the problem into smaller parts`;
+- Offer to break down the problem into smaller parts
+
+If the request is inappropriate or outside educational scope:
+- Politely redirect to educational topics
+- Maintain focus on learning objectives
+- Suggest appropriate alternatives`;
 
     return contextualPrompt;
+  }
+
+  /**
+   * Rate limiting implementation
+   */
+  private async checkRateLimit(userId: string): Promise<void> {
+    const now = Date.now();
+    const key = `${userId}:${Math.floor(now / this.serviceConfig.RATE_LIMIT_WINDOW)}`;
+    
+    const limit = this.rateLimits.get(key) || {
+      requests: 0,
+      tokens: 0,
+      resetTime: now + this.serviceConfig.RATE_LIMIT_WINDOW
+    };
+
+    if (limit.requests >= this.serviceConfig.MAX_REQUESTS_PER_MINUTE) {
+      const waitTime = limit.resetTime - now;
+      throw new Error(`Rate limit exceeded. Try again in ${Math.ceil(waitTime / 1000)} seconds.`);
+    }
+
+    limit.requests++;
+    this.rateLimits.set(key, limit);
+  }
+
+  /**
+   * Token budget management
+   */
+  private checkTokenBudget(estimatedTokens: number): boolean {
+    if (this.tokenBudget.used + estimatedTokens > this.tokenBudget.daily) {
+      return false;
+    }
+    return true;
+  }
+
+  private updateTokenUsage(tokensUsed: number): void {
+    this.tokenBudget.used += tokensUsed;
+    this.tokenBudget.remaining = Math.max(0, this.tokenBudget.daily - this.tokenBudget.used);
+  }
+
+  /**
+   * Estimate token usage for a request
+   */
+  private estimateRequestTokens(
+    message: string,
+    conversationHistory: ChatMessage[],
+    persona?: AIPersona
+  ): number {
+    let totalTokens = 0;
+    
+    // Estimate system prompt tokens
+    totalTokens += InputSanitizer.estimateTokens(this.defaultPersona.personality);
+    totalTokens += 500; // Base system prompt
+    
+    // Estimate user message tokens
+    totalTokens += InputSanitizer.estimateTokens(message);
+    
+    // Estimate conversation history tokens
+    conversationHistory.forEach(msg => {
+      totalTokens += InputSanitizer.estimateTokens(msg.content);
+    });
+    
+    // Estimate response tokens (conservative estimate)
+    totalTokens += Math.min(this.config.maxTokens, 2000);
+    
+    return totalTokens;
+  }
+
+  /**
+   * Get current token budget status
+   */
+  public getTokenBudgetStatus(): TokenBudget {
+    return { ...this.tokenBudget };
+  }
+
+  /**
+   * Reset daily token budget
+   */
+  public resetDailyTokenBudget(): void {
+    this.tokenBudget.used = 0;
+    this.tokenBudget.remaining = this.tokenBudget.daily;
+  }
+
+  /**
+   * Enhanced memory management for streaming responses
+   */
+  private manageStreamingMemory(chunk: any): void {
+    // Implement memory cleanup for large streaming responses
+    if (process.memoryUsage().heapUsed > 500 * 1024 * 1024) { // 500MB threshold
+      console.warn('High memory usage detected, implementing cleanup');
+      if (global.gc) {
+        global.gc();
+      }
+    }
   }
 
   private async callTamboAPI(

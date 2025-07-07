@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import { NotificationState, NotificationAction, Notification, Alert, NotificationSettings } from '@/types';
+import { NotificationState, NotificationAction, Notification as AppNotification, Alert, NotificationSettings } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 // Initial state
@@ -89,7 +89,7 @@ function notificationReducer(state: NotificationState, action: NotificationActio
 interface NotificationContextType {
   state: NotificationState;
   dispatch: React.Dispatch<NotificationAction>;
-  addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
+  addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
   addAlert: (alert: Omit<Alert, 'id' | 'timestamp'>) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -148,10 +148,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, [state.settings.push]);
 
-  const addNotification = useCallback((notificationData: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+  const addNotification = useCallback((notificationData: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
     if (!state.settings.inApp) return;
 
-    const notification: Notification = {
+    const notification: AppNotification = {
       ...notificationData,
       id: `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date(),

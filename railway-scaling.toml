@@ -1,0 +1,427 @@
+# ==============================================================================
+# Railway Scaling Configuration for Learning Assistant
+# ==============================================================================
+# This file defines scaling rules, resource limits, and performance thresholds
+# for Railway deployments across different environments
+
+[service]
+name = "learning-assistant"
+type = "web"
+port = 3000
+
+# ==============================================================================
+# Resource Limits
+# ==============================================================================
+[resources]
+# CPU allocation (in millicores)
+cpu_limit = 500  # 0.5 CPU cores
+cpu_request = 250  # 0.25 CPU cores minimum
+
+# Memory allocation (in MB)
+memory_limit = 512  # 512 MB maximum
+memory_request = 256  # 256 MB minimum
+
+# Disk space allocation (in GB)
+disk_limit = 1  # 1 GB maximum
+ephemeral_storage = 512  # 512 MB for temporary files
+
+# Network bandwidth (in Mbps)
+network_limit = 100  # 100 Mbps maximum
+
+# ==============================================================================
+# Scaling Configuration
+# ==============================================================================
+[scaling]
+# Replica configuration
+min_replicas = 1
+max_replicas = 5
+target_replicas = 1
+
+# Auto-scaling settings
+auto_scaling_enabled = true
+scale_up_threshold = 70  # CPU/Memory percentage
+scale_down_threshold = 30  # CPU/Memory percentage
+
+# Scale timing
+scale_up_delay = 60  # seconds
+scale_down_delay = 300  # seconds (5 minutes)
+scale_up_cooldown = 120  # seconds (2 minutes)
+scale_down_cooldown = 600  # seconds (10 minutes)
+
+# Traffic-based scaling
+requests_per_replica = 100
+avg_response_time_threshold = 1000  # milliseconds
+
+# ==============================================================================
+# Environment-specific Scaling
+# ==============================================================================
+[environments.production]
+min_replicas = 2
+max_replicas = 10
+target_replicas = 2
+
+[environments.production.resources]
+cpu_limit = 1000  # 1 CPU core
+cpu_request = 500  # 0.5 CPU cores
+memory_limit = 1024  # 1 GB
+memory_request = 512  # 512 MB
+
+[environments.production.scaling]
+scale_up_threshold = 80
+scale_down_threshold = 20
+requests_per_replica = 200
+
+[environments.staging]
+min_replicas = 1
+max_replicas = 3
+target_replicas = 1
+
+[environments.staging.resources]
+cpu_limit = 500  # 0.5 CPU cores
+cpu_request = 250  # 0.25 CPU cores
+memory_limit = 512  # 512 MB
+memory_request = 256  # 256 MB
+
+[environments.development]
+min_replicas = 1
+max_replicas = 1
+target_replicas = 1
+
+[environments.development.resources]
+cpu_limit = 250  # 0.25 CPU cores
+cpu_request = 100  # 0.1 CPU cores
+memory_limit = 256  # 256 MB
+memory_request = 128  # 128 MB
+
+# ==============================================================================
+# Health Check Configuration
+# ==============================================================================
+[health_check]
+enabled = true
+path = "/api/health/railway"
+port = 3000
+protocol = "HTTP"
+
+# Probe configuration
+initial_delay = 30  # seconds
+period = 10  # seconds
+timeout = 5  # seconds
+success_threshold = 1
+failure_threshold = 3
+
+# Readiness probe
+readiness_path = "/api/health"
+readiness_initial_delay = 15  # seconds
+readiness_period = 5  # seconds
+readiness_timeout = 3  # seconds
+
+# Liveness probe
+liveness_path = "/api/health"
+liveness_initial_delay = 60  # seconds
+liveness_period = 30  # seconds
+liveness_timeout = 10  # seconds
+
+# ==============================================================================
+# Performance Thresholds
+# ==============================================================================
+[performance]
+# Response time thresholds
+response_time_p50 = 500  # milliseconds
+response_time_p95 = 1000  # milliseconds
+response_time_p99 = 2000  # milliseconds
+
+# Throughput thresholds
+requests_per_second = 50
+concurrent_requests = 100
+
+# Resource utilization thresholds
+cpu_utilization_warning = 70  # percentage
+cpu_utilization_critical = 90  # percentage
+memory_utilization_warning = 80  # percentage
+memory_utilization_critical = 95  # percentage
+
+# Error rate thresholds
+error_rate_warning = 1  # percentage
+error_rate_critical = 5  # percentage
+
+# ==============================================================================
+# Load Balancing Configuration
+# ==============================================================================
+[load_balancing]
+enabled = true
+algorithm = "round_robin"  # round_robin, least_connections, ip_hash
+sticky_sessions = false
+
+# Session affinity
+session_affinity = "none"  # none, client_ip, cookie
+session_timeout = 3600  # seconds (1 hour)
+
+# Health check for load balancing
+health_check_interval = 30  # seconds
+health_check_timeout = 5  # seconds
+health_check_retries = 3
+
+# ==============================================================================
+# Auto-scaling Policies
+# ==============================================================================
+[auto_scaling]
+enabled = true
+strategy = "reactive"  # reactive, predictive, scheduled
+
+# Reactive scaling
+[auto_scaling.reactive]
+enabled = true
+metrics = ["cpu", "memory", "requests_per_second"]
+evaluation_period = 60  # seconds
+datapoints_to_scale = 2
+
+# CPU-based scaling
+[auto_scaling.reactive.cpu]
+enabled = true
+target_utilization = 70  # percentage
+scale_up_threshold = 80  # percentage
+scale_down_threshold = 30  # percentage
+
+# Memory-based scaling
+[auto_scaling.reactive.memory]
+enabled = true
+target_utilization = 80  # percentage
+scale_up_threshold = 90  # percentage
+scale_down_threshold = 40  # percentage
+
+# Request-based scaling
+[auto_scaling.reactive.requests]
+enabled = true
+target_requests_per_replica = 100
+scale_up_threshold = 150  # requests per replica
+scale_down_threshold = 50  # requests per replica
+
+# Predictive scaling (future feature)
+[auto_scaling.predictive]
+enabled = false
+look_ahead_time = 300  # seconds (5 minutes)
+historical_data_period = 86400  # seconds (24 hours)
+
+# Scheduled scaling
+[auto_scaling.scheduled]
+enabled = false
+timezone = "UTC"
+
+# Example scheduled scaling rules
+[[auto_scaling.scheduled.rules]]
+name = "business_hours_scale_up"
+cron = "0 8 * * 1-5"  # 8 AM weekdays
+min_replicas = 3
+max_replicas = 10
+
+[[auto_scaling.scheduled.rules]]
+name = "business_hours_scale_down"
+cron = "0 18 * * 1-5"  # 6 PM weekdays
+min_replicas = 1
+max_replicas = 5
+
+# ==============================================================================
+# Circuit Breaker Configuration
+# ==============================================================================
+[circuit_breaker]
+enabled = true
+failure_threshold = 5  # consecutive failures
+recovery_timeout = 60  # seconds
+half_open_max_calls = 3
+
+# Service-specific circuit breakers
+[circuit_breaker.database]
+enabled = true
+failure_threshold = 3
+recovery_timeout = 30
+
+[circuit_breaker.external_apis]
+enabled = true
+failure_threshold = 5
+recovery_timeout = 60
+
+# ==============================================================================
+# Caching Configuration
+# ==============================================================================
+[caching]
+enabled = true
+default_ttl = 3600  # seconds (1 hour)
+max_cache_size = 100  # MB
+
+# Redis caching (if available)
+[caching.redis]
+enabled = true
+host = "${REDIS_HOST}"
+port = "${REDIS_PORT}"
+password = "${REDIS_PASSWORD}"
+db = 0
+max_connections = 10
+
+# In-memory caching
+[caching.memory]
+enabled = true
+max_size = 50  # MB
+ttl = 1800  # seconds (30 minutes)
+
+# ==============================================================================
+# Monitoring and Alerting
+# ==============================================================================
+[monitoring]
+enabled = true
+metrics_port = 9090
+metrics_path = "/metrics"
+
+# Prometheus metrics
+[monitoring.prometheus]
+enabled = true
+scrape_interval = 15  # seconds
+scrape_timeout = 5  # seconds
+
+# Custom metrics
+[monitoring.custom_metrics]
+enabled = true
+business_metrics = true
+performance_metrics = true
+error_metrics = true
+
+# Alerting rules
+[alerting]
+enabled = true
+notification_channels = ["email", "slack"]
+
+# CPU alerts
+[[alerting.rules]]
+name = "high_cpu_usage"
+condition = "cpu_usage > 80"
+duration = 300  # seconds (5 minutes)
+severity = "warning"
+
+[[alerting.rules]]
+name = "critical_cpu_usage"
+condition = "cpu_usage > 95"
+duration = 60  # seconds (1 minute)
+severity = "critical"
+
+# Memory alerts
+[[alerting.rules]]
+name = "high_memory_usage"
+condition = "memory_usage > 85"
+duration = 300  # seconds (5 minutes)
+severity = "warning"
+
+[[alerting.rules]]
+name = "critical_memory_usage"
+condition = "memory_usage > 95"
+duration = 60  # seconds (1 minute)
+severity = "critical"
+
+# Response time alerts
+[[alerting.rules]]
+name = "slow_response_time"
+condition = "response_time_p95 > 2000"
+duration = 300  # seconds (5 minutes)
+severity = "warning"
+
+# Error rate alerts
+[[alerting.rules]]
+name = "high_error_rate"
+condition = "error_rate > 5"
+duration = 300  # seconds (5 minutes)
+severity = "warning"
+
+# ==============================================================================
+# Deployment Configuration
+# ==============================================================================
+[deployment]
+strategy = "rolling"  # rolling, blue_green, canary
+max_unavailable = 1
+max_surge = 1
+
+# Rolling deployment
+[deployment.rolling]
+enabled = true
+batch_size = 1
+batch_delay = 30  # seconds
+
+# Blue-green deployment
+[deployment.blue_green]
+enabled = false
+switch_delay = 60  # seconds
+rollback_timeout = 300  # seconds
+
+# Canary deployment
+[deployment.canary]
+enabled = false
+canary_percentage = 10  # percentage of traffic
+promotion_delay = 300  # seconds
+auto_promote = false
+
+# ==============================================================================
+# Security Configuration
+# ==============================================================================
+[security]
+enabled = true
+enforce_https = true
+hsts_enabled = true
+csp_enabled = true
+
+# Rate limiting
+[security.rate_limiting]
+enabled = true
+requests_per_minute = 100
+burst_size = 20
+block_duration = 300  # seconds (5 minutes)
+
+# DDoS protection
+[security.ddos_protection]
+enabled = true
+threshold = 1000  # requests per minute
+block_duration = 600  # seconds (10 minutes)
+
+# ==============================================================================
+# Backup and Recovery
+# ==============================================================================
+[backup]
+enabled = true
+schedule = "0 2 * * *"  # Daily at 2 AM
+retention_days = 30
+
+[backup.database]
+enabled = true
+schedule = "0 */6 * * *"  # Every 6 hours
+retention_days = 7
+
+[backup.files]
+enabled = true
+schedule = "0 3 * * *"  # Daily at 3 AM
+retention_days = 14
+
+# ==============================================================================
+# Logging Configuration
+# ==============================================================================
+[logging]
+enabled = true
+level = "info"
+format = "json"
+max_size = 100  # MB
+max_files = 10
+
+# Log aggregation
+[logging.aggregation]
+enabled = true
+provider = "railway"  # railway, datadog, elasticsearch
+retention_days = 30
+
+# ==============================================================================
+# Notes and Best Practices
+# ==============================================================================
+# 1. Monitor resource usage regularly and adjust limits accordingly
+# 2. Use staging environment to test scaling configurations
+# 3. Set up proper alerting for resource thresholds
+# 4. Consider traffic patterns when setting scaling rules
+# 5. Use health checks to ensure proper scaling decisions
+# 6. Implement circuit breakers for external dependencies
+# 7. Cache frequently accessed data to reduce load
+# 8. Use CDN for static assets to reduce server load
+# 9. Monitor database connections and optimize queries
+# 10. Implement graceful shutdown for proper scaling down

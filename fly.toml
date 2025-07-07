@@ -20,6 +20,9 @@ kill_timeout = '5s'
 
 # Environment variables
 [env]
+  DEPLOYMENT_ID = "fly_production_20250707_211201"
+  DEPLOYMENT_TIMESTAMP = "Mon Jul  7 21:12:57 IST 2025"
+
   NODE_ENV = 'production'
   NEXT_TELEMETRY_DISABLED = '1'
   PORT = '3000'
@@ -50,6 +53,7 @@ kill_timeout = '5s'
 [checks]
   [checks.health]
     # Primary health check endpoint
+    type = 'http'
     grace_period = '30s'
     interval = '15s'
     method = 'GET'
@@ -62,6 +66,7 @@ kill_timeout = '5s'
 
   [checks.readiness]
     # Readiness check for load balancing
+    type = 'http'
     grace_period = '30s'
     interval = '10s'
     method = 'HEAD'
@@ -118,11 +123,11 @@ kill_timeout = '5s'
     [services.http_checks.headers]
       'User-Agent' = 'Fly-Health-Check'
 
-# Persistent volume for logs and cache
-[[mounts]]
-  source = 'learning_assistant_data'
-  destination = '/app/data'
-  processes = ['app']
+# Persistent volume for logs and cache (disabled for demo)
+# [[mounts]]
+#   source = 'learning_assistant_data'
+#   destination = '/app/data'
+#   processes = ['app']
 
 # Metrics configuration
 [metrics]

@@ -796,39 +796,181 @@ export class PerformanceAnalyticsEngine {
     };
   }
 
-  private analyzeTimeOfDayPerformance(sessions: LearningSession[]): { peakTime: string; confidence: number } {
-    // Analyze performance by hour of day
+  private analyzeTimeOfDayPerformance(sessions: LearningSession[]): { peakTime: string; confidence: number; statistics: any } {
+    if (!Array.isArray(sessions) || sessions.length < 3) {
+      return {
+        peakTime: '10:00',
+        confidence: 0,
+        statistics: {}
+      };
+    }
+
+    // Analyze performance by hour of day with robust statistics
     const hourlyPerformance = new Map<number, number[]>();
 
     sessions.forEach(session => {
-      const hour = session.startTime.getHours();
-      const accuracy = session.totalQuestions > 0 ? session.correctAnswers / session.totalQuestions : 0;
-      
-      if (!hourlyPerformance.has(hour)) {
-        hourlyPerformance.set(hour, []);
+      if (session && 
+          session.startTime instanceof Date && 
+          session.totalQuestions > 0 &&
+          session.correctAnswers >= 0) {
+        
+        const hour = session.startTime.getHours();
+        const accuracy = session.correctAnswers / session.totalQuestions;
+        
+        if (isFinite(accuracy) && accuracy >= 0 && accuracy <= 1) {
+          if (!hourlyPerformance.has(hour)) {
+            hourlyPerformance.set(hour, []);
+          }
+          hourlyPerformance.get(hour)!.push(accuracy);
+        }
       }
-      hourlyPerformance.get(hour)!.push(accuracy);
     });
 
     let bestHour = 10; // Default
     let bestAccuracy = 0;
     let confidence = 0;
+    const hourlyStats: any = {};
 
     hourlyPerformance.forEach((accuracies, hour) => {
-      if (accuracies.length >= 3) { // Need at least 3 sessions
-        const avgAccuracy = accuracies.reduce((sum, acc) => sum + acc, 0) / accuracies.length;
-        if (avgAccuracy > bestAccuracy) {
-          bestAccuracy = avgAccuracy;
-          bestHour = hour;
-          confidence = Math.min(1, accuracies.length / 10); // More sessions = higher confidence
+      if (accuracies.length >= 2) {
+        // Remove outliers for more robust average
+        const cleanedAccuracies = this.removeOutliers(accuracies);
+        
+        if (cleanedAccuracies.length >= 1) {
+          const avgAccuracy = cleanedAccuracies.reduce((sum, acc) => sum + acc, 0) / cleanedAccuracies.length;
+          const stdDev = cleanedAccuracies.length > 1 ? 
+            Math.sqrt(cleanedAccuracies.reduce((sum, acc) => sum + Math.pow(acc - avgAccuracy, 2), 0) / (cleanedAccuracies.length - 1)) : 0;
+          
+          hourlyStats[hour] = {
+            average: parseFloat(avgAccuracy.toFixed(4)),
+            standardDeviation: parseFloat(stdDev.toFixed(4)),
+            sampleSize: cleanedAccuracies.length,
+            originalSampleSize: accuracies.length,
+            confidenceInterval: this.calculateConfidenceInterval(cleanedAccuracies, 0.95)
+          };
+          
+          // Update best hour with statistical significance consideration
+          const significance = Math.min(1, cleanedAccuracies.length / 5); // Need at least 5 for high confidence
+          const weightedScore = avgAccuracy * significance;
+          
+          if (weightedScore > bestAccuracy * confidence) {
+            bestAccuracy = avgAccuracy;
+            bestHour = hour;
+            confidence = significance;
+          }
         }
       }
     });
 
     return {
-      peakTime: `${bestHour}:00`,
-      confidence
+      peakTime: `${bestHour.toString().padStart(2, '0')}:00`,
+      confidence: parseFloat(confidence.toFixed(3)),
+      statistics: hourlyStats
     };
+  }
+
+  /**
+   * Calculate confidence interval for a dataset
+   */
+  private calculateConfidenceInterval(values: number[], confidenceLevel: number = 0.95): { lower: number; upper: number } {
+    if (values.length < 2) {
+      return { lower: 0, upper: 0 };
+    }
+
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+    const stdDev = Math.sqrt(values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (values.length - 1));
+    
+    // Use t-distribution approximation (simplified)
+    const tValue = this.getTValue(confidenceLevel, values.length - 1);
+    const marginOfError = tValue * (stdDev / Math.sqrt(values.length));
+    
+    return {
+      lower: parseFloat(Math.max(0, mean - marginOfError).toFixed(4)),
+      upper: parseFloat(Math.min(1, mean + marginOfError).toFixed(4))
+    };
+  }
+
+  /**
+   * Get t-value for confidence interval (simplified lookup)
+   */
+  private getTValue(confidenceLevel: number, degreesOfFreedom: number): number {
+    // Simplified t-value lookup for common confidence levels
+    const alpha = 1 - confidenceLevel;
+    
+    if (degreesOfFreedom >= 30) {
+      // Use normal approximation for large samples
+      if (alpha <= 0.01) return 2.576;
+      if (alpha <= 0.05) return 1.96;
+      return 1.645;
+    }
+    
+    // Simplified t-values for small samples
+    if (alpha <= 0.01) return 3.0;
+    if (alpha <= 0.05) return 2.2;
+    return 1.8;
+  }
+
+  /**
+   * Process large datasets with pagination to prevent memory issues
+   */
+  public processPaginatedAnalytics(
+    sessions: LearningSession[],
+    pageSize: number = this.config.PAGINATION_SIZE
+  ): { trends: any[], outliers: any[], patterns: any[] } {
+    if (!Array.isArray(sessions)) {
+      return { trends: [], outliers: [], patterns: [] };
+    }
+
+    const results = {
+      trends: [] as any[],
+      outliers: [] as any[],
+      patterns: [] as any[]
+    };
+
+    // Process in chunks to manage memory
+    for (let i = 0; i < sessions.length; i += pageSize) {
+      const chunk = sessions.slice(i, i + pageSize);
+      
+      // Calculate trends for chunk
+      const accuracies = chunk
+        .filter(session => session && session.totalQuestions > 0)
+        .map(session => session.correctAnswers / session.totalQuestions);
+      
+      if (accuracies.length >= this.config.TREND_MIN_POINTS) {
+        const trendResult = this.calculateTrend(accuracies);
+        results.trends.push({
+          chunkIndex: Math.floor(i / pageSize),
+          startIndex: i,
+          endIndex: Math.min(i + pageSize - 1, sessions.length - 1),
+          trend: trendResult,
+          dataPoints: accuracies.length
+        });
+      }
+
+      // Detect outliers in chunk
+      const outliers = this.detectOutliers(accuracies);
+      results.outliers.push(...outliers.map(outlier => ({
+        ...outlier,
+        globalIndex: i + outlier.index,
+        chunkIndex: Math.floor(i / pageSize)
+      })));
+
+      // Detect patterns (simplified)
+      if (chunk.length >= 5) {
+        const avgAccuracy = accuracies.reduce((sum, acc) => sum + acc, 0) / accuracies.length;
+        const consistency = this.calculateConsistency(chunk);
+        
+        results.patterns.push({
+          chunkIndex: Math.floor(i / pageSize),
+          averageAccuracy: parseFloat(avgAccuracy.toFixed(4)),
+          consistency: consistency,
+          sessionCount: chunk.length,
+          qualityScore: (avgAccuracy * 0.7 + consistency / 100 * 0.3)
+        });
+      }
+    }
+
+    return results;
   }
 
   private analyzeWeeklyPatterns(sessions: LearningSession[]): { description: string; confidence: number; significance: number; recommendations: string[] } {

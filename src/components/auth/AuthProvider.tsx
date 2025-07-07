@@ -14,16 +14,16 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: session, isLoading } = useSession();
+  const { data: session, isPending } = useSession();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(isLoading);
-  }, [isLoading]);
+    setLoading(isPending);
+  }, [isPending]);
 
   const value = {
     user: session?.user || null,
-    session: session || null,
+    session: session?.session || null,
     loading,
     isAuthenticated: !!session?.user,
   };

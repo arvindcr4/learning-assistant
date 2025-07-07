@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { useDebounce } from './useDebounce';
+import { useDebounce as useDebounceHook } from './useDebounce';
 
-// Hook for debounced values
-export function useDebounce<T>(value: T, delay: number): T {
+// Hook for debounced values (local implementation)
+function useLocalDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
   useEffect(() => {
@@ -354,7 +354,7 @@ export function useSearchOptimization<T>(
 } {
   const [searchResults, setSearchResults] = useState<T[]>(items);
   const [isSearching, setIsSearching] = useState(false);
-  const debouncedSearchTerm = useDebounce(searchTerm, debounceMs);
+  const debouncedSearchTerm = useLocalDebounce(searchTerm, debounceMs);
 
   useEffect(() => {
     if (!debouncedSearchTerm) {

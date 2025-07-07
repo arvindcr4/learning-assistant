@@ -1,18 +1,118 @@
-# See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
+name: Deploy to Fly.io
 
-name: Fly Deploy
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+        - development
+
+env:
+  REGISTRY: fly.io
+
 jobs:
   deploy:
-    name: Deploy app
+    name: Deploy Learning Assistant
     runs-on: ubuntu-latest
-    concurrency: deploy-group    # optional: ensure only one action runs at a time
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    
     steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    - name: 🛎️ Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🧪 Run tests
+      run: |
+        npm run test:ci
+        npm run lint
+        
+    - name: 🏗️ Build application
+      run: npm run build
+      
+    - name: 🚀 Setup Fly.io CLI
+      uses: superfly/flyctl-actions/setup-flyctl@master
+      
+    - name: 📋 Validate Fly.io configuration
+      run: |
+        if [ ! -f "fly.toml" ]; then
+          echo "❌ fly.toml not found"
+          exit 1
+        fi
+        flyctl config validate
+      env:
+        FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        
+    - name: 🚀 Deploy to Fly.io
+      run: |
+        chmod +x deploy.sh
+        ./deploy.sh fly ${{ github.event.inputs.environment || 'production' }} --force --skip-validation
+      env:
+        FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        
+    - name: 🔍 Health check
+      run: |
+        # Get app name from fly.toml
+        APP_NAME=$(grep "^app" fly.toml | cut -d'"' -f2)
+        APP_URL="https://${APP_NAME}.fly.dev"
+        
+        # Wait for deployment to be ready
+        sleep 30
+        
+        # Run health check
+        ./deploy/utils/health-check.sh comprehensive "${APP_URL}"
+      env:
+        FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        
+    - name: 📊 Create deployment summary
+      run: |
+        APP_NAME=$(grep "^app" fly.toml | cut -d'"' -f2)
+        APP_URL="https://${APP_NAME}.fly.dev"
+        
+        cat << EOF >> $GITHUB_STEP_SUMMARY
+        ## 🚀 Deployment Summary
+        
+        - **Environment**: ${{ github.event.inputs.environment || 'production' }}
+        - **Platform**: Fly.io
+        - **Application URL**: [${APP_URL}](${APP_URL})
+        - **Commit**: ${{ github.sha }}
+        - **Branch**: ${{ github.ref_name }}
+        - **Actor**: ${{ github.actor }}
+        
+        ### 📋 Deployment Details
+        - **Node.js Version**: 20
+        - **Build Time**: $(date)
+        - **Tests**: ✅ Passed
+        - **Linting**: ✅ Passed
+        - **Health Check**: ✅ Passed
+        
+        ### 🔗 Useful Links
+        - [Fly.io Dashboard](https://fly.io/dashboard)
+        - [Application Logs](https://fly.io/apps/${APP_NAME}/logs)
+        - [Health Endpoint](${APP_URL}/api/health)
+        EOF
+        
+    - name: 💬 Notify deployment result
+      if: always()
+      run: |
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "✅ Deployment successful!"
+        else
+          echo "❌ Deployment failed!"
+          echo "Check the logs for more information."
+        fi

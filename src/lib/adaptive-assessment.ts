@@ -48,12 +48,35 @@ export interface QuestionSelection {
   adaptations: string[];
 }
 
+/**
+ * Adaptive Assessment Configuration
+ */
+interface AdaptiveAssessmentConfig {
+  DIFFICULTY_ADJUSTMENT_THRESHOLD: number;
+  CONFIDENCE_THRESHOLD: number;
+  MAX_CONSECUTIVE_INCORRECT: number;
+  MIN_RESPONSE_TIME: number;
+  MAX_RESPONSE_TIME: number;
+  MIN_QUESTIONS_FOR_CONFIDENCE: number;
+  STANDARD_ERROR_THRESHOLD: number;
+  TERMINATION_CONFIDENCE_LEVEL: number;
+  MAX_QUESTION_POOL_SIZE: number;
+  INFORMATION_CRITERIA_WEIGHT: number;
+}
+
 export class AdaptiveAssessmentEngine {
-  private readonly DIFFICULTY_ADJUSTMENT_THRESHOLD = 0.1;
-  private readonly CONFIDENCE_THRESHOLD = 0.85;
-  private readonly MAX_CONSECUTIVE_INCORRECT = 3;
-  private readonly MIN_RESPONSE_TIME = 5; // seconds
-  private readonly MAX_RESPONSE_TIME = 300; // seconds
+  private readonly config: AdaptiveAssessmentConfig = {
+    DIFFICULTY_ADJUSTMENT_THRESHOLD: 0.1,
+    CONFIDENCE_THRESHOLD: 0.85,
+    MAX_CONSECUTIVE_INCORRECT: 3,
+    MIN_RESPONSE_TIME: 5, // seconds
+    MAX_RESPONSE_TIME: 300, // seconds
+    MIN_QUESTIONS_FOR_CONFIDENCE: 5,
+    STANDARD_ERROR_THRESHOLD: 0.3,
+    TERMINATION_CONFIDENCE_LEVEL: 0.95,
+    MAX_QUESTION_POOL_SIZE: 1000,
+    INFORMATION_CRITERIA_WEIGHT: 0.4
+  };
 
   /**
    * Initializes a new adaptive assessment session
@@ -240,28 +263,174 @@ export class AdaptiveAssessmentEngine {
   private shouldTerminateAssessment(
     state: AssessmentState,
     settings: AssessmentAdaptiveSettings
-  ): boolean {
-    // Check various termination criteria
-    if (state.totalQuestions >= settings.maximumQuestions) {
-      return true;
+  ): { shouldTerminate: boolean; reason: string; confidence: number } {
+    // Input validation
+    if (!state || !settings) {
+      return { shouldTerminate: true, reason: 'Invalid state or settings', confidence: 0 };
     }
 
-    if (state.totalQuestions >= settings.minimumQuestions) {
-      const accuracy = state.correctAnswers / state.totalQuestions;
-      if (accuracy >= settings.targetAccuracy / 100 && 
-          state.confidenceLevel >= settings.confidenceThreshold) {
-        return true;
+    // Hard maximum check
+    if (state.totalQuestions >= settings.maximumQuestions) {
+      return { shouldTerminate: true, reason: 'Maximum questions reached', confidence: 1.0 };
+    }
+
+    // Minimum questions requirement
+    if (state.totalQuestions < settings.minimumQuestions) {
+      return { shouldTerminate: false, reason: 'Minimum questions not reached', confidence: 0 };
+    }
+
+    // Statistical confidence termination
+    const statisticalResult = this.checkStatisticalTermination(state, settings);
+    if (statisticalResult.shouldTerminate) {
+      return statisticalResult;
+    }
+
+    // Consecutive failures check (struggling student)
+    const consecutiveFailures = this.checkConsecutiveFailures(state);
+    if (consecutiveFailures.shouldTerminate) {
+      return consecutiveFailures;
+    }
+
+    // Plateau detection (no learning progress)
+    const plateauCheck = this.checkLearningPlateau(state);
+    if (plateauCheck.shouldTerminate) {
+      return plateauCheck;
+    }
+
+    // Time-based termination
+    const timeCheck = this.checkTimeBasedTermination(state, settings);
+    if (timeCheck.shouldTerminate) {
+      return timeCheck;
+    }
+
+    return { shouldTerminate: false, reason: 'Assessment continuing', confidence: state.confidenceLevel };
+  }
+
+  /**
+   * Check statistical termination criteria based on confidence intervals
+   */
+  private checkStatisticalTermination(
+    state: AssessmentState,
+    settings: AssessmentAdaptiveSettings
+  ): { shouldTerminate: boolean; reason: string; confidence: number } {
+    if (state.totalQuestions < this.config.MIN_QUESTIONS_FOR_CONFIDENCE) {
+      return { shouldTerminate: false, reason: 'Insufficient data for statistical analysis', confidence: 0 };
+    }
+
+    const accuracy = state.totalQuestions > 0 ? state.correctAnswers / state.totalQuestions : 0;
+    const targetAccuracy = settings.targetAccuracy / 100;
+    
+    // Calculate standard error
+    const standardError = Math.sqrt((accuracy * (1 - accuracy)) / state.totalQuestions);
+    
+    // Check if we have sufficient confidence in our measurement
+    if (standardError <= this.config.STANDARD_ERROR_THRESHOLD) {
+      const confidenceInterval = 1.96 * standardError; // 95% confidence
+      const lowerBound = accuracy - confidenceInterval;
+      const upperBound = accuracy + confidenceInterval;
+      
+      // Check if target accuracy is within confidence interval
+      if (lowerBound >= targetAccuracy && state.confidenceLevel >= this.config.CONFIDENCE_THRESHOLD) {
+        return {
+          shouldTerminate: true,
+          reason: `Statistical confidence achieved (${(accuracy * 100).toFixed(1)}% ± ${(confidenceInterval * 100).toFixed(1)}%)`,
+          confidence: this.config.TERMINATION_CONFIDENCE_LEVEL
+        };
       }
     }
 
-    // Check for consecutive incorrect answers (student struggling)
-    const recentResponses = state.responses.slice(-this.MAX_CONSECUTIVE_INCORRECT);
-    if (recentResponses.length === this.MAX_CONSECUTIVE_INCORRECT &&
-        recentResponses.every(r => !r.isCorrect)) {
-      return true;
+    return { shouldTerminate: false, reason: 'Statistical confidence not achieved', confidence: state.confidenceLevel };
+  }
+
+  /**
+   * Check for consecutive failures indicating struggling student
+   */
+  private checkConsecutiveFailures(
+    state: AssessmentState
+  ): { shouldTerminate: boolean; reason: string; confidence: number } {
+    if (state.responses.length < this.config.MAX_CONSECUTIVE_INCORRECT) {
+      return { shouldTerminate: false, reason: 'Not enough responses to check failures', confidence: 0 };
     }
 
-    return false;
+    const recentResponses = state.responses.slice(-this.config.MAX_CONSECUTIVE_INCORRECT);
+    const allIncorrect = recentResponses.every(r => !r.isCorrect);
+    
+    if (allIncorrect) {
+      // Additional check: are these questions too difficult?
+      const avgDifficulty = recentResponses.reduce((sum, r) => sum + r.difficulty, 0) / recentResponses.length;
+      
+      return {
+        shouldTerminate: true,
+        reason: `Consecutive failures detected (${this.config.MAX_CONSECUTIVE_INCORRECT}) at difficulty ${avgDifficulty.toFixed(1)}`,
+        confidence: 0.9
+      };
+    }
+
+    return { shouldTerminate: false, reason: 'No consecutive failures detected', confidence: state.confidenceLevel };
+  }
+
+  /**
+   * Check for learning plateau (no improvement over recent questions)
+   */
+  private checkLearningPlateau(
+    state: AssessmentState
+  ): { shouldTerminate: boolean; reason: string; confidence: number } {
+    if (state.responses.length < 10) {
+      return { shouldTerminate: false, reason: 'Not enough data for plateau detection', confidence: 0 };
+    }
+
+    const halfPoint = Math.floor(state.responses.length / 2);
+    const firstHalf = state.responses.slice(0, halfPoint);
+    const secondHalf = state.responses.slice(halfPoint);
+    
+    const firstHalfAccuracy = firstHalf.filter(r => r.isCorrect).length / firstHalf.length;
+    const secondHalfAccuracy = secondHalf.filter(r => r.isCorrect).length / secondHalf.length;
+    
+    // Check if there's been no improvement (plateau)
+    const improvement = secondHalfAccuracy - firstHalfAccuracy;
+    
+    if (improvement < -0.1 && state.totalQuestions >= 15) { // 10% decline over 15+ questions
+      return {
+        shouldTerminate: true,
+        reason: `Learning plateau detected: ${(improvement * 100).toFixed(1)}% decline in recent performance`,
+        confidence: 0.8
+      };
+    }
+
+    return { shouldTerminate: false, reason: 'No learning plateau detected', confidence: state.confidenceLevel };
+  }
+
+  /**
+   * Check time-based termination criteria
+   */
+  private checkTimeBasedTermination(
+    state: AssessmentState,
+    settings: AssessmentAdaptiveSettings
+  ): { shouldTerminate: boolean; reason: string; confidence: number } {
+    // Check for excessive total time
+    if (state.timeElapsed > 3600) { // 1 hour
+      return {
+        shouldTerminate: true,
+        reason: 'Maximum assessment time exceeded',
+        confidence: 0.7
+      };
+    }
+
+    // Check for excessive time on recent questions (fatigue indicator)
+    const recentResponses = state.responses.slice(-3);
+    if (recentResponses.length === 3) {
+      const avgRecentTime = recentResponses.reduce((sum, r) => sum + r.responseTime, 0) / 3;
+      
+      if (avgRecentTime > this.config.MAX_RESPONSE_TIME) {
+        return {
+          shouldTerminate: true,
+          reason: `Excessive response times detected (avg: ${avgRecentTime.toFixed(0)}s), suggesting fatigue`,
+          confidence: 0.85
+        };
+      }
+    }
+
+    return { shouldTerminate: false, reason: 'Time criteria not met', confidence: state.confidenceLevel };
   }
 
   private filterEligibleQuestions(
@@ -292,42 +461,239 @@ export class AdaptiveAssessmentEngine {
     state: AssessmentState,
     learningProfile: LearningProfile
   ): AdaptiveQuestion {
-    // Score each question based on multiple criteria
-    const scoredQuestions = questions.map(question => ({
-      question,
-      score: this.calculateQuestionScore(question, state, learningProfile)
-    }));
+    if (!Array.isArray(questions) || questions.length === 0) {
+      throw new Error('No questions available for selection');
+    }
+
+    // If only one question, return it
+    if (questions.length === 1) {
+      return questions[0];
+    }
+
+    // Limit question pool size for performance
+    const limitedQuestions = questions.slice(0, this.config.MAX_QUESTION_POOL_SIZE);
+
+    // Score each question based on multiple criteria with enhanced algorithms
+    const scoredQuestions = limitedQuestions.map(question => {
+      const score = this.calculateEnhancedQuestionScore(question, state, learningProfile);
+      return {
+        question,
+        score,
+        reasoning: this.generateSelectionReasoning(question, state)
+      };
+    });
 
     // Sort by score (highest first)
     scoredQuestions.sort((a, b) => b.score - a.score);
 
-    return scoredQuestions[0].question;
+    // Add some randomization to prevent predictable patterns (top 3 candidates)
+    const topCandidates = scoredQuestions.slice(0, Math.min(3, scoredQuestions.length));
+    const weights = topCandidates.map((_, index) => Math.pow(0.7, index)); // Exponential decay
+    const randomIndex = this.weightedRandomSelection(weights);
+
+    return topCandidates[randomIndex].question;
   }
 
+  /**
+   * Enhanced question scoring with information theory principles
+   */
+  private calculateEnhancedQuestionScore(
+    question: AdaptiveQuestion,
+    state: AssessmentState,
+    learningProfile: LearningProfile
+  ): number {
+    if (!question || !state || !learningProfile) {
+      return 0;
+    }
+
+    let score = 0;
+    const weights = {
+      difficulty: 0.25,
+      information: 0.30,
+      style: 0.20,
+      objective: 0.15,
+      novelty: 0.10
+    };
+
+    try {
+      // 1. Difficulty alignment (prefer questions near current ability)
+      const difficultyScore = this.calculateDifficultyAlignment(question, state);
+      score += difficultyScore * weights.difficulty;
+
+      // 2. Information value (maximum information gain)
+      const informationScore = this.calculateInformationValue(question, state);
+      score += informationScore * weights.information;
+
+      // 3. Learning style alignment
+      const styleScore = this.calculateStyleAlignment(question, learningProfile);
+      score += styleScore * weights.style;
+
+      // 4. Learning objective coverage
+      const objectiveScore = this.calculateObjectiveCoverage(question, state);
+      score += objectiveScore * weights.objective;
+
+      // 5. Novelty factor (avoid repetitive question types)
+      const noveltyScore = this.calculateNoveltyScore(question, state);
+      score += noveltyScore * weights.novelty;
+
+      return Math.max(0, Math.min(1, score));
+    } catch (error) {
+      console.warn('Error calculating question score:', error);
+      return 0.5; // Default neutral score
+    }
+  }
+
+  /**
+   * Calculate optimal difficulty alignment using item response theory
+   */
+  private calculateDifficultyAlignment(question: AdaptiveQuestion, state: AssessmentState): number {
+    if (state.responses.length === 0) {
+      return question.difficulty === 5 ? 1.0 : 0.8; // Prefer medium difficulty initially
+    }
+
+    // Estimate current ability level
+    const recentResponses = state.responses.slice(-5);
+    const currentAbility = this.estimateAbilityLevel(recentResponses);
+    
+    // Optimal difficulty should be slightly above current ability for maximum learning
+    const optimalDifficulty = currentAbility + 0.5;
+    const difficultyDifference = Math.abs(question.difficulty - optimalDifficulty);
+    
+    // Use exponential decay for alignment score
+    return Math.exp(-difficultyDifference);
+  }
+
+  /**
+   * Calculate information value using Fisher information
+   */
+  private calculateInformationValue(question: AdaptiveQuestion, state: AssessmentState): number {
+    if (state.responses.length === 0) {
+      return 0.8; // High information value for first questions
+    }
+
+    const currentAbility = this.estimateAbilityLevel(state.responses.slice(-5));
+    const questionDifficulty = question.difficulty;
+    
+    // Fisher information is maximized when ability equals difficulty
+    const probabilityCorrect = this.calculateProbabilityCorrect(currentAbility, questionDifficulty);
+    const fisherInformation = probabilityCorrect * (1 - probabilityCorrect);
+    
+    // Normalize to 0-1 scale
+    return fisherInformation * 4; // Max Fisher info is 0.25, so multiply by 4
+  }
+
+  /**
+   * Estimate current ability level from responses
+   */
+  private estimateAbilityLevel(responses: AssessmentResponse[]): number {
+    if (responses.length === 0) {
+      return 5; // Default medium ability
+    }
+
+    // Weighted average of difficulties, weighted by correctness and confidence
+    let weightedSum = 0;
+    let totalWeight = 0;
+    
+    responses.forEach(response => {
+      const weight = response.confidence * (response.isCorrect ? 1.2 : 0.8);
+      const effectiveDifficulty = response.isCorrect ? response.difficulty : response.difficulty - 2;
+      
+      weightedSum += effectiveDifficulty * weight;
+      totalWeight += weight;
+    });
+    
+    const ability = totalWeight > 0 ? weightedSum / totalWeight : 5;
+    return Math.max(1, Math.min(10, ability));
+  }
+
+  /**
+   * Calculate probability of correct response using logistic model
+   */
+  private calculateProbabilityCorrect(ability: number, difficulty: number): number {
+    const logit = ability - difficulty;
+    return 1 / (1 + Math.exp(-logit));
+  }
+
+  /**
+   * Calculate novelty score to avoid repetitive patterns
+   */
+  private calculateNoveltyScore(question: AdaptiveQuestion, state: AssessmentState): number {
+    if (state.responses.length === 0) {
+      return 1.0;
+    }
+
+    const recentQuestionTypes = state.responses.slice(-5).map(r => r.questionId);
+    const sameTypeCount = recentQuestionTypes.filter(id => 
+      id === question.id || this.areQuestionsSimilar(id, question.id)
+    ).length;
+    
+    // Penalize repetitive question types
+    return Math.max(0.2, 1 - sameTypeCount * 0.3);
+  }
+
+  /**
+   * Check if two questions are similar (simplified)
+   */
+  private areQuestionsSimilar(questionId1: string, questionId2: string): boolean {
+    // This would need more sophisticated similarity checking
+    // For now, just check if they're the exact same question
+    return questionId1 === questionId2;
+  }
+
+  /**
+   * Weighted random selection from candidates
+   */
+  private weightedRandomSelection(weights: number[]): number {
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+    const random = Math.random() * totalWeight;
+    
+    let cumulativeWeight = 0;
+    for (let i = 0; i < weights.length; i++) {
+      cumulativeWeight += weights[i];
+      if (random <= cumulativeWeight) {
+        return i;
+      }
+    }
+    
+    return weights.length - 1; // Fallback to last option
+  }
+
+  /**
+   * Legacy question scoring method (kept for compatibility)
+   */
   private calculateQuestionScore(
     question: AdaptiveQuestion,
     state: AssessmentState,
     learningProfile: LearningProfile
   ): number {
-    let score = 0;
+    if (!question || !state || !learningProfile) {
+      return 0;
+    }
 
-    // Difficulty alignment (prefer questions close to current difficulty)
-    const difficultyAlignment = 1 - Math.abs(question.difficulty - state.currentDifficulty) / 10;
-    score += difficultyAlignment * 0.3;
+    try {
+      let score = 0;
 
-    // Learning objective coverage
-    const objectiveCoverage = this.calculateObjectiveCoverage(question, state);
-    score += objectiveCoverage * 0.2;
+      // Difficulty alignment (prefer questions close to current difficulty)
+      const difficultyAlignment = 1 - Math.abs(question.difficulty - state.currentDifficulty) / 10;
+      score += Math.max(0, difficultyAlignment) * 0.3;
 
-    // Learning style alignment
-    const styleAlignment = this.calculateStyleAlignment(question, learningProfile);
-    score += styleAlignment * 0.2;
+      // Learning objective coverage
+      const objectiveCoverage = this.calculateObjectiveCoverage(question, state);
+      score += Math.max(0, objectiveCoverage) * 0.2;
 
-    // Information value (how much this question reveals about student knowledge)
-    const informationValue = this.calculateInformationValue(question, state);
-    score += informationValue * 0.3;
+      // Learning style alignment
+      const styleAlignment = this.calculateStyleAlignment(question, learningProfile);
+      score += Math.max(0, styleAlignment) * 0.2;
 
-    return score;
+      // Information value (how much this question reveals about student knowledge)
+      const informationValue = this.calculateInformationValue(question, state);
+      score += Math.max(0, informationValue) * 0.3;
+
+      return Math.max(0, Math.min(1, score));
+    } catch (error) {
+      console.warn('Error in legacy question scoring:', error);
+      return 0.5;
+    }
   }
 
   private evaluateResponse(

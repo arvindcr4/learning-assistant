@@ -1,0 +1,12 @@
+Learning Assistant Deployment Log - Mon Jul  7 21:09:56 IST 2025
+2025-07-07 21:09:56 [INFO] [0;34mℹ️  Deployment Configuration:[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Platform: railway[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Environment: production[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Region: auto[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Instance Type: auto[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Dry Run: false[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Verbose: true[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Skip Health Check: false[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Skip Validation: false[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Enable Rollback: true[0m
+2025-07-07 21:09:56 [INFO] [0;34mℹ️    Cleanup on Failure: true[0m

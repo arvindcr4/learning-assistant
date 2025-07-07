@@ -2,11 +2,14 @@
 -- This script runs after the main schema is created
 
 -- Create additional database users if needed
+-- Note: Replace hardcoded passwords with environment variables in production
 DO $$
 BEGIN
     -- Create read-only user for analytics
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'analytics_user') THEN
-        CREATE ROLE analytics_user WITH LOGIN PASSWORD 'analytics_password';
+        -- Use environment variable for password: ANALYTICS_USER_PASSWORD
+        EXECUTE format('CREATE ROLE analytics_user WITH LOGIN PASSWORD %L', 
+                      COALESCE(current_setting('app.analytics_password', true), 'CHANGE_ME_ANALYTICS'));
         GRANT CONNECT ON DATABASE learning_assistant_db TO analytics_user;
         GRANT USAGE ON SCHEMA public TO analytics_user;
         GRANT SELECT ON ALL TABLES IN SCHEMA public TO analytics_user;
@@ -15,7 +18,9 @@ BEGIN
 
     -- Create backup user
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'backup_user') THEN
-        CREATE ROLE backup_user WITH LOGIN PASSWORD 'backup_password';
+        -- Use environment variable for password: BACKUP_USER_PASSWORD
+        EXECUTE format('CREATE ROLE backup_user WITH LOGIN PASSWORD %L', 
+                      COALESCE(current_setting('app.backup_password', true), 'CHANGE_ME_BACKUP'));
         GRANT CONNECT ON DATABASE learning_assistant_db TO backup_user;
         GRANT USAGE ON SCHEMA public TO backup_user;
         GRANT SELECT ON ALL TABLES IN SCHEMA public TO backup_user;

@@ -34,7 +34,7 @@ export const waitForLoadingToFinish = async () => {
   const { findByRole } = await import('@testing-library/react')
   // Wait for any loading spinners to disappear
   try {
-    await findByRole('progressbar', {}, { timeout: 100 })
+    await findByRole(document.body, 'progressbar', {}, { timeout: 100 })
     // If found, wait for it to disappear
     await new Promise(resolve => setTimeout(resolve, 100))
   } catch {

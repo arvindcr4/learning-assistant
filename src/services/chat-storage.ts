@@ -426,7 +426,7 @@ export class ChatStorageService {
     };
   }
 
-  private saveToLocalStorage(key: string, data: any): void {
+  public saveToLocalStorage(key: string, data: any): void {
     try {
       const serialized = this.options.encryptData ? 
         this.encrypt(JSON.stringify(data)) : 

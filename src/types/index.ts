@@ -4,11 +4,18 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  avatar?: string;
-  preferences: UserPreferences;
-  learningProfile: LearningProfile;
+  emailVerified: boolean;
+  image?: string;
+  role?: string;
+  preferences?: string;
+  firstName?: string;
+  lastName?: string;
   createdAt: Date;
   updatedAt: Date;
+  // Extended fields for learning system
+  avatar?: string;
+  userPreferences?: UserPreferences;
+  learningProfile?: LearningProfile;
 }
 
 export interface UserPreferences {
@@ -192,6 +199,7 @@ export interface LearningProfile {
   assessmentHistory: StyleAssessment[];
   behavioralIndicators: BehavioralIndicator[];
   adaptationLevel: number; // 0-100 how well adapted the system is
+  preferences?: UserPreferences; // Optional user preferences
   createdAt: Date;
   updatedAt: Date;
 }

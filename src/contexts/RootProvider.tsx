@@ -84,42 +84,53 @@ function PerformanceWrapper({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// Optimized provider composition using React.memo
+const MemoizedProviderCore = React.memo(function ProviderCore({ children }: { children: ReactNode }) {
+  return (
+    <AuthProvider>
+      <NotificationProvider>
+        <SyncProvider>
+          <LearningProvider>
+            <QuizProvider>
+              <ChatProvider>
+                <UIProvider>
+                  {children}
+                </UIProvider>
+              </ChatProvider>
+            </QuizProvider>
+          </LearningProvider>
+        </SyncProvider>
+      </NotificationProvider>
+    </AuthProvider>
+  );
+});
+
 // Main root provider component
 export function RootProvider({ children }: { children: ReactNode }) {
   return (
     <StateErrorBoundary>
       <PerformanceWrapper>
-        <AuthProvider>
-          <NotificationProvider>
-            <SyncProvider>
-              <LearningProvider>
-                <QuizProvider>
-                  <ChatProvider>
-                    <UIProvider>
-                      {children}
-                    </UIProvider>
-                  </ChatProvider>
-                </QuizProvider>
-              </LearningProvider>
-            </SyncProvider>
-          </NotificationProvider>
-        </AuthProvider>
+        <MemoizedProviderCore>
+          {children}
+        </MemoizedProviderCore>
       </PerformanceWrapper>
     </StateErrorBoundary>
   );
 }
 
-// Combined context hooks for easier access
+// Combined context hooks for easier access (deprecated - use individual hooks)
 export function useAppState() {
-  const auth = React.useContext(require('./AuthContext').AuthContext);
-  const learning = React.useContext(require('./LearningContext').LearningContext);
-  const quiz = React.useContext(require('./QuizContext').QuizContext);
-  const chat = React.useContext(require('./ChatContext').ChatContext);
-  const notifications = React.useContext(require('./NotificationContext').NotificationContext);
-  const sync = React.useContext(require('./SyncContext').SyncContext);
-  const ui = React.useContext(require('./UIContext').UIContext);
+  console.warn('useAppState is deprecated. Use individual context hooks instead for better performance.');
+  
+  const auth = useAuth();
+  const learning = useLearning();
+  const quiz = useQuiz();
+  const chat = useChat();
+  const notifications = useNotifications();
+  const sync = useSync();
+  const ui = useUI();
 
-  return {
+  return React.useMemo(() => ({
     auth,
     learning,
     quiz,
@@ -127,8 +138,17 @@ export function useAppState() {
     notifications,
     sync,
     ui,
-  };
+  }), [auth, learning, quiz, chat, notifications, sync, ui]);
 }
+
+// Import individual hooks
+import { useAuth } from './AuthContext';
+import { useLearning } from './LearningContext';
+import { useQuiz } from './QuizContext';
+import { useChat } from './ChatContext';
+import { useNotifications } from './NotificationContext';
+import { useSync } from './SyncContext';
+import { useUI } from './UIContext';
 
 // Helper hook to check if all contexts are loaded
 export function useContextsLoaded() {

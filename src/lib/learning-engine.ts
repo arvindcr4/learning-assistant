@@ -26,12 +26,36 @@ import {
 } from './learning-algorithms';
 
 /**
+ * Learning Style Detection Engine Configuration
+ */
+interface LearningStyleConfig {
+  CONFIDENCE_THRESHOLD: number;
+  MIN_DATA_POINTS: number;
+  MAX_WEIGHT_TIME_MINUTES: number;
+  DEFAULT_WEIGHT: number;
+  MIN_WEIGHT: number;
+  MAX_WEIGHT: number;
+  MULTIMODAL_THRESHOLD: number;
+  MIN_ENGAGEMENT_SCORE: number;
+  MAX_ENGAGEMENT_SCORE: number;
+}
+
+/**
  * Learning Style Detection Engine
  * Implements hybrid approach combining VARK questionnaire with behavioral analysis
  */
 export class LearningStyleDetector {
-  private readonly CONFIDENCE_THRESHOLD = 0.7;
-  private readonly MIN_DATA_POINTS = 10;
+  private readonly config: LearningStyleConfig = {
+    CONFIDENCE_THRESHOLD: 0.7,
+    MIN_DATA_POINTS: 10,
+    MAX_WEIGHT_TIME_MINUTES: 30,
+    DEFAULT_WEIGHT: 0.5,
+    MIN_WEIGHT: 0.1,
+    MAX_WEIGHT: 1.0,
+    MULTIMODAL_THRESHOLD: 25,
+    MIN_ENGAGEMENT_SCORE: 0,
+    MAX_ENGAGEMENT_SCORE: 100
+  };
   
   /**
    * Analyzes behavioral indicators to determine learning style preferences
@@ -120,6 +144,16 @@ export class LearningStyleDetector {
   }
   
   private calculateStyleScores(indicators: BehavioralIndicator[]): Record<string, number> {
+    if (indicators.length === 0) {
+      // Return equal distribution if no indicators
+      return {
+        visual: 0.25,
+        auditory: 0.25,
+        reading: 0.25,
+        kinesthetic: 0.25
+      };
+    }
+
     const scores: Record<string, number> = {
       visual: 0,
       auditory: 0,
@@ -127,23 +161,78 @@ export class LearningStyleDetector {
       kinesthetic: 0
     };
     
-    indicators.forEach(indicator => {
-      const weight = this.calculateIndicatorWeight(indicator);
-      scores[indicator.contentType] += indicator.engagementLevel * weight;
+    // Validate and sanitize indicators
+    const validIndicators = indicators.filter(indicator => 
+      indicator &&
+      typeof indicator.engagementLevel === 'number' &&
+      indicator.engagementLevel >= 0 &&
+      indicator.engagementLevel <= 100 &&
+      indicator.contentType &&
+      scores.hasOwnProperty(indicator.contentType)
+    );
+
+    if (validIndicators.length === 0) {
+      // Return equal distribution if no valid indicators
+      return {
+        visual: 0.25,
+        auditory: 0.25,
+        reading: 0.25,
+        kinesthetic: 0.25
+      };
+    }
+    
+    validIndicators.forEach(indicator => {
+      try {
+        const weight = this.calculateIndicatorWeight(indicator);
+        if (weight > 0 && weight <= 1) { // Validate weight
+          scores[indicator.contentType] += indicator.engagementLevel * weight;
+        }
+      } catch (error) {
+        console.warn('Error calculating indicator weight:', error);
+      }
     });
     
-    // Normalize scores
+    // Normalize scores with division by zero protection
     const total = Object.values(scores).reduce((sum, score) => sum + score, 0);
+    if (total <= 0) {
+      // Return equal distribution if total is zero
+      return {
+        visual: 0.25,
+        auditory: 0.25,
+        reading: 0.25,
+        kinesthetic: 0.25
+      };
+    }
+
     return Object.fromEntries(
-      Object.entries(scores).map(([type, score]) => [type, total > 0 ? score / total : 0])
+      Object.entries(scores).map(([type, score]) => {
+        const normalizedScore = score / total;
+        return [type, Math.max(0, Math.min(1, normalizedScore))];
+      })
     );
   }
   
   private calculateIndicatorWeight(indicator: BehavioralIndicator): number {
-    // Weight based on completion rate and time spent
-    const completionWeight = indicator.completionRate / 100;
-    const timeWeight = Math.min(indicator.timeSpent / 30, 1); // Cap at 30 minutes
-    return (completionWeight + timeWeight) / 2;
+    try {
+      // Validate input parameters
+      const completionRate = Math.max(0, Math.min(100, indicator.completionRate || 0));
+      const timeSpent = Math.max(0, indicator.timeSpent || 0);
+      
+      // Weight based on completion rate and time spent
+      const completionWeight = completionRate / 100;
+      const timeWeight = Math.min(timeSpent / (this.config.MAX_WEIGHT_TIME_MINUTES * 60), 1); // Cap at configured minutes (in seconds)
+      
+      // Ensure weights are valid
+      if (isNaN(completionWeight) || isNaN(timeWeight)) {
+        return this.config.DEFAULT_WEIGHT;
+      }
+      
+      const weight = (completionWeight + timeWeight) / 2;
+      return Math.max(this.config.MIN_WEIGHT, Math.min(this.config.MAX_WEIGHT, weight));
+    } catch (error) {
+      console.warn('Error calculating indicator weight:', error);
+      return this.config.DEFAULT_WEIGHT;
+    }
   }
   
   /**
@@ -165,7 +254,10 @@ export class LearningStyleDetector {
   }
   
   private calculateConfidence(dataPoints: number): number {
-    return Math.min(dataPoints / this.MIN_DATA_POINTS, 1);
+    if (typeof dataPoints !== 'number' || dataPoints < 0) {
+      return 0;
+    }
+    return Math.min(dataPoints / this.config.MIN_DATA_POINTS, 1);
   }
   
   private assessQuestionnaireConfidence(responses: Record<string, string>): number {
@@ -230,17 +322,47 @@ export class LearningStyleDetector {
   }
   
   private isMultimodalLearner(styles: LearningStyle[]): boolean {
-    const highScores = styles.filter(style => style.score > 25);
+    if (!Array.isArray(styles) || styles.length === 0) {
+      return false;
+    }
+    
+    const validStyles = styles.filter(style => 
+      style && typeof style.score === 'number' && style.score >= 0
+    );
+    
+    const highScores = validStyles.filter(style => style.score > this.config.MULTIMODAL_THRESHOLD);
     return highScores.length > 1;
   }
   
   private calculateAdaptationLevel(indicators: BehavioralIndicator[]): number {
-    if (indicators.length === 0) return 0;
+    if (!Array.isArray(indicators) || indicators.length === 0) {
+      return 0;
+    }
     
-    const avgEngagement = indicators.reduce((sum, indicator) => sum + indicator.engagementLevel, 0) / indicators.length;
-    const avgCompletion = indicators.reduce((sum, indicator) => sum + indicator.completionRate, 0) / indicators.length;
+    const validIndicators = indicators.filter(indicator => 
+      indicator &&
+      typeof indicator.engagementLevel === 'number' &&
+      typeof indicator.completionRate === 'number' &&
+      indicator.engagementLevel >= 0 &&
+      indicator.completionRate >= 0
+    );
+
+    if (validIndicators.length === 0) {
+      return 0;
+    }
     
-    return Math.round((avgEngagement + avgCompletion) / 2);
+    const avgEngagement = validIndicators.reduce((sum, indicator) => {
+      const engagement = Math.max(0, Math.min(100, indicator.engagementLevel));
+      return sum + engagement;
+    }, 0) / validIndicators.length;
+    
+    const avgCompletion = validIndicators.reduce((sum, indicator) => {
+      const completion = Math.max(0, Math.min(100, indicator.completionRate));
+      return sum + completion;
+    }, 0) / validIndicators.length;
+    
+    const adaptationLevel = (avgEngagement + avgCompletion) / 2;
+    return Math.round(Math.max(0, Math.min(100, adaptationLevel)));
   }
 }
 
@@ -370,17 +492,59 @@ export class AdaptivePaceManager {
   }
   
   private calculateAverageAccuracy(sessions: LearningSession[]): number {
-    const accuracies = sessions.map(session => 
-      session.totalQuestions > 0 ? session.correctAnswers / session.totalQuestions : 0
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return 0;
+    }
+
+    const validSessions = sessions.filter(session => 
+      session && 
+      typeof session.totalQuestions === 'number' &&
+      typeof session.correctAnswers === 'number' &&
+      session.totalQuestions >= 0 &&
+      session.correctAnswers >= 0 &&
+      session.correctAnswers <= session.totalQuestions
     );
-    return accuracies.reduce((sum, acc) => sum + acc, 0) / accuracies.length;
+
+    if (validSessions.length === 0) {
+      return 0;
+    }
+
+    const accuracies = validSessions.map(session => {
+      if (session.totalQuestions === 0) {
+        return 0;
+      }
+      return session.correctAnswers / session.totalQuestions;
+    });
+    
+    const sum = accuracies.reduce((sum, acc) => sum + acc, 0);
+    return sum / accuracies.length;
   }
   
   private calculateAverageEngagement(sessions: LearningSession[]): number {
-    const engagements = sessions.map(session => 
-      session.engagementMetrics.focusTime / session.duration
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return 0;
+    }
+
+    const validSessions = sessions.filter(session => 
+      session &&
+      session.engagementMetrics &&
+      typeof session.engagementMetrics.focusTime === 'number' &&
+      typeof session.duration === 'number' &&
+      session.duration > 0 &&
+      session.engagementMetrics.focusTime >= 0
     );
-    return engagements.reduce((sum, eng) => sum + eng, 0) / engagements.length;
+
+    if (validSessions.length === 0) {
+      return 0;
+    }
+
+    const engagements = validSessions.map(session => {
+      const focusRatio = session.engagementMetrics.focusTime / session.duration;
+      return Math.max(0, Math.min(1, focusRatio)); // Bound between 0 and 1
+    });
+    
+    const sum = engagements.reduce((sum, eng) => sum + eng, 0);
+    return sum / engagements.length;
   }
   
   private calculatePerformanceTrend(sessions: LearningSession[]): 'improving' | 'declining' | 'stable' {

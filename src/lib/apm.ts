@@ -41,6 +41,11 @@ export const apm = {
   startTrace: (name: string, metadata?: any): string => {
     if (!config.enabled) return '';
     
+    // Prevent memory leaks by cleaning up old traces
+    if (performanceState.traces.size > 1000) {
+      apm.cleanupOldTraces();
+    }
+    
     const traceId = `${name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     performanceState.traces.set(traceId, {
       startTime: performance.now(),
@@ -268,6 +273,18 @@ export const apm = {
   // Configure APM
   configure: (newConfig: Partial<PerformanceConfig>) => {
     Object.assign(config, newConfig);
+  },
+
+  // Cleanup old traces to prevent memory leaks
+  cleanupOldTraces: () => {
+    const now = performance.now();
+    const maxAge = 300000; // 5 minutes in milliseconds
+    
+    for (const [traceId, trace] of performanceState.traces.entries()) {
+      if (now - trace.startTime > maxAge) {
+        performanceState.traces.delete(traceId);
+      }
+    }
   },
 };
 

@@ -19,7 +19,7 @@ import {
   Clock
 } from 'lucide-react';
 
-export interface VideoPlayerProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface VideoPlayerProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onProgress'> {
   src: string;
   title?: string;
   description?: string;
@@ -64,6 +64,24 @@ const VideoPlayer = React.forwardRef<HTMLDivElement, VideoPlayerProps>(
     const [isFullscreen, setIsFullscreen] = React.useState(false);
     const [showTranscript, setShowTranscript] = React.useState(false);
     const [playbackRate, setPlaybackRate] = React.useState(1);
+
+    // Cleanup effect for video event listeners
+    React.useEffect(() => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      // Add event listeners
+      video.addEventListener('timeupdate', handleTimeUpdate);
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+      video.addEventListener('ended', handleEnded);
+
+      // Cleanup function
+      return () => {
+        video.removeEventListener('timeupdate', handleTimeUpdate);
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        video.removeEventListener('ended', handleEnded);
+      };
+    }, []);
 
     const formatTime = (time: number) => {
       const minutes = Math.floor(time / 60);

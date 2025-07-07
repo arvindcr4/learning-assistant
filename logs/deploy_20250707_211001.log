@@ -1,0 +1,23 @@
+Learning Assistant Deployment Log - Mon Jul  7 21:10:01 IST 2025
+2025-07-07 21:10:01 [INFO] [0;34mℹ️  Deployment Configuration:[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Platform: railway[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Environment: production[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Region: auto[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Instance Type: auto[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Dry Run: false[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Verbose: true[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Skip Health Check: false[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Skip Validation: false[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Enable Rollback: true[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️    Cleanup on Failure: true[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️  Starting deployment process...[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️  Starting deployment for railway (production)[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️  Running pre-deployment validation...[0m
+2025-07-07 21:10:01 [SUCCESS] [0;32m✅ All dependencies are available[0m
+2025-07-07 21:10:01 [SUCCESS] [0;32m✅ Application configuration is valid[0m
+2025-07-07 21:10:01 [INFO] [0;34mℹ️  Validating Docker configuration...[0m
+2025-07-07 21:11:22 [SUCCESS] [0;32m✅ Docker configuration is valid[0m
+2025-07-07 21:11:22 [WARNING] [1;33m⚠️  Environment configuration file not found: /Users/arvindcr/learning-assistant/deploy/config/railway/production.env[0m
+2025-07-07 21:11:22 [INFO] [0;34mℹ️  Creating default configuration...[0m
+2025-07-07 21:11:22 [SUCCESS] [0;32m✅ Created default configuration: /Users/arvindcr/learning-assistant/deploy/config/railway/production.env[0m
+2025-07-07 21:11:22 [ERROR] [0;31m❌ Missing required environment variables: APP_NAME NODE_ENV PORT DATABASE_URL[0m

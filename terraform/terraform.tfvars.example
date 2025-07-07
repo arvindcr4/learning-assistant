@@ -1,0 +1,244 @@
+# ==============================================================================
+# TERRAFORM VARIABLES EXAMPLE FILE
+# Copy this file to terraform.tfvars and customize the values
+# ==============================================================================
+
+# ==============================================================================
+# REQUIRED VARIABLES (MUST BE SET)
+# ==============================================================================
+
+# Your GCP project ID (must already exist)
+project_id = "your-gcp-project-id"
+
+# Domain name for your application (must be under your control)
+domain_name = "learning-assistant.yourdomain.com"
+
+# Container image for your application (build and push before deploying)
+container_image = "gcr.io/your-gcp-project-id/learning-assistant:latest"
+
+# ==============================================================================
+# PROJECT CONFIGURATION
+# ==============================================================================
+
+# Project name used for resource naming
+project_name = "learning-assistant"
+
+# Deployment environment
+environment = "production"  # Options: development, staging, production
+
+# ==============================================================================
+# REGIONAL CONFIGURATION
+# ==============================================================================
+
+# GCP region where resources will be deployed
+region = "us-central1"  # Choose based on your location and requirements
+
+# GCP zone for zonal resources
+zone = "us-central1-a"
+
+# ==============================================================================
+# NETWORK CONFIGURATION
+# ==============================================================================
+
+# CIDR range for the main subnet
+subnet_cidr = "10.0.0.0/24"
+
+# CIDR range for VPC Access Connector (must not overlap with subnet_cidr)
+connector_cidr = "10.8.0.0/28"
+
+# Machine type for VPC Access Connector
+connector_machine_type = "e2-micro"  # Options: e2-micro, e2-standard-4, f1-micro
+
+# VPC Connector scaling
+connector_min_instances = 2
+connector_max_instances = 10
+
+# ==============================================================================
+# DATABASE CONFIGURATION
+# ==============================================================================
+
+# PostgreSQL version
+database_version = "POSTGRES_16"  # Options: POSTGRES_13, POSTGRES_14, POSTGRES_15, POSTGRES_16
+
+# Database instance machine type
+database_tier = "db-custom-2-7680"  # 2 vCPUs, 7.5GB RAM (adjust based on needs)
+
+# Database availability (ZONAL is cheaper, REGIONAL is more resilient)
+database_availability_type = "ZONAL"  # Options: ZONAL, REGIONAL
+
+# Database disk configuration
+database_disk_type = "PD_SSD"  # Options: PD_SSD, PD_HDD
+database_disk_size = 100       # GB
+database_disk_autoresize_limit = 1000  # GB
+
+# Database names and users
+database_name = "learning_assistant"
+database_user = "app_user"
+
+# Enable deletion protection (recommended for production)
+enable_deletion_protection = true
+
+# ==============================================================================
+# CLOUD RUN CONFIGURATION
+# ==============================================================================
+
+# Auto-scaling configuration
+cloud_run_min_instances = 1    # Minimum instances (0 for scale-to-zero)
+cloud_run_max_instances = 100  # Maximum instances
+
+# Resource limits
+cloud_run_cpu_limit = "2000m"    # 2 vCPUs
+cloud_run_memory_limit = "4Gi"   # 4GB RAM
+cloud_run_cpu_idle = true        # Allocate CPU only during requests
+
+# ==============================================================================
+# SSL/DOMAIN CONFIGURATION
+# ==============================================================================
+
+# Enable Cloud CDN for better performance
+enable_cdn = true
+
+# ==============================================================================
+# MONITORING AND LOGGING
+# ==============================================================================
+
+# Enable monitoring and alerting
+enable_monitoring = true
+enable_logging = true
+
+# Log retention (days)
+log_retention_days = 30
+
+# ==============================================================================
+# BACKUP CONFIGURATION
+# ==============================================================================
+
+# Database backup retention (days)
+backup_retention_days = 30
+
+# Enable point-in-time recovery
+enable_point_in_time_recovery = true
+
+# ==============================================================================
+# LABELS AND TAGGING
+# ==============================================================================
+
+# Labels applied to all resources
+labels = {
+  project     = "learning-assistant"
+  managed_by  = "terraform"
+  owner       = "platform-team"
+  environment = "production"
+  cost_center = "engineering"
+}
+
+# Network tags
+tags = ["learning-assistant", "web-app", "production"]
+
+# ==============================================================================
+# NOTIFICATION CONFIGURATION
+# ==============================================================================
+
+# Email for alerts and notifications
+notification_email = "admin@yourdomain.com"
+
+# ==============================================================================
+# DEVELOPMENT ENVIRONMENT OVERRIDES
+# ==============================================================================
+# Uncomment and modify these for development/staging environments
+
+# For development environment:
+# environment = "development"
+# database_tier = "db-custom-1-3840"  # Smaller instance
+# database_availability_type = "ZONAL"
+# cloud_run_min_instances = 0  # Scale to zero
+# cloud_run_max_instances = 10
+# cloud_run_cpu_limit = "1000m"
+# cloud_run_memory_limit = "2Gi"
+# enable_deletion_protection = false
+# backup_retention_days = 7
+# log_retention_days = 7
+
+# ==============================================================================
+# COST OPTIMIZATION SETTINGS
+# ==============================================================================
+# For cost optimization in non-production environments
+
+# Use smaller database tier for staging/dev
+# database_tier = "db-f1-micro"  # Shared-core instance (very small)
+
+# Reduce backup retention
+# backup_retention_days = 7
+
+# Scale down Cloud Run
+# cloud_run_cpu_limit = "1000m"
+# cloud_run_memory_limit = "1Gi"
+
+# ==============================================================================
+# HIGH AVAILABILITY SETTINGS
+# ==============================================================================
+# For production environments requiring high availability
+
+# Use regional database for better availability
+# database_availability_type = "REGIONAL"
+
+# Use larger database instance
+# database_tier = "db-custom-4-15360"  # 4 vCPUs, 15GB RAM
+
+# Increase connector capacity
+# connector_machine_type = "e2-standard-4"
+# connector_max_instances = 20
+
+# ==============================================================================
+# PERFORMANCE OPTIMIZATION SETTINGS
+# ==============================================================================
+# For high-traffic production environments
+
+# Use high-performance database
+# database_tier = "db-custom-8-30720"  # 8 vCPUs, 30GB RAM
+# database_disk_size = 500
+
+# Increase Cloud Run resources
+# cloud_run_cpu_limit = "4000m"
+# cloud_run_memory_limit = "8Gi"
+# cloud_run_max_instances = 1000
+
+# ==============================================================================
+# SECURITY HARDENING
+# ==============================================================================
+# Additional security settings for sensitive environments
+
+# Extend backup retention for compliance
+# backup_retention_days = 90
+
+# Enhanced monitoring
+# log_retention_days = 90
+
+# ==============================================================================
+# EXAMPLE CONFIGURATIONS BY ENVIRONMENT
+# ==============================================================================
+
+# DEVELOPMENT ENVIRONMENT
+# project_id = "my-project-dev"
+# environment = "development"
+# domain_name = "dev.learning-assistant.yourdomain.com"
+# database_tier = "db-custom-1-3840"
+# cloud_run_min_instances = 0
+# enable_deletion_protection = false
+
+# STAGING ENVIRONMENT
+# project_id = "my-project-staging"
+# environment = "staging"
+# domain_name = "staging.learning-assistant.yourdomain.com"
+# database_tier = "db-custom-2-7680"
+# cloud_run_min_instances = 1
+# enable_deletion_protection = true
+
+# PRODUCTION ENVIRONMENT
+# project_id = "my-project-prod"
+# environment = "production"
+# domain_name = "learning-assistant.yourdomain.com"
+# database_tier = "db-custom-4-15360"
+# database_availability_type = "REGIONAL"
+# cloud_run_min_instances = 2
+# enable_deletion_protection = true

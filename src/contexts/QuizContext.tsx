@@ -209,10 +209,42 @@ export function QuizProvider({ children }: { children: ReactNode }) {
     }
   }, [state.answers, state.currentQuestion]);
 
+  const convertQuestionToAdaptive = (question: Question): AdaptiveQuestion => {
+    return {
+      ...question,
+      difficulty: 5, // Default difficulty
+      learningObjective: 'General comprehension', // Default learning objective
+      hints: [], // No hints by default
+      adaptiveRules: {
+        nextQuestionLogic: {
+          correctAnswer: '',
+          incorrectAnswer: '',
+          partialCredit: ''
+        },
+        difficultyAdjustment: {
+          increaseOn: 'correct',
+          decreaseOn: 'incorrect',
+          adjustmentAmount: 1
+        },
+        hintTriggers: []
+      },
+      type: question.type as any, // Cast to compatible type
+      correctAnswer: question.correctAnswer as any,
+      explanation: question.explanation || '',
+      options: question.options?.map((opt, idx) => ({
+        id: `option-${idx}`,
+        text: opt,
+        isCorrect: false,
+        feedback: ''
+      }))
+    };
+  };
+
   const startQuiz = useCallback((quiz: Quiz) => {
     dispatch({ type: 'START_QUIZ', payload: quiz });
     if (quiz.questions.length > 0) {
-      dispatch({ type: 'SET_CURRENT_QUESTION', payload: quiz.questions[0] });
+      const adaptiveQuestion = convertQuestionToAdaptive(quiz.questions[0]);
+      dispatch({ type: 'SET_CURRENT_QUESTION', payload: adaptiveQuestion });
     }
   }, []);
 
@@ -272,8 +304,8 @@ export function QuizProvider({ children }: { children: ReactNode }) {
     setPersistedQuiz({ answers: {}, currentQuestionIndex: 0 });
   }, [setPersistedQuiz]);
 
-  const getQuestions = useCallback(() => {
-    if (state.currentQuiz) return state.currentQuiz.questions;
+  const getQuestions = useCallback((): AdaptiveQuestion[] => {
+    if (state.currentQuiz) return state.currentQuiz.questions.map(convertQuestionToAdaptive);
     if (state.activeAssessment) return state.activeAssessment.questions;
     return [];
   }, [state.currentQuiz, state.activeAssessment]);
@@ -300,7 +332,7 @@ export function QuizProvider({ children }: { children: ReactNode }) {
     }
   }, [getQuestions, getCurrentQuestionIndex]);
 
-  const getQuestionByIndex = useCallback((index: number) => {
+  const getQuestionByIndex = useCallback((index: number): AdaptiveQuestion | null => {
     const questions = getQuestions();
     return questions[index] || null;
   }, [getQuestions]);

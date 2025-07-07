@@ -158,7 +158,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       content,
       role: 'user',
       timestamp: new Date(),
-      context: state.context?.currentModule || undefined,
+      context: state.context || undefined,
     };
 
     dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
@@ -172,7 +172,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content: aiResponse,
         role: 'assistant',
         timestamp: new Date(),
-        context: state.context?.currentModule || undefined,
+        context: state.context || undefined,
       };
 
       dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
@@ -226,7 +226,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content: aiResponse,
         role: 'assistant',
         timestamp: new Date(),
-        context: state.context?.currentModule || undefined,
+        context: state.context || undefined,
       };
 
       dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });

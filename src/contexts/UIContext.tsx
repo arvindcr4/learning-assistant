@@ -92,7 +92,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
 
   // Initialize UI state from localStorage
   useEffect(() => {
-    if (persistedUI.theme) {
+    if (persistedUI.theme && (persistedUI.theme === 'light' || persistedUI.theme === 'dark' || persistedUI.theme === 'system')) {
       dispatch({ type: 'SET_THEME', payload: persistedUI.theme });
     }
     if (typeof persistedUI.sidebarOpen === 'boolean') {

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { LearningModule, LearningStyleType, ContentFormat } from '@/types';
 
-export interface ContentCardProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface ContentCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'content'> {
   content: LearningModule;
   progress?: {
     completed: boolean;

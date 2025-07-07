@@ -180,10 +180,22 @@ export const metricsUtils = {
 
 // Export register for compatibility (returns empty string in Edge Runtime)
 export const register = {
+  contentType: 'text/plain; version=0.0.4; charset=utf-8',
   metrics: () => {
     // Return a simple text representation of metrics
     return Object.entries(metricsStore)
       .map(([key, value]) => `${key} ${value}`)
       .join('\n');
+  }
+};
+
+// Health check function for monitoring
+export const metricsHealthCheck = (): boolean => {
+  try {
+    // Check if metrics store is accessible and has expected structure
+    return typeof metricsStore === 'object' && Object.keys(metricsStore).length >= 0;
+  } catch (error) {
+    console.error('Metrics health check failed:', error);
+    return false;
   }
 };

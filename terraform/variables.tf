@@ -1,607 +1,407 @@
-# =============================================================================
-# LEARNING ASSISTANT - TERRAFORM VARIABLES
-# =============================================================================
-# This file defines all configurable variables for the Linode infrastructure
-# =============================================================================
+# ==============================================================================
+# TERRAFORM VARIABLES FOR LEARNING ASSISTANT
+# Input variables for Google Cloud Platform infrastructure
+# ==============================================================================
 
-# -----------------------------------------------------------------------------
-# PROJECT & ENVIRONMENT VARIABLES
-# -----------------------------------------------------------------------------
+# ==============================================================================
+# PROJECT CONFIGURATION
+# ==============================================================================
+
+variable "project_id" {
+  description = "The GCP project ID where resources will be created"
+  type        = string
+  
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.project_id))
+    error_message = "Project ID must be a valid GCP project ID (lowercase letters, numbers, and hyphens only)."
+  }
+}
 
 variable "project_name" {
-  description = "Name of the project (used for resource naming and tagging)"
+  description = "The name of the project (used for resource naming)"
   type        = string
   default     = "learning-assistant"
   
   validation {
-    condition     = can(regex("^[a-z0-9-]+$", var.project_name))
+    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.project_name))
     error_message = "Project name must contain only lowercase letters, numbers, and hyphens."
   }
 }
 
 variable "environment" {
-  description = "Environment name (dev, staging, prod)"
+  description = "The deployment environment (development, staging, production)"
   type        = string
-  default     = "prod"
+  default     = "production"
   
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "Environment must be one of: dev, staging, prod."
+    condition     = contains(["development", "staging", "production"], var.environment)
+    error_message = "Environment must be one of: development, staging, production."
   }
 }
+
+# ==============================================================================
+# REGIONAL CONFIGURATION
+# ==============================================================================
 
 variable "region" {
-  description = "Linode region for resource deployment"
+  description = "The GCP region where resources will be created"
   type        = string
-  default     = "us-east"
+  default     = "us-central1"
   
   validation {
     condition = contains([
-      "us-east", "us-west", "us-central", "us-southeast",
-      "eu-west", "eu-central", "ap-south", "ap-northeast",
-      "ap-southeast", "ca-central", "ap-west"
+      "us-central1", "us-east1", "us-east4", "us-west1", "us-west2", "us-west3", "us-west4",
+      "europe-west1", "europe-west2", "europe-west3", "europe-west4", "europe-west6",
+      "asia-east1", "asia-east2", "asia-northeast1", "asia-northeast2", "asia-northeast3",
+      "asia-south1", "asia-southeast1", "asia-southeast2", "australia-southeast1"
     ], var.region)
-    error_message = "Please specify a valid Linode region."
+    error_message = "Region must be a valid GCP region."
   }
 }
 
-# -----------------------------------------------------------------------------
-# COMPUTE INSTANCE VARIABLES
-# -----------------------------------------------------------------------------
+variable "zone" {
+  description = "The GCP zone where zonal resources will be created"
+  type        = string
+  default     = "us-central1-a"
+  
+  validation {
+    condition     = can(regex("^[a-z]+-[a-z0-9]+-[a-z]$", var.zone))
+    error_message = "Zone must be a valid GCP zone (e.g., us-central1-a)."
+  }
+}
 
-variable "web_server_count" {
-  description = "Number of web server instances to create"
+# ==============================================================================
+# NETWORK CONFIGURATION
+# ==============================================================================
+
+variable "subnet_cidr" {
+  description = "CIDR range for the subnet"
+  type        = string
+  default     = "10.0.0.0/24"
+  
+  validation {
+    condition     = can(cidrhost(var.subnet_cidr, 0))
+    error_message = "Subnet CIDR must be a valid CIDR block."
+  }
+}
+
+variable "connector_cidr" {
+  description = "CIDR range for the VPC Access Connector"
+  type        = string
+  default     = "10.8.0.0/28"
+  
+  validation {
+    condition     = can(cidrhost(var.connector_cidr, 0))
+    error_message = "Connector CIDR must be a valid CIDR block."
+  }
+}
+
+variable "connector_machine_type" {
+  description = "Machine type for the VPC Access Connector"
+  type        = string
+  default     = "e2-micro"
+  
+  validation {
+    condition     = contains(["e2-micro", "e2-standard-4", "f1-micro"], var.connector_machine_type)
+    error_message = "Connector machine type must be one of: e2-micro, e2-standard-4, f1-micro."
+  }
+}
+
+variable "connector_min_instances" {
+  description = "Minimum number of instances for the VPC Access Connector"
   type        = number
   default     = 2
   
   validation {
-    condition     = var.web_server_count >= 1 && var.web_server_count <= 10
-    error_message = "Web server count must be between 1 and 10."
+    condition     = var.connector_min_instances >= 2 && var.connector_min_instances <= 10
+    error_message = "Connector minimum instances must be between 2 and 10."
   }
 }
 
-variable "web_server_type" {
-  description = "Linode instance type for web servers"
+variable "connector_max_instances" {
+  description = "Maximum number of instances for the VPC Access Connector"
+  type        = number
+  default     = 10
+  
+  validation {
+    condition     = var.connector_max_instances >= 2 && var.connector_max_instances <= 1000
+    error_message = "Connector maximum instances must be between 2 and 1000."
+  }
+}
+
+# ==============================================================================
+# DATABASE CONFIGURATION
+# ==============================================================================
+
+variable "database_version" {
+  description = "PostgreSQL version for Cloud SQL"
   type        = string
-  default     = "g6-standard-2"
+  default     = "POSTGRES_16"
   
   validation {
-    condition = contains([
-      "g6-nanode-1", "g6-standard-1", "g6-standard-2", "g6-standard-4",
-      "g6-standard-6", "g6-standard-8", "g6-standard-16", "g6-standard-20",
-      "g6-standard-24", "g6-standard-32", "g6-highmem-1", "g6-highmem-2",
-      "g6-highmem-4", "g6-highmem-8", "g6-highmem-16", "g6-dedicated-2",
-      "g6-dedicated-4", "g6-dedicated-8", "g6-dedicated-16", "g6-dedicated-32"
-    ], var.web_server_type)
-    error_message = "Please specify a valid Linode instance type."
+    condition     = contains(["POSTGRES_13", "POSTGRES_14", "POSTGRES_15", "POSTGRES_16"], var.database_version)
+    error_message = "Database version must be one of: POSTGRES_13, POSTGRES_14, POSTGRES_15, POSTGRES_16."
   }
 }
 
-variable "ssh_public_keys" {
-  description = "List of SSH public keys for instance access"
-  type        = list(string)
-  default     = []
-  
-  validation {
-    condition     = length(var.ssh_public_keys) > 0
-    error_message = "At least one SSH public key must be provided."
-  }
-}
-
-variable "allowed_ssh_ips" {
-  description = "List of IP addresses/CIDR blocks allowed SSH access"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-  
-  validation {
-    condition     = length(var.allowed_ssh_ips) > 0
-    error_message = "At least one allowed SSH IP must be specified."
-  }
-}
-
-# -----------------------------------------------------------------------------
-# DATABASE VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "database_type" {
-  description = "Linode database instance type"
+variable "database_tier" {
+  description = "Machine type for the Cloud SQL instance"
   type        = string
-  default     = "g6-dedicated-2"
+  default     = "db-custom-2-7680"
   
   validation {
-    condition = contains([
-      "g6-dedicated-2", "g6-dedicated-4", "g6-dedicated-8",
-      "g6-dedicated-16", "g6-dedicated-32", "g6-dedicated-48",
-      "g6-dedicated-50", "g6-dedicated-56", "g6-dedicated-64"
-    ], var.database_type)
-    error_message = "Please specify a valid Linode database instance type."
+    condition     = can(regex("^db-(custom|standard|n1-standard|n1-highmem).*", var.database_tier))
+    error_message = "Database tier must be a valid Cloud SQL machine type."
   }
 }
 
-variable "database_cluster_size" {
-  description = "Number of nodes in the database cluster"
-  type        = number
-  default     = 1
-  
-  validation {
-    condition     = var.database_cluster_size >= 1 && var.database_cluster_size <= 3
-    error_message = "Database cluster size must be between 1 and 3."
-  }
-}
-
-variable "postgres_engine_id" {
-  description = "PostgreSQL engine ID for the database"
+variable "database_availability_type" {
+  description = "Availability type for the Cloud SQL instance"
   type        = string
-  default     = "postgresql/16.4"
+  default     = "ZONAL"
   
   validation {
-    condition = contains([
-      "postgresql/13.13", "postgresql/14.10", "postgresql/15.5", "postgresql/16.4"
-    ], var.postgres_engine_id)
-    error_message = "Please specify a valid PostgreSQL engine ID."
+    condition     = contains(["ZONAL", "REGIONAL"], var.database_availability_type)
+    error_message = "Database availability type must be either ZONAL or REGIONAL."
   }
 }
 
-variable "database_name" {
-  description = "Name of the application database"
+variable "database_disk_type" {
+  description = "Disk type for the Cloud SQL instance"
   type        = string
-  default     = "learning_assistant"
+  default     = "PD_SSD"
   
   validation {
-    condition     = can(regex("^[a-z0-9_]+$", var.database_name))
-    error_message = "Database name must contain only lowercase letters, numbers, and underscores."
+    condition     = contains(["PD_SSD", "PD_HDD"], var.database_disk_type)
+    error_message = "Database disk type must be either PD_SSD or PD_HDD."
   }
 }
 
-variable "database_username" {
-  description = "Database username for the application"
-  type        = string
-  default     = "app_user"
-  
-  validation {
-    condition     = can(regex("^[a-z0-9_]+$", var.database_username))
-    error_message = "Database username must contain only lowercase letters, numbers, and underscores."
-  }
-}
-
-# -----------------------------------------------------------------------------
-# BACKUP CONFIGURATION VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "enable_backups" {
-  description = "Enable automated backups for instances"
-  type        = bool
-  default     = true
-}
-
-variable "backup_window_day" {
-  description = "Day of the week for database backups (0-6, 0 = Sunday)"
-  type        = number
-  default     = 0
-  
-  validation {
-    condition     = var.backup_window_day >= 0 && var.backup_window_day <= 6
-    error_message = "Backup window day must be between 0 and 6."
-  }
-}
-
-variable "backup_window_hour" {
-  description = "Hour of the day for database backups (0-23)"
-  type        = number
-  default     = 2
-  
-  validation {
-    condition     = var.backup_window_hour >= 0 && var.backup_window_hour <= 23
-    error_message = "Backup window hour must be between 0 and 23."
-  }
-}
-
-variable "backup_duration" {
-  description = "Duration of backup window in hours"
-  type        = number
-  default     = 2
-  
-  validation {
-    condition     = var.backup_duration >= 1 && var.backup_duration <= 4
-    error_message = "Backup duration must be between 1 and 4 hours."
-  }
-}
-
-variable "maintenance_window_day" {
-  description = "Day of the week for database maintenance (0-6, 0 = Sunday)"
-  type        = number
-  default     = 1
-  
-  validation {
-    condition     = var.maintenance_window_day >= 0 && var.maintenance_window_day <= 6
-    error_message = "Maintenance window day must be between 0 and 6."
-  }
-}
-
-variable "maintenance_window_hour" {
-  description = "Hour of the day for database maintenance (0-23)"
-  type        = number
-  default     = 3
-  
-  validation {
-    condition     = var.maintenance_window_hour >= 0 && var.maintenance_window_hour <= 23
-    error_message = "Maintenance window hour must be between 0 and 23."
-  }
-}
-
-variable "maintenance_duration" {
-  description = "Duration of maintenance window in hours"
-  type        = number
-  default     = 1
-  
-  validation {
-    condition     = var.maintenance_duration >= 1 && var.maintenance_duration <= 4
-    error_message = "Maintenance duration must be between 1 and 4 hours."
-  }
-}
-
-# -----------------------------------------------------------------------------
-# LOAD BALANCER VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "client_conn_throttle" {
-  description = "Client connection throttle for NodeBalancer"
-  type        = number
-  default     = 0
-  
-  validation {
-    condition     = var.client_conn_throttle >= 0 && var.client_conn_throttle <= 20
-    error_message = "Client connection throttle must be between 0 and 20."
-  }
-}
-
-variable "lb_algorithm" {
-  description = "Load balancing algorithm"
-  type        = string
-  default     = "roundrobin"
-  
-  validation {
-    condition     = contains(["roundrobin", "leastconn", "source"], var.lb_algorithm)
-    error_message = "Load balancing algorithm must be one of: roundrobin, leastconn, source."
-  }
-}
-
-variable "lb_stickiness" {
-  description = "Session stickiness for load balancer"
-  type        = string
-  default     = "none"
-  
-  validation {
-    condition     = contains(["none", "table", "http_cookie"], var.lb_stickiness)
-    error_message = "Load balancer stickiness must be one of: none, table, http_cookie."
-  }
-}
-
-variable "node_weight" {
-  description = "Weight for load balancer nodes"
+variable "database_disk_size" {
+  description = "Disk size in GB for the Cloud SQL instance"
   type        = number
   default     = 100
   
   validation {
-    condition     = var.node_weight >= 1 && var.node_weight <= 255
-    error_message = "Node weight must be between 1 and 255."
+    condition     = var.database_disk_size >= 10 && var.database_disk_size <= 65536
+    error_message = "Database disk size must be between 10 and 65536 GB."
   }
 }
 
-# -----------------------------------------------------------------------------
-# HEALTH CHECK VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "health_check_interval" {
-  description = "Health check interval in seconds"
+variable "database_disk_autoresize_limit" {
+  description = "Maximum disk size in GB for automatic resize"
   type        = number
-  default     = 5
+  default     = 1000
   
   validation {
-    condition     = var.health_check_interval >= 5 && var.health_check_interval <= 300
-    error_message = "Health check interval must be between 5 and 300 seconds."
+    condition     = var.database_disk_autoresize_limit >= 0 && var.database_disk_autoresize_limit <= 65536
+    error_message = "Database disk autoresize limit must be between 0 and 65536 GB."
   }
 }
 
-variable "health_check_timeout" {
-  description = "Health check timeout in seconds"
+variable "database_name" {
+  description = "Name of the PostgreSQL database"
+  type        = string
+  default     = "learning_assistant"
+  
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9_]*$", var.database_name))
+    error_message = "Database name must start with a letter and contain only lowercase letters, numbers, and underscores."
+  }
+}
+
+variable "database_user" {
+  description = "Database username"
+  type        = string
+  default     = "app_user"
+  
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9_]*$", var.database_user))
+    error_message = "Database user must start with a letter and contain only lowercase letters, numbers, and underscores."
+  }
+}
+
+variable "enable_deletion_protection" {
+  description = "Enable deletion protection for the Cloud SQL instance"
+  type        = bool
+  default     = true
+}
+
+# ==============================================================================
+# CLOUD RUN CONFIGURATION
+# ==============================================================================
+
+variable "container_image" {
+  description = "Container image for the Cloud Run service"
+  type        = string
+  default     = "gcr.io/cloudrun/hello"
+  
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+/[a-z0-9.-]+.*", var.container_image))
+    error_message = "Container image must be a valid Docker image reference."
+  }
+}
+
+variable "cloud_run_min_instances" {
+  description = "Minimum number of Cloud Run instances"
   type        = number
-  default     = 3
+  default     = 1
   
   validation {
-    condition     = var.health_check_timeout >= 1 && var.health_check_timeout <= 30
-    error_message = "Health check timeout must be between 1 and 30 seconds."
+    condition     = var.cloud_run_min_instances >= 0 && var.cloud_run_min_instances <= 1000
+    error_message = "Cloud Run minimum instances must be between 0 and 1000."
   }
 }
 
-variable "health_check_attempts" {
-  description = "Number of health check attempts before marking unhealthy"
+variable "cloud_run_max_instances" {
+  description = "Maximum number of Cloud Run instances"
   type        = number
-  default     = 3
+  default     = 100
   
   validation {
-    condition     = var.health_check_attempts >= 1 && var.health_check_attempts <= 30
-    error_message = "Health check attempts must be between 1 and 30."
+    condition     = var.cloud_run_max_instances >= 1 && var.cloud_run_max_instances <= 1000
+    error_message = "Cloud Run maximum instances must be between 1 and 1000."
   }
 }
 
-# -----------------------------------------------------------------------------
-# SSL/TLS CERTIFICATE VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "ssl_cert" {
-  description = "SSL certificate content (PEM format)"
+variable "cloud_run_cpu_limit" {
+  description = "CPU limit for Cloud Run containers"
   type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "ssl_key" {
-  description = "SSL private key content (PEM format)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-# -----------------------------------------------------------------------------
-# DOCKER CONFIGURATION VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "docker_image" {
-  description = "Docker image for the application"
-  type        = string
-  default     = "learning-assistant"
+  default     = "2000m"
   
   validation {
-    condition     = can(regex("^[a-z0-9._/-]+$", var.docker_image))
-    error_message = "Docker image name must be valid."
+    condition     = can(regex("^[0-9]+m?$", var.cloud_run_cpu_limit))
+    error_message = "Cloud Run CPU limit must be a valid CPU specification (e.g., 1000m or 2)."
   }
 }
 
-variable "docker_tag" {
-  description = "Docker image tag"
+variable "cloud_run_memory_limit" {
+  description = "Memory limit for Cloud Run containers"
   type        = string
-  default     = "latest"
+  default     = "4Gi"
   
   validation {
-    condition     = length(var.docker_tag) > 0
-    error_message = "Docker tag cannot be empty."
+    condition     = can(regex("^[0-9]+(Mi|Gi)$", var.cloud_run_memory_limit))
+    error_message = "Cloud Run memory limit must be a valid memory specification (e.g., 512Mi or 2Gi)."
   }
 }
 
-# -----------------------------------------------------------------------------
-# STORAGE VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "volume_size" {
-  description = "Size of persistent volumes in GB"
-  type        = number
-  default     = 20
-  
-  validation {
-    condition     = var.volume_size >= 10 && var.volume_size <= 10240
-    error_message = "Volume size must be between 10 and 10240 GB."
-  }
+variable "cloud_run_cpu_idle" {
+  description = "Whether to allocate CPU only during request processing"
+  type        = bool
+  default     = true
 }
 
-# -----------------------------------------------------------------------------
-# DNS VARIABLES
-# -----------------------------------------------------------------------------
+# ==============================================================================
+# DOMAIN AND SSL CONFIGURATION
+# ==============================================================================
 
 variable "domain_name" {
-  description = "Domain name for the application (leave empty to skip DNS setup)"
+  description = "Domain name for the application"
   type        = string
-  default     = ""
+  default     = "learning-assistant.example.com"
+  
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+\\.[a-z]{2,}$", var.domain_name))
+    error_message = "Domain name must be a valid domain (e.g., example.com)."
+  }
 }
 
-variable "soa_email" {
-  description = "SOA email for DNS zone"
+variable "enable_cdn" {
+  description = "Enable Cloud CDN for the load balancer"
+  type        = bool
+  default     = true
+}
+
+# ==============================================================================
+# MONITORING AND LOGGING CONFIGURATION
+# ==============================================================================
+
+variable "enable_monitoring" {
+  description = "Enable monitoring and alerting"
+  type        = bool
+  default     = true
+}
+
+variable "enable_logging" {
+  description = "Enable detailed logging"
+  type        = bool
+  default     = true
+}
+
+variable "log_retention_days" {
+  description = "Number of days to retain logs"
+  type        = number
+  default     = 30
+  
+  validation {
+    condition     = var.log_retention_days >= 1 && var.log_retention_days <= 3653
+    error_message = "Log retention days must be between 1 and 3653 (10 years)."
+  }
+}
+
+# ==============================================================================
+# BACKUP CONFIGURATION
+# ==============================================================================
+
+variable "backup_retention_days" {
+  description = "Number of days to retain database backups"
+  type        = number
+  default     = 30
+  
+  validation {
+    condition     = var.backup_retention_days >= 1 && var.backup_retention_days <= 365
+    error_message = "Backup retention days must be between 1 and 365."
+  }
+}
+
+variable "enable_point_in_time_recovery" {
+  description = "Enable point-in-time recovery for the database"
+  type        = bool
+  default     = true
+}
+
+# ==============================================================================
+# LABELS AND TAGGING
+# ==============================================================================
+
+variable "labels" {
+  description = "Labels to apply to all resources"
+  type        = map(string)
+  default = {
+    project     = "learning-assistant"
+    managed_by  = "terraform"
+    owner       = "platform-team"
+  }
+  
+  validation {
+    condition     = alltrue([for k, v in var.labels : can(regex("^[a-z][a-z0-9_-]*$", k)) && can(regex("^[a-z0-9_-]*$", v))])
+    error_message = "All label keys and values must contain only lowercase letters, numbers, hyphens, and underscores."
+  }
+}
+
+variable "tags" {
+  description = "Network tags to apply to resources"
+  type        = list(string)
+  default     = ["learning-assistant", "web-app"]
+  
+  validation {
+    condition     = alltrue([for tag in var.tags : can(regex("^[a-z][a-z0-9-]*$", tag))])
+    error_message = "All tags must start with a letter and contain only lowercase letters, numbers, and hyphens."
+  }
+}
+
+# ==============================================================================
+# NOTIFICATION CONFIGURATION
+# ==============================================================================
+
+variable "notification_email" {
+  description = "Email address for notifications and alerts"
   type        = string
   default     = "admin@example.com"
   
   validation {
-    condition     = can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.soa_email))
-    error_message = "SOA email must be a valid email address."
-  }
-}
-
-variable "dns_refresh_sec" {
-  description = "DNS refresh time in seconds"
-  type        = number
-  default     = 14400
-}
-
-variable "dns_retry_sec" {
-  description = "DNS retry time in seconds"
-  type        = number
-  default     = 3600
-}
-
-variable "dns_expire_sec" {
-  description = "DNS expire time in seconds"
-  type        = number
-  default     = 604800
-}
-
-variable "dns_ttl_sec" {
-  description = "DNS TTL in seconds"
-  type        = number
-  default     = 300
-}
-
-variable "dns_record_ttl" {
-  description = "DNS record TTL in seconds"
-  type        = number
-  default     = 300
-}
-
-variable "mx_record_target" {
-  description = "MX record target (leave empty to skip)"
-  type        = string
-  default     = ""
-}
-
-variable "mx_record_priority" {
-  description = "MX record priority"
-  type        = number
-  default     = 10
-}
-
-variable "txt_record_value" {
-  description = "TXT record value for domain verification (leave empty to skip)"
-  type        = string
-  default     = ""
-}
-
-# -----------------------------------------------------------------------------
-# AUTO-SCALING VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "enable_auto_scaling" {
-  description = "Enable auto-scaling with additional instances"
-  type        = bool
-  default     = false
-}
-
-variable "max_web_servers" {
-  description = "Maximum number of web servers when auto-scaling is enabled"
-  type        = number
-  default     = 5
-  
-  validation {
-    condition     = var.max_web_servers >= 1 && var.max_web_servers <= 20
-    error_message = "Maximum web servers must be between 1 and 20."
-  }
-}
-
-# -----------------------------------------------------------------------------
-# OBJECT STORAGE VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "enable_object_storage_backups" {
-  description = "Enable Object Storage for additional backups"
-  type        = bool
-  default     = false
-}
-
-variable "object_storage_access_key" {
-  description = "Object Storage access key"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "object_storage_secret_key" {
-  description = "Object Storage secret key"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-# -----------------------------------------------------------------------------
-# MONITORING VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "enable_monitoring" {
-  description = "Enable monitoring with Linode LongView"
-  type        = bool
-  default     = true
-}
-
-# -----------------------------------------------------------------------------
-# RESOURCE TAGGING VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "additional_tags" {
-  description = "Additional tags to apply to all resources"
-  type        = list(string)
-  default     = []
-}
-
-variable "cost_center" {
-  description = "Cost center for resource tagging"
-  type        = string
-  default     = ""
-}
-
-variable "owner" {
-  description = "Owner of the resources"
-  type        = string
-  default     = ""
-}
-
-# -----------------------------------------------------------------------------
-# NETWORK SECURITY VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "enable_private_networking" {
-  description = "Enable private networking for instances"
-  type        = bool
-  default     = true
-}
-
-variable "allowed_http_ips" {
-  description = "List of IP addresses/CIDR blocks allowed HTTP access (default: all)"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-}
-
-variable "allowed_https_ips" {
-  description = "List of IP addresses/CIDR blocks allowed HTTPS access (default: all)"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-}
-
-# -----------------------------------------------------------------------------
-# APPLICATION CONFIGURATION VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "app_port" {
-  description = "Port on which the application runs"
-  type        = number
-  default     = 3000
-  
-  validation {
-    condition     = var.app_port >= 1 && var.app_port <= 65535
-    error_message = "Application port must be between 1 and 65535."
-  }
-}
-
-variable "app_health_check_path" {
-  description = "Health check path for the application"
-  type        = string
-  default     = "/api/health"
-  
-  validation {
-    condition     = can(regex("^/", var.app_health_check_path))
-    error_message = "Health check path must start with /."
-  }
-}
-
-variable "app_environment_variables" {
-  description = "Additional environment variables for the application"
-  type        = map(string)
-  default     = {}
-  sensitive   = true
-}
-
-# -----------------------------------------------------------------------------
-# PERFORMANCE TUNING VARIABLES
-# -----------------------------------------------------------------------------
-
-variable "enable_performance_mode" {
-  description = "Enable performance optimizations"
-  type        = bool
-  default     = false
-}
-
-variable "cpu_credits" {
-  description = "CPU credits specification for burstable instances"
-  type        = string
-  default     = "standard"
-  
-  validation {
-    condition     = contains(["standard", "unlimited"], var.cpu_credits)
-    error_message = "CPU credits must be either 'standard' or 'unlimited'."
+    condition     = can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.notification_email))
+    error_message = "Notification email must be a valid email address."
   }
 }

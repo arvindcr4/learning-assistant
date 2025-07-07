@@ -1,14 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { cn } from '@/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Eye, EyeOff, Mail, Lock, User, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { userRegistrationSchema, type UserRegistration } from '@/lib/validation/schemas';
 
-export interface RegisterFormProps extends React.HTMLAttributes<HTMLDivElement> {
-  onSubmit?: (data: { name: string; email: string; password: string }) => void;
+export interface RegisterFormProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onSubmit'> {
+  onSubmit?: (data: Omit<UserRegistration, 'confirmPassword' | 'termsAccepted'>) => void;
   onSignIn?: () => void;
   isLoading?: boolean;
   error?: string;
@@ -16,87 +19,73 @@ export interface RegisterFormProps extends React.HTMLAttributes<HTMLDivElement> 
 
 const RegisterForm = React.forwardRef<HTMLDivElement, RegisterFormProps>(
   ({ className, onSubmit, onSignIn, isLoading, error, ...props }, ref) => {
-    const [formData, setFormData] = useState({
-      name: '',
-      email: '',
-      password: '',
-      confirmPassword: ''
-    });
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const validateEmail = (email: string) => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    };
+    const {
+      register,
+      handleSubmit,
+      formState: { errors, isValid, touchedFields },
+      watch,
+      clearErrors,
+    } = useForm<UserRegistration>({
+      resolver: zodResolver(userRegistrationSchema),
+      mode: 'onChange',
+      defaultValues: {
+        name: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        termsAccepted: false,
+        marketing: false,
+      },
+    });
 
-    const validatePassword = (password: string) => {
-      const hasMinLength = password.length >= 8;
-      const hasUpperCase = /[A-Z]/.test(password);
-      const hasLowerCase = /[a-z]/.test(password);
-      const hasNumbers = /\d/.test(password);
+    const watchedPassword = watch('password');
+    const watchedConfirmPassword = watch('confirmPassword');
+    const watchedEmail = watch('email');
+    const watchedName = watch('name');
+
+    const onFormSubmit = (data: UserRegistration) => {
+      // Clear any previous errors
+      clearErrors();
       
-      return { hasMinLength, hasUpperCase, hasLowerCase, hasNumbers };
+      // Remove confirmPassword and termsAccepted from data before submitting
+      const { confirmPassword, termsAccepted, ...submitData } = data;
+      onSubmit?.(submitData);
     };
 
-    const handleInputChange = (field: string, value: string) => {
-      setFormData(prev => ({ ...prev, [field]: value }));
-      if (errors[field]) {
-        setErrors(prev => ({ ...prev, [field]: '' }));
-      }
+    const getFieldError = (fieldName: keyof UserRegistration) => {
+      return errors[fieldName]?.message;
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
+    const isFieldTouched = (fieldName: keyof UserRegistration) => {
+      return touchedFields[fieldName];
+    };
+
+    const hasFieldError = (fieldName: keyof UserRegistration) => {
+      return isFieldTouched(fieldName) && !!errors[fieldName];
+    };
+
+    const isFieldValid = (fieldName: keyof UserRegistration) => {
+      return isFieldTouched(fieldName) && !errors[fieldName] && watch(fieldName);
+    };
+
+    // Password strength indicators
+    const getPasswordStrength = (password: string) => {
+      const checks = {
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /[0-9]/.test(password),
+        special: /[^a-zA-Z0-9]/.test(password),
+      };
       
-      const newErrors: Record<string, string> = {};
-
-      // Validate name
-      if (!formData.name.trim()) {
-        newErrors.name = 'Name is required';
-      } else if (formData.name.trim().length < 2) {
-        newErrors.name = 'Name must be at least 2 characters';
-      }
-
-      // Validate email
-      if (!formData.email) {
-        newErrors.email = 'Email is required';
-      } else if (!validateEmail(formData.email)) {
-        newErrors.email = 'Please enter a valid email address';
-      }
-
-      // Validate password
-      if (!formData.password) {
-        newErrors.password = 'Password is required';
-      } else {
-        const passwordValidation = validatePassword(formData.password);
-        if (!passwordValidation.hasMinLength) {
-          newErrors.password = 'Password must be at least 8 characters';
-        } else if (!passwordValidation.hasUpperCase || !passwordValidation.hasLowerCase || !passwordValidation.hasNumbers) {
-          newErrors.password = 'Password must contain uppercase, lowercase, and numbers';
-        }
-      }
-
-      // Validate confirm password
-      if (!formData.confirmPassword) {
-        newErrors.confirmPassword = 'Please confirm your password';
-      } else if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match';
-      }
-
-      setErrors(newErrors);
-
-      if (Object.keys(newErrors).length === 0) {
-        onSubmit?.({
-          name: formData.name.trim(),
-          email: formData.email,
-          password: formData.password
-        });
-      }
+      const score = Object.values(checks).filter(Boolean).length;
+      return { checks, score };
     };
 
-    const passwordStrength = validatePassword(formData.password);
+    const passwordStrength = watchedPassword ? getPasswordStrength(watchedPassword) : null;
 
     return (
       <div ref={ref} className={cn("w-full max-w-md", className)} {...props}>
@@ -108,118 +97,218 @@ const RegisterForm = React.forwardRef<HTMLDivElement, RegisterFormProps>(
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4" noValidate>
               {error && (
-                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-                  {error}
+                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{error}</span>
                 </div>
               )}
               
-              <Input
-                type="text"
-                placeholder="Enter your full name"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                error={errors.name}
-                startIcon={<User className="h-4 w-4" />}
-                disabled={isLoading}
-                autoComplete="name"
-                required
-              />
-
-              <Input
-                type="email"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                error={errors.email}
-                startIcon={<Mail className="h-4 w-4" />}
-                disabled={isLoading}
-                autoComplete="email"
-                required
-              />
+              <div className="space-y-2">
+                <Input
+                  {...register('name')}
+                  type="text"
+                  placeholder="Enter your full name"
+                  error={getFieldError('name')}
+                  startIcon={<User className="h-4 w-4" />}
+                  endIcon={isFieldValid('name') ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : undefined}
+                  disabled={isLoading}
+                  autoComplete="name"
+                  aria-invalid={hasFieldError('name')}
+                  aria-describedby={hasFieldError('name') ? 'name-error' : undefined}
+                  className={cn(
+                    hasFieldError('name') && 'border-destructive focus:border-destructive',
+                    isFieldValid('name') && 'border-green-500 focus:border-green-500'
+                  )}
+                />
+                {hasFieldError('name') && (
+                  <p id="name-error" className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {getFieldError('name')}
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-2">
                 <Input
+                  {...register('email')}
+                  type="email"
+                  placeholder="Enter your email"
+                  error={getFieldError('email')}
+                  startIcon={<Mail className="h-4 w-4" />}
+                  endIcon={isFieldValid('email') ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : undefined}
+                  disabled={isLoading}
+                  autoComplete="email"
+                  aria-invalid={hasFieldError('email')}
+                  aria-describedby={hasFieldError('email') ? 'email-error' : undefined}
+                  className={cn(
+                    hasFieldError('email') && 'border-destructive focus:border-destructive',
+                    isFieldValid('email') && 'border-green-500 focus:border-green-500'
+                  )}
+                />
+                {hasFieldError('email') && (
+                  <p id="email-error" className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {getFieldError('email')}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Input
+                  {...register('password')}
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  error={errors.password}
+                  error={getFieldError('password')}
                   startIcon={<Lock className="h-4 w-4" />}
                   endIcon={
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="hover:text-foreground transition-colors"
+                      className="hover:text-foreground transition-colors focus:outline-none"
                       tabIndex={-1}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   }
                   disabled={isLoading}
                   autoComplete="new-password"
-                  required
+                  aria-invalid={hasFieldError('password')}
+                  aria-describedby={hasFieldError('password') ? 'password-error' : 'password-strength'}
+                  className={cn(
+                    hasFieldError('password') && 'border-destructive focus:border-destructive',
+                    isFieldValid('password') && 'border-green-500 focus:border-green-500'
+                  )}
                 />
                 
-                {formData.password && (
-                  <div className="space-y-1">
+                {hasFieldError('password') && (
+                  <p id="password-error" className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {getFieldError('password')}
+                  </p>
+                )}
+
+                {watchedPassword && !hasFieldError('password') && (
+                  <div id="password-strength" className="space-y-2">
                     <div className="text-xs text-muted-foreground">Password strength:</div>
                     <div className="flex space-x-1">
-                      <div className={`h-1 w-1/4 rounded ${passwordStrength.hasMinLength ? 'bg-learning-secondary' : 'bg-muted'}`} />
-                      <div className={`h-1 w-1/4 rounded ${passwordStrength.hasUpperCase ? 'bg-learning-secondary' : 'bg-muted'}`} />
-                      <div className={`h-1 w-1/4 rounded ${passwordStrength.hasLowerCase ? 'bg-learning-secondary' : 'bg-muted'}`} />
-                      <div className={`h-1 w-1/4 rounded ${passwordStrength.hasNumbers ? 'bg-learning-secondary' : 'bg-muted'}`} />
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <div
+                          key={index}
+                          className={cn(
+                            "h-1 w-full rounded",
+                            passwordStrength && index < passwordStrength.score
+                              ? passwordStrength.score <= 2
+                                ? "bg-red-500"
+                                : passwordStrength.score <= 3
+                                ? "bg-yellow-500"
+                                : "bg-green-500"
+                              : "bg-muted"
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-xs">
+                      {passwordStrength && Object.entries(passwordStrength.checks).map(([key, met]) => (
+                        <div key={key} className={cn("flex items-center gap-1", met ? "text-green-600" : "text-muted-foreground")}>
+                          {met ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-current" />}
+                          <span>
+                            {key === 'length' && '8+ chars'}
+                            {key === 'uppercase' && 'Uppercase'}
+                            {key === 'lowercase' && 'Lowercase'}
+                            {key === 'number' && 'Number'}
+                            {key === 'special' && 'Special'}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
 
-              <Input
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="Confirm your password"
-                value={formData.confirmPassword}
-                onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                error={errors.confirmPassword}
-                startIcon={<Lock className="h-4 w-4" />}
-                endIcon={
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="hover:text-foreground transition-colors"
-                    tabIndex={-1}
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                }
-                disabled={isLoading}
-                autoComplete="new-password"
-                required
-              />
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  className="rounded border-input bg-background"
+              <div className="space-y-2">
+                <Input
+                  {...register('confirmPassword')}
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  error={getFieldError('confirmPassword')}
+                  startIcon={<Lock className="h-4 w-4" />}
+                  endIcon={
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="hover:text-foreground transition-colors focus:outline-none"
+                      tabIndex={-1}
+                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  }
                   disabled={isLoading}
-                  required
+                  autoComplete="new-password"
+                  aria-invalid={hasFieldError('confirmPassword')}
+                  aria-describedby={hasFieldError('confirmPassword') ? 'confirm-password-error' : undefined}
+                  className={cn(
+                    hasFieldError('confirmPassword') && 'border-destructive focus:border-destructive',
+                    isFieldValid('confirmPassword') && 'border-green-500 focus:border-green-500'
+                  )}
                 />
-                <span className="text-sm text-muted-foreground">
-                  I agree to the{' '}
-                  <a href="#" className="text-learning-primary hover:underline">
-                    Terms of Service
-                  </a>{' '}
-                  and{' '}
-                  <a href="#" className="text-learning-primary hover:underline">
-                    Privacy Policy
-                  </a>
-                </span>
+                {hasFieldError('confirmPassword') && (
+                  <p id="confirm-password-error" className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {getFieldError('confirmPassword')}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-start space-x-3">
+                  <input
+                    {...register('termsAccepted')}
+                    type="checkbox"
+                    className="mt-1 rounded border-input bg-background focus:ring-2 focus:ring-learning-primary focus:ring-offset-2"
+                    disabled={isLoading}
+                    aria-describedby={hasFieldError('termsAccepted') ? 'terms-error' : undefined}
+                  />
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground leading-relaxed">
+                      I agree to the{' '}
+                      <a href="/terms" className="text-learning-primary hover:underline focus:outline-none focus:underline" target="_blank" rel="noopener noreferrer">
+                        Terms of Service
+                      </a>{' '}
+                      and{' '}
+                      <a href="/privacy" className="text-learning-primary hover:underline focus:outline-none focus:underline" target="_blank" rel="noopener noreferrer">
+                        Privacy Policy
+                      </a>
+                    </label>
+                    {hasFieldError('termsAccepted') && (
+                      <p id="terms-error" className="text-sm text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {getFieldError('termsAccepted')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <input
+                    {...register('marketing')}
+                    type="checkbox"
+                    className="rounded border-input bg-background focus:ring-2 focus:ring-learning-primary focus:ring-offset-2"
+                    disabled={isLoading}
+                  />
+                  <label className="text-sm text-muted-foreground">
+                    I would like to receive learning tips and product updates via email
+                  </label>
+                </div>
               </div>
 
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoading}
+                disabled={isLoading || !isValid}
               >
                 {isLoading ? (
                   <>
@@ -240,7 +329,7 @@ const RegisterForm = React.forwardRef<HTMLDivElement, RegisterFormProps>(
                 <span className="text-muted-foreground">Already have an account? </span>
                 <button
                   onClick={onSignIn}
-                  className="text-learning-primary hover:underline font-medium"
+                  className="text-learning-primary hover:underline font-medium focus:outline-none focus:underline"
                   disabled={isLoading}
                 >
                   Sign in here

@@ -11,8 +11,6 @@ export const {
   signOut,
   useSession,
   getSession,
-  user,
-  session,
 } = authClient;
 
 // Type exports for client usage

@@ -1,0 +1,152 @@
+# fly.toml app configuration file for learning-assistant Next.js application
+# Production-ready configuration with PostgreSQL, multi-region deployment, and monitoring
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'learning-assistant-lively-rain-3457'
+primary_region = 'bom'  # Mumbai region (primary)
+kill_signal = 'SIGINT'
+kill_timeout = '5s'
+
+# Build configuration
+[build]
+  # Use existing Dockerfile
+  dockerfile = 'Dockerfile'
+  # Build arguments for production optimization
+  [build.args]
+    NODE_ENV = 'production'
+    NEXT_TELEMETRY_DISABLED = '1'
+
+# Environment variables
+[env]
+  NODE_ENV = 'production'
+  NEXT_TELEMETRY_DISABLED = '1'
+  PORT = '3000'
+  # Database configuration will be set via secrets
+  DB_SSL = 'true'
+  DB_MAX_CONNECTIONS = '20'
+  DB_IDLE_TIMEOUT = '30000'
+  DB_CONNECTION_TIMEOUT = '10000'
+  # Application settings
+  APP_ENV = 'production'
+  LOG_LEVEL = 'info'
+  # Security settings
+  SECURE_COOKIES = 'true'
+  TRUST_PROXY = 'true'
+
+# HTTP service configuration
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1  # Keep at least 1 machine running for better availability
+  processes = ['app']
+  # Connection handling
+  concurrency = { type = 'connections', hard_limit = 1000, soft_limit = 800 }
+
+# Health checks
+[checks]
+  [checks.health]
+    # Primary health check endpoint
+    type = 'http'
+    grace_period = '30s'
+    interval = '15s'
+    method = 'GET'
+    timeout = '10s'
+    path = '/api/health'
+    protocol = 'http'
+    tls_skip_verify = false
+    [checks.health.headers]
+      'User-Agent' = 'Fly-Health-Check'
+
+  [checks.readiness]
+    # Readiness check for load balancing
+    type = 'http'
+    grace_period = '30s'
+    interval = '10s'
+    method = 'HEAD'
+    timeout = '5s'
+    path = '/api/health'
+    protocol = 'http'
+    tls_skip_verify = false
+
+# Machine configuration
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+# Services configuration
+[[services]]
+  internal_port = 3000
+  protocol = 'tcp'
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  # HTTP service configuration
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+    # Redirect HTTP to HTTPS
+    [services.ports.http_options]
+      response = { headers = { 'location' = 'https://{host_header}{request_uri}' } }
+
+  [[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
+    [services.ports.http_options]
+      h2_backend = true
+      compress = true
+
+  # Health check configuration
+  [[services.tcp_checks]]
+    grace_period = '30s'
+    interval = '15s'
+    restart_limit = 0
+    timeout = '10s'
+
+  [[services.http_checks]]
+    interval = '15s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/api/health'
+    protocol = 'http'
+    timeout = '10s'
+    tls_skip_verify = false
+    [services.http_checks.headers]
+      'User-Agent' = 'Fly-Health-Check'
+
+# Persistent volume for logs and cache (disabled for demo)
+# [[mounts]]
+#   source = 'learning_assistant_data'
+#   destination = '/app/data'
+#   processes = ['app']
+
+# Metrics configuration
+[metrics]
+  port = 9091
+  path = '/metrics'
+
+# Deploy configuration
+[deploy]
+  # Rolling deployment strategy
+  strategy = 'rolling'
+  # Release command to run database migrations
+  release_command = 'node scripts/migrate.js'
+
+# Process configuration
+[processes]
+  app = 'npm start'
+  # Optional: separate process for background jobs
+  # worker = 'node scripts/worker.js'
+
+# Experimental features
+[experimental]
+  # Enable auto-scaling based on load
+  auto_scale = true
+  # Enable machine restarts on memory pressure
+  restart_on_memory_pressure = true
