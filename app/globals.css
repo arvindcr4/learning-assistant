@@ -76,7 +76,32 @@
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
     --progress-bg: 240 3.7% 15.9%;
+    --progress-fill: 217 91% 60%;
   }
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 240 5.9% 10%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --ring: 240 4.9% 83.9%;
+  --progress-bg: 240 3.7% 15.9%;
+  --progress-fill: 217 91% 60%;
 }
 
 @theme inline {
@@ -240,6 +265,28 @@ body {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Line clamping utilities */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .gradient-learning {
@@ -516,4 +563,424 @@ html[lang="ja"] {
 
 [dir="rtl"] ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--border));
+}
+
+/* =============================================================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================================================= */
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Focus indicators */
+.focus-indicators *:focus-visible {
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+
+/* High contrast mode */
+.high-contrast {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --primary: 240 100% 50%;
+  --destructive: 0 100% 50%;
+  --border: 0 0% 0%;
+}
+
+.dark.high-contrast {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --primary: 60 100% 50%;
+  --destructive: 0 100% 50%;
+  --border: 0 0% 100%;
+}
+
+/* Reduced motion */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Large text support */
+.large-text {
+  font-size: 120%;
+  line-height: 1.6;
+}
+
+.large-text h1 { font-size: 2.5rem; }
+.large-text h2 { font-size: 2rem; }
+.large-text h3 { font-size: 1.75rem; }
+.large-text h4 { font-size: 1.5rem; }
+.large-text h5 { font-size: 1.25rem; }
+.large-text h6 { font-size: 1.125rem; }
+
+/* Keyboard navigation indicators */
+.keyboard-navigation :focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.keyboard-navigation button:focus,
+.keyboard-navigation input:focus,
+.keyboard-navigation select:focus,
+.keyboard-navigation textarea:focus {
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+}
+
+/* Color blind friendly alternatives */
+.color-blind-friendly {
+  --learning-primary: 0 84% 60%; /* Red alternative */
+  --learning-secondary: 120 100% 25%; /* Green alternative */
+  --learning-accent: 240 100% 50%; /* Blue alternative */
+  --visual-primary: 300 100% 50%; /* Magenta */
+  --auditory-primary: 60 100% 50%; /* Yellow */
+  --reading-primary: 180 100% 25%; /* Cyan */
+  --kinesthetic-primary: 30 100% 50%; /* Orange */
+}
+
+/* Error and success states with patterns for color blind users */
+.color-blind-friendly .error::before {
+  content: "⚠ ";
+  font-weight: bold;
+}
+
+.color-blind-friendly .success::before {
+  content: "✓ ";
+  font-weight: bold;
+}
+
+.color-blind-friendly .warning::before {
+  content: "! ";
+  font-weight: bold;
+}
+
+/* Skip links */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  padding: 8px 16px;
+  text-decoration: none;
+  border-radius: 4px;
+  font-weight: 600;
+  z-index: 9999;
+  transition: top 0.3s ease;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* Enhanced focus styles for different elements */
+a:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  text-decoration: underline;
+}
+
+button:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 0;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+/* Error announcements */
+[aria-live="assertive"],
+[aria-live="polite"] {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* Tooltip accessibility */
+[role="tooltip"] {
+  position: absolute;
+  z-index: 1000;
+  max-width: 200px;
+  padding: 8px 12px;
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading states for screen readers */
+[aria-busy="true"] {
+  cursor: progress;
+}
+
+[aria-busy="true"]::after {
+  content: " (Loading...)";
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* Form validation states */
+[aria-invalid="true"] {
+  border-color: hsl(var(--destructive));
+  box-shadow: 0 0 0 1px hsl(var(--destructive));
+}
+
+[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 2px hsl(var(--destructive));
+}
+
+/* Required field indicators */
+[aria-required="true"]::after,
+[required]::after {
+  content: " *";
+  color: hsl(var(--destructive));
+  font-weight: bold;
+}
+
+/* Progress indicators */
+[role="progressbar"] {
+  border-radius: 4px;
+  overflow: hidden;
+  background: hsl(var(--muted));
+}
+
+[role="progressbar"]:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Modal and dialog accessibility */
+[role="dialog"],
+[role="alertdialog"] {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Table accessibility */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid hsl(var(--border));
+}
+
+td {
+  padding: 12px;
+  border: 1px solid hsl(var(--border));
+}
+
+th:focus,
+td:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+/* List accessibility */
+ul, ol {
+  padding-left: 1.5rem;
+}
+
+[dir="rtl"] ul,
+[dir="rtl"] ol {
+  padding-left: 0;
+  padding-right: 1.5rem;
+}
+
+/* Navigation accessibility */
+nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+nav a {
+  display: block;
+  padding: 8px 12px;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+nav a:hover,
+nav a:focus {
+  background: hsl(var(--accent));
+  text-decoration: underline;
+}
+
+nav a[aria-current="page"] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-weight: 600;
+}
+
+/* Card accessibility */
+.card:focus-within {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Interactive element states */
+[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+[aria-expanded="false"] .chevron {
+  transform: rotate(0deg);
+}
+
+.chevron {
+  transition: transform 0.2s ease;
+}
+
+.reduce-motion .chevron {
+  transition: none;
+}
+
+/* Breadcrumb accessibility */
+nav[aria-label="Breadcrumb"] ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+nav[aria-label="Breadcrumb"] li:not(:last-child)::after {
+  content: "/";
+  margin: 0 8px;
+  color: hsl(var(--muted-foreground));
+}
+
+nav[aria-label="Breadcrumb"] a {
+  text-decoration: none;
+  color: hsl(var(--primary));
+}
+
+nav[aria-label="Breadcrumb"] a:hover,
+nav[aria-label="Breadcrumb"] a:focus {
+  text-decoration: underline;
+}
+
+nav[aria-label="Breadcrumb"] [aria-current="page"] {
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+}
+
+/* Responsive text scaling */
+@media (prefers-reduced-motion: reduce) {
+  .reduce-motion *,
+  .reduce-motion *::before,
+  .reduce-motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-contrast: high) {
+  :root {
+    --border: 0 0% 0%;
+    --input: 0 0% 0%;
+    --ring: 0 0% 0%;
+  }
+  
+  .dark {
+    --border: 0 0% 100%;
+    --input: 0 0% 100%;
+    --ring: 0 0% 100%;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: hsl(var(--background));
+    backdrop-filter: none;
+  }
+}
+
+/* Print styles for accessibility */
+@media print {
+  .skip-link,
+  .sr-only {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    white-space: normal !important;
+  }
+  
+  a::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+  
+  nav a::after,
+  .no-print-link::after {
+    content: "";
+  }
 }
