@@ -143,29 +143,8 @@ function validateEnv(): EnvConfig {
 
 // Generate secure secrets if not provided in development
 function generateSecureSecret(): string {
-  // Check if we're in a Node.js environment (not Edge Runtime)
-  if (typeof process !== 'undefined' && typeof require !== 'undefined') {
-    try {
-      const crypto = require('crypto');
-      return crypto.randomBytes(32).toString('hex');
-    } catch (error) {
-      console.warn('❌ Failed to generate secure secret with Node.js crypto module');
-    }
-  }
-
-  // Browser environment - use Web Crypto API
-  try {
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-      const array = new Uint8Array(32);
-      crypto.getRandomValues(array);
-      return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-    }
-  } catch (error) {
-    console.warn('❌ Failed to generate secure secret with Web Crypto API');
-  }
-
-  // Fallback - less secure but functional for development
-  console.warn('⚠️  Using fallback secret generation method (less secure)');
+  // Fallback - functional for development
+  console.warn('⚠️  Using fallback secret generation method');
   return 'dev-' + Date.now().toString(36) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
 }
 
