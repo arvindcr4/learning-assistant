@@ -176,6 +176,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [persistedAuth.token, persistedAuth.user, persistedAuth.refreshToken]);
 
+  // Define functions first
+  const login = useCallback(async (email: string, password: string) => {
+    dispatch({ type: 'LOGIN_START' });
+    try {
+      const result = await mockLogin(email, password);
+      dispatch({ type: 'LOGIN_SUCCESS', payload: result });
+    } catch (error) {
+      dispatch({ type: 'LOGIN_FAILURE', payload: error instanceof Error ? error.message : 'Login failed' });
+    }
+  }, []);
+
+  const logout = useCallback(() => {
+    dispatch({ type: 'LOGOUT' });
+  }, []);
+
+  const refreshToken = useCallback(async () => {
+    if (!state.refreshToken) return;
+
+    try {
+      const result = await mockRefreshToken(state.refreshToken);
+      dispatch({ type: 'REFRESH_TOKEN_SUCCESS', payload: result });
+    } catch (error) {
+      // If refresh fails, logout the user
+      dispatch({ type: 'LOGOUT' });
+    }
+  }, [state.refreshToken]);
+
   // Persist auth state changes
   useEffect(() => {
     if (state.isAuthenticated && state.user && state.token) {
@@ -208,32 +235,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [state.sessionExpiry, state.refreshToken, refreshToken]);
-
-  const login = useCallback(async (email: string, password: string) => {
-    dispatch({ type: 'LOGIN_START' });
-    try {
-      const result = await mockLogin(email, password);
-      dispatch({ type: 'LOGIN_SUCCESS', payload: result });
-    } catch (error) {
-      dispatch({ type: 'LOGIN_FAILURE', payload: error instanceof Error ? error.message : 'Login failed' });
-    }
-  }, []);
-
-  const logout = useCallback(() => {
-    dispatch({ type: 'LOGOUT' });
-  }, []);
-
-  const refreshToken = useCallback(async () => {
-    if (!state.refreshToken) return;
-
-    try {
-      const result = await mockRefreshToken(state.refreshToken);
-      dispatch({ type: 'REFRESH_TOKEN_SUCCESS', payload: result });
-    } catch (error) {
-      // If refresh fails, logout the user
-      dispatch({ type: 'LOGOUT' });
-    }
-  }, [state.refreshToken]);
 
   const updateUser = useCallback((userData: Partial<User>) => {
     if (state.user) {

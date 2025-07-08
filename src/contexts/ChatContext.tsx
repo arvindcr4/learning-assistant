@@ -138,6 +138,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [persistedChat]);
 
+  // Define functions first to avoid initialization issues
+  const getSuggestions = useCallback(async () => {
+    try {
+      const suggestions = await mockGetSuggestions(state.context || undefined);
+      dispatch({ type: 'SET_SUGGESTIONS', payload: suggestions });
+    } catch (error) {
+      console.error('Failed to get suggestions:', error);
+    }
+  }, [state.context]);
+
   // Persist chat state changes
   useEffect(() => {
     setPersistedChat({
@@ -265,15 +275,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, []);
-
-  const getSuggestions = useCallback(async () => {
-    try {
-      const suggestions = await mockGetSuggestions(state.context || undefined);
-      dispatch({ type: 'SET_SUGGESTIONS', payload: suggestions });
-    } catch (error) {
-      console.error('Failed to get suggestions:', error);
-    }
-  }, [state.context]);
 
   const exportConversation = useCallback(() => {
     const exportData = {

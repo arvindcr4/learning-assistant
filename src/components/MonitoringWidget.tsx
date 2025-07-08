@@ -9,7 +9,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { dashboardAPI, DashboardMetric, DashboardTarget } from '@/lib/dashboard-api';
-import { logger } from '@/lib/logger';
+import { createBrowserLogger } from '@/lib/browser-logger';
+
+const logger = createBrowserLogger('MonitoringWidget');
 
 // Base widget types
 export type WidgetType = 

@@ -1,7 +1,32 @@
-import winston from 'winston';
-import DailyRotateFile from 'winston-daily-rotate-file';
+// Only import winston on server-side to prevent client-side bundling issues
+let winston: any;
+let DailyRotateFile: any;
+
+if (typeof window === 'undefined') {
+  // Server-side imports
+  try {
+    winston = require('winston');
+    DailyRotateFile = require('winston-daily-rotate-file');
+  } catch (error) {
+    console.warn('Failed to import winston packages:', error);
+  }
+}
+
 import { correlationManager } from './correlation';
-import { logAggregationManager, initializeLogAggregation } from './log-aggregation';
+
+// Only import log aggregation on server-side
+let logAggregationManager: any;
+let initializeLogAggregation: any;
+
+if (typeof window === 'undefined') {
+  try {
+    const logAgg = require('./log-aggregation');
+    logAggregationManager = logAgg.logAggregationManager;
+    initializeLogAggregation = logAgg.initializeLogAggregation;
+  } catch (error) {
+    console.warn('Failed to import log aggregation:', error);
+  }
+}
 
 // Environment variables
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -45,22 +70,31 @@ const consoleFormat = winston.format.combine(
   })
 );
 
-// Initialize log aggregation
-initializeLogAggregation();
+// Initialize log aggregation (server-side only)
+if (typeof window === 'undefined' && initializeLogAggregation) {
+  initializeLogAggregation();
+}
 
-// Transport configuration
-const transports: winston.transport[] = [
-  // Console transport
-  new winston.transports.Console({
-    format: isDevelopment ? consoleFormat : logFormat,
-    level: logLevel
-  }),
+// Transport configuration (server-side only)
+const transports: any[] = [];
+
+if (typeof window === 'undefined' && winston) {
+  transports.push(
+    // Console transport
+    new winston.transports.Console({
+      format: isDevelopment ? consoleFormat : logFormat,
+      level: logLevel
+    })
+  );
+  
   // Add log aggregation transports
-  ...logAggregationManager.getTransports()
-];
+  if (logAggregationManager) {
+    transports.push(...logAggregationManager.getTransports());
+  }
+}
 
-// File transports for production
-if (isProduction) {
+// File transports for production (server-side only)
+if (isProduction && typeof window === 'undefined' && DailyRotateFile) {
   // Application logs with rotation
   transports.push(
     new DailyRotateFile({
@@ -101,14 +135,44 @@ if (isProduction) {
   );
 }
 
-// Create Winston logger instance
-const winstonLogger = winston.createLogger({
-  level: logLevel,
-  format: logFormat,
-  transports,
-  exitOnError: false,
-  silent: process.env.NODE_ENV === 'test'
-});
+// Create Winston logger instance (server-side only)
+let winstonLogger: any;
+
+if (typeof window === 'undefined' && winston) {
+  winstonLogger = winston.createLogger({
+    level: logLevel,
+    format: logFormat,
+    transports,
+    exitOnError: false,
+    silent: process.env.NODE_ENV === 'test'
+  });
+} else {
+  // Browser fallback - simple console logger
+  winstonLogger = {
+    log: (level: string, message: string, meta: any = {}) => {
+      switch (level) {
+        case 'error':
+          console.error(message, meta);
+          break;
+        case 'warn':
+          console.warn(message, meta);
+          break;
+        case 'info':
+          console.log(message, meta);
+          break;
+        case 'debug':
+          console.debug(message, meta);
+          break;
+        default:
+          console.log(message, meta);
+      }
+    },
+    error: (message: string, meta?: any) => console.error(message, meta),
+    warn: (message: string, meta?: any) => console.warn(message, meta),
+    info: (message: string, meta?: any) => console.log(message, meta),
+    debug: (message: string, meta?: any) => console.debug(message, meta),
+  };
+}
 
 // Logger interface for consistency
 interface Logger {

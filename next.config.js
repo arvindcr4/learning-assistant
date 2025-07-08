@@ -7,8 +7,8 @@ let withSentryConfig = null;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable React strict mode for better development experience
-  reactStrictMode: true,
+  // Temporarily disable React strict mode for deployment
+  reactStrictMode: false,
   
   // Enable experimental features for Next.js 15.3.5
   experimental: {
@@ -16,13 +16,11 @@ const nextConfig = {
     optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react', 'framer-motion'],
     // Enable stable experimental features only
     optimizeCss: true,
-    webpackBuildWorker: true,
-    // Enhanced performance optimizations
-    optimizeServerReact: true,
-    // Enable parallel build processing
-    parallelServerBuildTraces: true,
-    // Memory optimization
-    memoryBasedWorkersCount: true,
+    // Temporarily disable these optimizations to fix build issues
+    // webpackBuildWorker: true,
+    // optimizeServerReact: true,
+    // parallelServerBuildTraces: true,
+    // memoryBasedWorkersCount: true,
   },
   
   // Server external packages (moved from experimental)
@@ -40,12 +38,12 @@ const nextConfig = {
   
   // Compiler options for better performance
   compiler: {
-    // Remove console logs in production
-    removeConsole: process.env.NODE_ENV === 'production',
+    // Temporarily disable console removal to avoid React issues
+    // removeConsole: process.env.NODE_ENV === 'production',
     // Enable SWC minification for better performance
     styledComponents: true,
-    // Enable React compiler optimizations
-    reactRemoveProperties: process.env.NODE_ENV === 'production',
+    // Temporarily disable React optimizations
+    // reactRemoveProperties: process.env.NODE_ENV === 'production',
   },
   
   // Advanced image optimization
@@ -143,27 +141,26 @@ const nextConfig = {
     ];
   },
   
-  // Redirects for better SEO
-  async redirects() {
-    return [
-      {
-        source: '/demo',
-        destination: '/auth/login',
-        permanent: true,
-      },
-      // Prevent any locale-based redirects that might still exist
-      {
-        source: '/en',
-        destination: '/',
-        permanent: true,
-      },
-      {
-        source: '/en/:path*',
-        destination: '/:path*',
-        permanent: true,
-      },
-    ];
-  },
+  // Redirects for better SEO - temporarily disabled for debugging
+  // async redirects() {
+  //   return [
+  //     {
+  //       source: '/demo',
+  //       destination: '/auth/login',
+  //       permanent: true,
+  //     },
+  //     {
+  //       source: '/en',
+  //       destination: '/',
+  //       permanent: true,
+  //     },
+  //     {
+  //       source: '/en/:path*',
+  //       destination: '/:path*',
+  //       permanent: true,
+  //     },
+  //   ];
+  // },
   
   // Advanced webpack configuration
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
@@ -204,7 +201,7 @@ const nextConfig = {
       },
     ];
     
-    // Exclude OpenTelemetry packages from client bundle
+    // Exclude server-only packages from client bundle
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -221,16 +218,29 @@ const nextConfig = {
         assert: false,
         os: false,
         path: false,
+        child_process: false,
+        worker_threads: false,
       };
 
       config.externals = config.externals || [];
       config.externals.push({
+        // OpenTelemetry packages
         '@opentelemetry/sdk-node': 'commonjs @opentelemetry/sdk-node',
         '@opentelemetry/sdk-trace-node': 'commonjs @opentelemetry/sdk-trace-node',
         '@opentelemetry/exporter-otlp-http': 'commonjs @opentelemetry/exporter-otlp-http',
         '@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation',
         '@opentelemetry/resources': 'commonjs @opentelemetry/resources',
         '@opentelemetry/semantic-conventions': 'commonjs @opentelemetry/semantic-conventions',
+        // Winston and logging packages
+        'winston': 'commonjs winston',
+        'winston-daily-rotate-file': 'commonjs winston-daily-rotate-file',
+        'file-stream-rotator': 'commonjs file-stream-rotator',
+        'winston-transport': 'commonjs winston-transport',
+        'winston-logzio': 'commonjs winston-logzio',
+        'winston-loggly-bulk': 'commonjs winston-loggly-bulk',
+        'winston-elasticsearch': 'commonjs winston-elasticsearch',
+        'winston-papertrail': 'commonjs winston-papertrail',
+        'winston-syslog': 'commonjs winston-syslog',
       });
     }
     

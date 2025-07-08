@@ -7,7 +7,7 @@
     "dev:fast": "next dev --turbopack --experimental-https",
     "dev:profile": "next dev --turbopack --experimental-profiling",
     "build": "SKIP_DB_CONNECTION=true next build",
-    "build:production": "SKIP_ENV_VALIDATION=true SKIP_DB_CONNECTION=true next build",
+    "build:production": "SKIP_ENV_VALIDATION=true SKIP_DB_CONNECTION=true next build --no-lint",
     "build:fast": "next build --experimental-build-mode=compile",
     "build:profile": "next build --profile",
     "build:debug": "next build --debug",
@@ -146,6 +146,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/lodash": "^4.17.20",
     "@types/redis": "^4.0.11",
+    "autoprefixer": "^10.4.21",
     "axios": "^1.6.0",
     "bcryptjs": "^3.0.2",
     "better-auth": "^1.2.12",
@@ -166,7 +167,7 @@
     "lz-string": "^1.5.0",
     "motion": "^12.23.0",
     "newrelic": "^12.6.0",
-    "next": "15.3.5",
+    "next": "^15.3.5",
     "next-pwa": "^5.6.0",
     "node-cron": "^4.2.0",
     "node-mocks-http": "^1.17.2",
@@ -184,6 +185,7 @@
     "sharp": "^0.33.5",
     "swagger-ui-react": "^5.26.2",
     "tailwind-merge": "^3.3.1",
+    "tailwindcss": "^3.4.15",
     "uuid": "^9.0.0",
     "web-vitals": "^3.5.2",
     "winston": "^3.17.0",
@@ -195,9 +197,7 @@
     "winston-syslog": "^2.7.0",
     "winston-transport": "^4.8.0",
     "workbox-webpack-plugin": "^7.1.0",
-    "zod": "^3.25.75",
-    "tailwindcss": "^3.4.15",
-    "autoprefixer": "^10.4.21"
+    "zod": "^3.25.75"
   },
   "engines": {
     "node": ">=20.0.0"

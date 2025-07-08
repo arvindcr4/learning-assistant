@@ -4,7 +4,7 @@ import React, { ReactNode, useEffect } from 'react';
 
 import { usePerformanceMonitor } from '@/hooks/usePerformance';
 import { setUserContext, clearUserContext, setSentryTag, trackLearningEvent } from '@/lib/sentry';
-import { I18nProvider } from '@/lib/i18n/provider';
+// i18n functionality has been disabled for production deployment
 
 import { AuthProvider } from './AuthContext';
 import { LearningProvider } from './LearningContext';
@@ -91,23 +91,21 @@ function PerformanceWrapper({ children }: { children: ReactNode }) {
 // Optimized provider composition using React.memo
 const MemoizedProviderCore = React.memo(function ProviderCore({ children }: { children: ReactNode }) {
   return (
-    <I18nProvider>
-      <AuthProvider>
-        <NotificationProvider>
-          <SyncProvider>
-            <LearningProvider>
-              <QuizProvider>
-                <ChatProvider>
-                  <UIProvider>
-                    {children}
-                  </UIProvider>
-                </ChatProvider>
-              </QuizProvider>
-            </LearningProvider>
-          </SyncProvider>
-        </NotificationProvider>
-      </AuthProvider>
-    </I18nProvider>
+    <AuthProvider>
+      <NotificationProvider>
+        <SyncProvider>
+          <LearningProvider>
+            <QuizProvider>
+              <ChatProvider>
+                <UIProvider>
+                  {children}
+                </UIProvider>
+              </ChatProvider>
+            </QuizProvider>
+          </LearningProvider>
+        </SyncProvider>
+      </NotificationProvider>
+    </AuthProvider>
   );
 });
 
