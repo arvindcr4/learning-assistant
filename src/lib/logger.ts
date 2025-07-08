@@ -1,5 +1,7 @@
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
+import { correlationManager } from './correlation';
+import { logAggregationManager, initializeLogAggregation } from './log-aggregation';
 
 // Environment variables
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -43,13 +45,18 @@ const consoleFormat = winston.format.combine(
   })
 );
 
+// Initialize log aggregation
+initializeLogAggregation();
+
 // Transport configuration
 const transports: winston.transport[] = [
   // Console transport
   new winston.transports.Console({
     format: isDevelopment ? consoleFormat : logFormat,
     level: logLevel
-  })
+  }),
+  // Add log aggregation transports
+  ...logAggregationManager.getTransports()
 ];
 
 // File transports for production
@@ -115,8 +122,12 @@ interface Logger {
 // Create enhanced logger with additional context
 const createEnhancedLogger = (): Logger => {
   const log = (level: string, message: string, meta: any = {}) => {
+    // Add correlation context
+    const correlationContext = correlationManager.getLoggingContext();
+    
     // Add default metadata
     const enrichedMeta = {
+      ...correlationContext,
       ...meta,
       pid: process.pid,
       hostname: process.env.HOSTNAME || 'unknown',
@@ -356,28 +367,245 @@ export const loggerHealthCheck = (): boolean => {
   }
 };
 
+// Advanced log sampling for high-volume events
+class LogSampler {
+  private counters: Map<string, number> = new Map();
+  private lastReset: number = Date.now();
+  private resetInterval: number = 60000; // 1 minute
+  
+  constructor(
+    private sampleRate: number = 0.1,
+    private burstProtection: boolean = true,
+    private maxLogsPerMinute: number = 1000
+  ) {}
+  
+  shouldLog(key: string, level: string): boolean {
+    // Always log errors and warnings
+    if (level === 'error' || level === 'warn') {
+      return true;
+    }
+    
+    // Reset counters periodically
+    const now = Date.now();
+    if (now - this.lastReset > this.resetInterval) {
+      this.counters.clear();
+      this.lastReset = now;
+    }
+    
+    // Check burst protection
+    if (this.burstProtection) {
+      const count = this.counters.get(key) || 0;
+      if (count >= this.maxLogsPerMinute) {
+        return false;
+      }
+      this.counters.set(key, count + 1);
+    }
+    
+    // Apply sampling
+    return Math.random() <= this.sampleRate;
+  }
+}
+
+const globalSampler = new LogSampler();
+
 // Log sampling for high-volume events
-export const createSampledLogger = (sampleRate: number = 0.1) => {
+export const createSampledLogger = (sampleRate: number = 0.1, key: string = 'default') => {
+  const sampler = new LogSampler(sampleRate);
+  
   return {
     error: (message: string, meta?: any) => logger.error(message, meta),
     warn: (message: string, meta?: any) => logger.warn(message, meta),
     info: (message: string, meta?: any) => {
-      if (Math.random() <= sampleRate) {
-        logger.info(message, { ...meta, sampled: true });
+      if (sampler.shouldLog(key, 'info')) {
+        logger.info(message, { ...meta, sampled: true, sampleRate });
       }
     },
     debug: (message: string, meta?: any) => {
-      if (Math.random() <= sampleRate) {
-        logger.debug(message, { ...meta, sampled: true });
+      if (sampler.shouldLog(key, 'debug')) {
+        logger.debug(message, { ...meta, sampled: true, sampleRate });
       }
     },
     http: (message: string, meta?: any) => {
-      if (Math.random() <= sampleRate) {
-        logger.http(message, { ...meta, sampled: true });
+      if (sampler.shouldLog(key, 'http')) {
+        logger.http(message, { ...meta, sampled: true, sampleRate });
       }
     }
   };
 };
+
+// Create logger function for specific modules
+export const createLogger = (module: string) => {
+  return createContextualLogger({ component: module });
+};
+
+// Log-based metrics and alerting
+export class LogMetricsCollector {
+  private static instance: LogMetricsCollector;
+  private metrics: Map<string, any> = new Map();
+  private alerts: Array<{
+    condition: (log: any) => boolean;
+    action: (log: any) => void;
+    name: string;
+  }> = [];
+  
+  private constructor() {
+    this.setupDefaultAlerts();
+  }
+  
+  static getInstance(): LogMetricsCollector {
+    if (!LogMetricsCollector.instance) {
+      LogMetricsCollector.instance = new LogMetricsCollector();
+    }
+    return LogMetricsCollector.instance;
+  }
+  
+  // Collect metrics from log entries
+  collectMetric(level: string, category: string, operation?: string): void {
+    const key = `${level}:${category}:${operation || 'unknown'}`;
+    const existing = this.metrics.get(key) || { count: 0, lastSeen: null };
+    
+    existing.count++;
+    existing.lastSeen = new Date().toISOString();
+    
+    this.metrics.set(key, existing);
+  }
+  
+  // Add alert condition
+  addAlert(name: string, condition: (log: any) => boolean, action: (log: any) => void): void {
+    this.alerts.push({ name, condition, action });
+  }
+  
+  // Check alerts
+  checkAlerts(logEntry: any): void {
+    for (const alert of this.alerts) {
+      try {
+        if (alert.condition(logEntry)) {
+          alert.action(logEntry);
+        }
+      } catch (error) {
+        console.error(`Alert ${alert.name} failed:`, error);
+      }
+    }
+  }
+  
+  // Get metrics
+  getMetrics(): Record<string, any> {
+    return Object.fromEntries(this.metrics);
+  }
+  
+  // Setup default alerts
+  private setupDefaultAlerts(): void {
+    // High error rate alert
+    this.addAlert(
+      'high_error_rate',
+      (log) => log.level === 'error' && log.category === 'http',
+      (log) => {
+        console.error('HIGH ERROR RATE ALERT:', {
+          message: log.message,
+          correlationId: log.correlationId,
+          timestamp: log.timestamp,
+        });
+      }
+    );
+    
+    // Slow request alert
+    this.addAlert(
+      'slow_request',
+      (log) => log.slowRequest === true,
+      (log) => {
+        console.warn('SLOW REQUEST ALERT:', {
+          operation: log.operation,
+          duration: log.duration,
+          correlationId: log.correlationId,
+        });
+      }
+    );
+    
+    // Security violation alert
+    this.addAlert(
+      'security_violation',
+      (log) => log.category === 'security' && log.securityEvent === true,
+      (log) => {
+        console.error('SECURITY ALERT:', {
+          event: log.message,
+          severity: log.severity,
+          correlationId: log.correlationId,
+          riskScore: log.riskScore,
+        });
+      }
+    );
+  }
+}
+
+const metricsCollector = LogMetricsCollector.getInstance();
+
+// Enhanced logger with metrics collection
+const enhancedLogger = createEnhancedLogger();
+const originalLog = winstonLogger.log;
+
+// Override Winston log method to collect metrics
+winstonLogger.log = function(level: string, message: string, meta: any = {}) {
+  // Collect metrics
+  metricsCollector.collectMetric(level, meta.category || 'general', meta.operation);
+  
+  // Check alerts
+  metricsCollector.checkAlerts({ level, message, ...meta });
+  
+  // Call original log method
+  return originalLog.call(this, level, message, meta);
+};
+
+// Health check for logging infrastructure
+export const loggingHealthCheck = async (): Promise<{
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  components: Record<string, boolean>;
+  details: Record<string, any>;
+}> => {
+  const components: Record<string, boolean> = {};
+  const details: Record<string, any> = {};
+  
+  try {
+    // Check Winston logger
+    components.winston = loggerHealthCheck();
+    
+    // Check log aggregation services
+    const aggregationHealth = await logAggregationManager.healthCheck();
+    Object.assign(components, aggregationHealth);
+    
+    // Check correlation manager
+    components.correlation = correlationManager.getCurrentContext() !== undefined || true;
+    
+    // Get metrics
+    details.metrics = metricsCollector.getMetrics();
+    details.timestamp = new Date().toISOString();
+    
+    const healthyCount = Object.values(components).filter(Boolean).length;
+    const totalCount = Object.keys(components).length;
+    
+    let status: 'healthy' | 'degraded' | 'unhealthy';
+    if (healthyCount === totalCount) {
+      status = 'healthy';
+    } else if (healthyCount > totalCount * 0.5) {
+      status = 'degraded';
+    } else {
+      status = 'unhealthy';
+    }
+    
+    return { status, components, details };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      components,
+      details: {
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+};
+
+// Export metrics collector and sampler
+export { LogSampler, metricsCollector, globalSampler };
 
 // Export the main logger
 export default logger;

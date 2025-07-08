@@ -1,0 +1,210 @@
+# Kubernetes Infrastructure Configuration Example
+# Copy this file to terraform.tfvars and customize the values for your environment
+
+# Cluster Configuration
+cluster_name        = "my-k8s-cluster"
+environment         = "dev"  # dev, staging, prod
+terraform_version   = "1.0.0"
+
+# Cloud Provider Configuration
+cloud_provider = "aws"  # aws, gcp, azure, or generic
+
+# AWS specific configuration
+aws_region = "us-west-2"
+
+# GCP specific configuration
+# gcp_project_id = "my-gcp-project"
+# gcp_region     = "us-central1"
+
+# Azure specific configuration
+# azure_subscription_id = "my-azure-subscription"
+# azure_region         = "East US"
+# azure_resource_group = "my-resource-group"
+
+# Namespace Configuration
+create_namespaces = true
+namespaces = [
+  "production",
+  "staging",
+  "development",
+  "monitoring",
+  "logging",
+  "istio-system",
+  "cert-manager",
+  "ingress-nginx",
+  "backup",
+  "gitops"
+]
+
+# Security Configuration
+enable_pod_security_policy       = false  # Deprecated in newer Kubernetes versions
+enable_network_policies          = true
+enable_security_context_constraints = false  # OpenShift only
+
+# Service Account Configuration
+create_terraform_sa = true
+
+# DNS and Domain Configuration
+cluster_domain  = "cluster.local"
+external_domain = "example.com"  # Change to your domain
+
+# Autoscaling Configuration
+enable_default_hpa = false
+enable_vpa        = false
+hpa_min_replicas  = 1
+hpa_max_replicas  = 10
+hpa_cpu_threshold    = 70
+hpa_memory_threshold = 80
+
+# Resource Quotas and Limits
+enable_cluster_resource_quota = true
+cluster_cpu_requests         = "50"
+cluster_memory_requests      = "100Gi"
+cluster_cpu_limits          = "100"
+cluster_memory_limits       = "200Gi"
+cluster_pod_limit           = "500"
+enable_limit_ranges         = true
+
+# Runtime Configuration
+enable_kata_runtime = false
+
+# Storage Configuration
+enable_storage_classes = true
+storage_classes = {
+  "fast-ssd" = {
+    provisioner          = "ebs.csi.aws.com"  # Change based on cloud provider
+    reclaim_policy      = "Delete"
+    volume_binding_mode = "WaitForFirstConsumer"
+    allow_expansion     = true
+    parameters = {
+      type   = "gp3"
+      fsType = "ext4"
+    }
+  }
+  "standard" = {
+    provisioner          = "ebs.csi.aws.com"  # Change based on cloud provider
+    reclaim_policy      = "Delete"
+    volume_binding_mode = "WaitForFirstConsumer"
+    allow_expansion     = true
+    parameters = {
+      type   = "gp2"
+      fsType = "ext4"
+    }
+  }
+}
+
+# Backup Configuration
+enable_backup                = true
+backup_schedule             = "0 2 * * *"  # Daily at 2 AM
+backup_retention            = "30d"
+backup_storage_location     = "my-backup-bucket"  # Change to your backup storage
+enable_volume_snapshots     = true
+
+# Ingress Configuration
+enable_ingress_nginx  = true
+enable_cert_manager   = true
+cert_manager_email    = "admin@example.com"  # Change to your email
+ingress_class        = "nginx"
+enable_external_dns  = false  # Enable if you want automatic DNS management
+
+# Monitoring Configuration
+enable_monitoring         = true
+monitoring_namespace      = "monitoring"
+prometheus_retention      = "15d"
+prometheus_storage_size   = "50Gi"
+grafana_admin_password    = "admin123!"  # Change this password!
+enable_alertmanager       = true
+prometheus_remote_write_enabled = false
+# prometheus_remote_write_url = "https://your-remote-write-endpoint"
+
+# Logging Configuration
+enable_logging            = true
+logging_namespace         = "logging"
+elasticsearch_storage_size = "30Gi"
+elasticsearch_replicas    = 3
+log_retention_days        = 30
+enable_fluent_bit        = true  # Set to false to use Fluentd instead
+
+# Service Mesh Configuration
+enable_istio          = false  # Enable for advanced networking features
+istio_namespace       = "istio-system"
+istio_version        = "1.19.0"
+enable_istio_gateway = false
+istio_gateway_hosts  = ["*"]
+
+# GitOps Configuration
+enable_gitops        = false  # Enable for GitOps deployment
+gitops_tool         = "argocd"  # argocd or flux
+gitops_namespace    = "gitops"
+git_repository_url  = ""  # Your Git repository URL
+git_branch         = "main"
+
+# Application Configuration
+enable_default_applications = false
+applications = {
+  "sample-app" = {
+    namespace = "production"
+    replicas  = 3
+    image     = "nginx"
+    tag       = "1.25.3-alpine"
+    resources = {
+      requests = {
+        cpu    = "100m"
+        memory = "128Mi"
+      }
+      limits = {
+        cpu    = "500m"
+        memory = "512Mi"
+      }
+    }
+  }
+}
+
+# Feature Flags
+enable_pod_disruption_budgets = true
+enable_cluster_autoscaler    = false
+enable_metrics_server        = true
+enable_dashboard            = false
+enable_disaster_recovery    = true
+multi_az_deployment         = true
+
+# Helm Configuration
+helm_timeout        = 600
+helm_atomic         = true
+helm_create_namespace = true
+
+# Alerting Configuration (if you have external alerting)
+alertmanager_config = ""  # YAML configuration for AlertManager
+
+# External Services Configuration
+# external_dns_role_arn = "arn:aws:iam::123456789012:role/external-dns"
+# velero_role_arn      = "arn:aws:iam::123456789012:role/velero"
+
+# Tags (for cloud resources)
+tags = {
+  Environment = "dev"
+  Project     = "kubernetes-infrastructure"
+  Owner       = "devops-team"
+  ManagedBy   = "terraform"
+}
+
+# Custom Resource Definitions
+custom_crds = []
+
+# Network Configuration
+# Additional network policies and security groups can be configured here
+# This depends on your specific cloud provider and network architecture
+
+# Example production configuration (uncomment and modify as needed):
+# cluster_name = "production-k8s"
+# environment = "prod"
+# enable_monitoring = true
+# enable_logging = true
+# enable_backup = true
+# enable_cert_manager = true
+# enable_network_policies = true
+# prometheus_storage_size = "100Gi"
+# elasticsearch_storage_size = "100Gi"
+# backup_retention = "90d"
+# elasticsearch_replicas = 5
+# grafana_admin_password = "secure-password-here"

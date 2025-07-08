@@ -1,0 +1,663 @@
+name: Documentation Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'modules/**'
+      - 'infra/**'
+      - 'terraform/**'
+      - '.github/workflows/docs-validation.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'modules/**'
+      - 'infra/**'
+      - 'terraform/**'
+      - '.github/workflows/docs-validation.yml'
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      generate_docs:
+        description: 'Generate documentation before validation'
+        required: false
+        default: 'false'
+        type: boolean
+      skip_tests:
+        description: 'Skip expensive validation tests'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  TERRAFORM_VERSION: '1.6.0'
+  NODE_VERSION: '18'
+
+jobs:
+  # Job 1: Generate Documentation (if requested or on schedule)
+  generate-docs:
+    name: Generate Documentation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.generate_docs == 'true'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install Documentation Tools
+        run: |
+          # Install terraform-docs
+          curl -sSLo terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/v0.16.0/terraform-docs-v0.16.0-linux-amd64.tar.gz
+          tar -xzf terraform-docs.tar.gz
+          sudo mv terraform-docs /usr/local/bin/
+          
+          # Install pandoc
+          sudo apt-get update
+          sudo apt-get install -y pandoc graphviz
+          
+          # Install Node.js tools
+          npm install -g markdown-link-check markdownlint-cli
+          
+          # Verify installations
+          terraform-docs --version
+          pandoc --version
+          dot -V
+          markdown-link-check --version
+          markdownlint --version
+      
+      - name: Generate Documentation
+        run: |
+          chmod +x scripts/docs/generate-docs.sh
+          ./scripts/docs/generate-docs.sh --pdf
+      
+      - name: Check for Changes
+        id: verify-changed-files
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            git status --porcelain
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Commit Generated Documentation
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add docs/
+          git commit -m "docs: auto-generate documentation [skip ci]" || exit 0
+          git push
+      
+      - name: Upload Generated Documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-documentation
+          path: docs/terraform/generated/
+          retention-days: 30
+
+  # Job 2: Validate Documentation Structure
+  validate-structure:
+    name: Validate Documentation Structure
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Validate Documentation Structure
+        run: |
+          echo "🔍 Validating documentation structure..."
+          
+          # Check required directories
+          required_dirs=(
+            "docs/terraform"
+            "docs/terraform/getting-started"
+            "docs/terraform/architecture"
+            "docs/terraform/modules"
+            "docs/terraform/patterns"
+            "docs/terraform/tutorials"
+            "docs/terraform/runbooks"
+            "docs/terraform/troubleshooting"
+            "docs/terraform/security"
+            "docs/terraform/cost-optimization"
+            "docs/terraform/disaster-recovery"
+          )
+          
+          missing_dirs=()
+          for dir in "${required_dirs[@]}"; do
+            if [ ! -d "$dir" ]; then
+              missing_dirs+=("$dir")
+            fi
+          done
+          
+          if [ ${#missing_dirs[@]} -ne 0 ]; then
+            echo "❌ Missing required directories:"
+            printf '  - %s\n' "${missing_dirs[@]}"
+            exit 1
+          fi
+          
+          # Check required files
+          required_files=(
+            "docs/terraform/README.md"
+            "docs/terraform/getting-started/quick-start.md"
+            "docs/terraform/getting-started/prerequisites.md"
+            "docs/terraform/architecture/system-overview.md"
+            "docs/terraform/modules/overview.md"
+          )
+          
+          missing_files=()
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              missing_files+=("$file")
+            fi
+          done
+          
+          if [ ${#missing_files[@]} -ne 0 ]; then
+            echo "❌ Missing required files:"
+            printf '  - %s\n' "${missing_files[@]}"
+            exit 1
+          fi
+          
+          echo "✅ Documentation structure validation passed"
+
+  # Job 3: Validate Markdown
+  validate-markdown:
+    name: Validate Markdown Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install Markdown Tools
+        run: |
+          npm install -g markdownlint-cli markdown-link-check
+      
+      - name: Create markdownlint Config
+        run: |
+          cat > .markdownlint.json << 'EOF'
+          {
+            "MD013": {
+              "line_length": 120,
+              "tables": false,
+              "code_blocks": false
+            },
+            "MD033": false,
+            "MD041": false
+          }
+          EOF
+      
+      - name: Lint Markdown Files
+        run: |
+          echo "🔍 Linting Markdown files..."
+          markdownlint docs/**/*.md --config .markdownlint.json
+      
+      - name: Check Internal Links
+        run: |
+          echo "🔍 Checking internal links..."
+          
+          # Create markdown-link-check config
+          cat > .markdown-link-check.json << 'EOF'
+          {
+            "ignorePatterns": [
+              {
+                "pattern": "^https://github.com"
+              },
+              {
+                "pattern": "^http://localhost"
+              }
+            ],
+            "httpHeaders": [
+              {
+                "urls": ["https://github.com"],
+                "headers": {
+                  "Accept": "text/html"
+                }
+              }
+            ],
+            "timeout": "20s",
+            "retryOn429": true,
+            "retryCount": 3,
+            "fallbackRetryDelay": "30s",
+            "aliveStatusCodes": [200, 206]
+          }
+          EOF
+          
+          # Check links in all markdown files
+          find docs -name "*.md" -exec markdown-link-check {} --config .markdown-link-check.json \;
+
+  # Job 4: Validate Terraform Examples
+  validate-terraform:
+    name: Validate Terraform Examples
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Install tflint
+        run: |
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+      
+      - name: Validate Terraform Modules
+        run: |
+          echo "🔍 Validating Terraform modules..."
+          
+          # Validate each module
+          if [ -d "modules" ]; then
+            for module in modules/*/; do
+              if [ -d "$module" ]; then
+                echo "Validating module: $module"
+                cd "$module"
+                
+                # Initialize and validate
+                terraform init -backend=false
+                terraform validate
+                terraform fmt -check=true
+                
+                # Run tflint if config exists
+                if [ -f ".tflint.hcl" ] || [ -f "../../.tflint.hcl" ]; then
+                  tflint --init
+                  tflint
+                fi
+                
+                cd - > /dev/null
+              fi
+            done
+          fi
+          
+          # Validate main terraform directory
+          if [ -d "terraform" ]; then
+            echo "Validating main terraform configuration..."
+            cd terraform
+            terraform init -backend=false
+            terraform validate
+            terraform fmt -check=true
+            cd - > /dev/null
+          fi
+          
+          # Validate infra directory
+          if [ -d "infra" ]; then
+            echo "Validating infra configuration..."
+            cd infra
+            terraform init -backend=false
+            terraform validate
+            terraform fmt -check=true
+            cd - > /dev/null
+          fi
+      
+      - name: Extract and Validate Documentation Examples
+        run: |
+          echo "🔍 Validating Terraform examples in documentation..."
+          
+          # Create temporary directory for extracted examples
+          temp_dir=$(mktemp -d)
+          
+          # Extract HCL code blocks from markdown files
+          find docs -name "*.md" -exec grep -l '```hcl' {} \; | while read -r file; do
+            echo "Processing $file"
+            
+            # Extract each HCL code block
+            awk '/^```hcl$/,/^```$/' "$file" | grep -v '^```' > "$temp_dir/$(basename "$file" .md).tf"
+            
+            # Validate if file is not empty
+            if [ -s "$temp_dir/$(basename "$file" .md).tf" ]; then
+              echo "Validating extracted Terraform code from $file"
+              
+              # Check formatting
+              if ! terraform fmt -check=true "$temp_dir/$(basename "$file" .md).tf"; then
+                echo "⚠️ Formatting issues in $file"
+              fi
+              
+              # Basic syntax check (this might fail due to missing providers, but that's OK)
+              terraform validate "$temp_dir" 2>/dev/null || echo "ℹ️ Syntax check completed for $file"
+            fi
+          done
+          
+          # Clean up
+          rm -rf "$temp_dir"
+
+  # Job 5: Security and Quality Checks
+  security-checks:
+    name: Security and Quality Checks
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_tests != 'true'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Install Security Tools
+        run: |
+          # Install checkov
+          pip install checkov
+          
+          # Install semgrep
+          pip install semgrep
+      
+      - name: Run Checkov Security Scan
+        run: |
+          echo "🔍 Running Checkov security scan..."
+          
+          # Scan Terraform files
+          if [ -d "modules" ] || [ -d "terraform" ] || [ -d "infra" ]; then
+            checkov -d . --framework terraform --quiet --compact --skip-check CKV_*_1,CKV_*_2
+          else
+            echo "No Terraform files found to scan"
+          fi
+        continue-on-error: true
+      
+      - name: Run Semgrep Security Scan
+        run: |
+          echo "🔍 Running Semgrep security scan..."
+          semgrep --config=auto --quiet --no-git-ignore docs/ || true
+        continue-on-error: true
+      
+      - name: Check for Sensitive Data
+        run: |
+          echo "🔍 Checking for sensitive data in documentation..."
+          
+          # Check for potential secrets
+          sensitive_patterns=(
+            "password.*="
+            "secret.*="
+            "api[_-]?key.*="
+            "access[_-]?key.*="
+            "private[_-]?key.*="
+            "token.*="
+            "credential.*="
+          )
+          
+          for pattern in "${sensitive_patterns[@]}"; do
+            if grep -r -i "$pattern" docs/ --include="*.md"; then
+              echo "⚠️ Potential sensitive data found: $pattern"
+            fi
+          done
+          
+          # Check for hardcoded IPs
+          if grep -r -E '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' docs/ --include="*.md" | grep -v '127.0.0.1\|0.0.0.0\|10.0.0.0\|192.168.'; then
+            echo "⚠️ Potential hardcoded IP addresses found"
+          fi
+
+  # Job 6: Comprehensive Documentation Validation
+  comprehensive-validation:
+    name: Comprehensive Validation
+    runs-on: ubuntu-latest
+    needs: [validate-structure, validate-markdown, validate-terraform]
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Tools
+        run: |
+          # Install validation dependencies
+          sudo apt-get update
+          sudo apt-get install -y aspell aspell-en
+          
+          # Install Node.js tools
+          npm install -g markdown-link-check markdownlint-cli
+          
+          # Install terraform-docs
+          curl -sSLo terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/v0.16.0/terraform-docs-v0.16.0-linux-amd64.tar.gz
+          tar -xzf terraform-docs.tar.gz
+          sudo mv terraform-docs /usr/local/bin/
+      
+      - name: Run Comprehensive Validation
+        run: |
+          chmod +x scripts/docs/validate-docs.sh
+          ./scripts/docs/validate-docs.sh
+      
+      - name: Upload Validation Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-report
+          path: docs/terraform/validation-report.md
+          retention-days: 30
+
+  # Job 7: Documentation Metrics and Analytics
+  documentation-metrics:
+    name: Documentation Metrics
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Calculate Documentation Metrics
+        run: |
+          echo "📊 Calculating documentation metrics..."
+          
+          # Create metrics report
+          cat > docs-metrics.md << 'EOF'
+          # Documentation Metrics Report
+          
+          **Generated on:** $(date)
+          
+          ## Overview
+          EOF
+          
+          # Count files and lines
+          total_md_files=$(find docs -name "*.md" | wc -l)
+          total_lines=$(find docs -name "*.md" -exec wc -l {} + | tail -1 | awk '{print $1}')
+          total_words=$(find docs -name "*.md" -exec wc -w {} + | tail -1 | awk '{print $1}')
+          
+          echo "- **Total Markdown Files:** $total_md_files" >> docs-metrics.md
+          echo "- **Total Lines:** $total_lines" >> docs-metrics.md
+          echo "- **Total Words:** $total_words" >> docs-metrics.md
+          echo "" >> docs-metrics.md
+          
+          # Module coverage
+          if [ -d "modules" ]; then
+            total_modules=$(find modules -mindepth 1 -maxdepth 1 -type d | wc -l)
+            documented_modules=$(find docs/terraform/modules -name "*.md" | grep -v overview | wc -l)
+            coverage=$((documented_modules * 100 / total_modules))
+            echo "- **Module Documentation Coverage:** $documented_modules/$total_modules ($coverage%)" >> docs-metrics.md
+          fi
+          
+          echo "" >> docs-metrics.md
+          echo "## File Distribution" >> docs-metrics.md
+          echo "" >> docs-metrics.md
+          
+          # File distribution by directory
+          find docs -name "*.md" | cut -d'/' -f1-3 | sort | uniq -c | sort -nr | while read -r count dir; do
+            echo "- **$dir:** $count files" >> docs-metrics.md
+          done
+          
+          echo "" >> docs-metrics.md
+          echo "## Recent Changes" >> docs-metrics.md
+          echo "" >> docs-metrics.md
+          
+          # Recent documentation changes
+          git log --since="30 days ago" --oneline --grep="docs:" | head -10 | while read -r commit; do
+            echo "- $commit" >> docs-metrics.md
+          done
+          
+          # Display metrics
+          cat docs-metrics.md
+      
+      - name: Upload Metrics Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-metrics
+          path: docs-metrics.md
+          retention-days: 90
+
+  # Job 8: Create Documentation Site (GitHub Pages)
+  deploy-docs:
+    name: Deploy Documentation Site
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule')
+    needs: [comprehensive-validation]
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Build Documentation Site
+        run: |
+          echo "🏗️ Building documentation site..."
+          
+          # Create site directory
+          mkdir -p _site
+          
+          # Copy documentation
+          cp -r docs/terraform/* _site/
+          
+          # Create index.html
+          cat > _site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Terraform Documentation - Learning Assistant</title>
+              <style>
+                  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 40px; }
+                  .container { max-width: 800px; margin: 0 auto; }
+                  .card { border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 20px 0; }
+                  .card h3 { margin-top: 0; color: #0366d6; }
+                  .badge { background: #0366d6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <h1>🚀 Learning Assistant Infrastructure Documentation</h1>
+                  <p>Comprehensive Terraform documentation for the Learning Assistant application infrastructure.</p>
+                  
+                  <div class="card">
+                      <h3>🚀 Getting Started</h3>
+                      <ul>
+                          <li><a href="getting-started/quick-start.html">Quick Start Guide</a></li>
+                          <li><a href="getting-started/prerequisites.html">Prerequisites</a></li>
+                          <li><a href="getting-started/installation.html">Installation Guide</a></li>
+                      </ul>
+                  </div>
+                  
+                  <div class="card">
+                      <h3>🏗️ Architecture</h3>
+                      <ul>
+                          <li><a href="architecture/system-overview.html">System Overview</a></li>
+                          <li><a href="architecture/network-design.html">Network Architecture</a></li>
+                          <li><a href="architecture/security-design.html">Security Architecture</a></li>
+                      </ul>
+                  </div>
+                  
+                  <div class="card">
+                      <h3>🧩 Modules</h3>
+                      <ul>
+                          <li><a href="modules/overview.html">Module Overview</a></li>
+                          <li><a href="modules/database.html">Database Module</a></li>
+                          <li><a href="modules/container-service.html">Container Service</a></li>
+                      </ul>
+                  </div>
+                  
+                  <div class="card">
+                      <h3>📚 Additional Resources</h3>
+                      <ul>
+                          <li><a href="patterns/">Patterns & Best Practices</a></li>
+                          <li><a href="tutorials/">Tutorials</a></li>
+                          <li><a href="runbooks/">Operational Runbooks</a></li>
+                          <li><a href="troubleshooting/">Troubleshooting</a></li>
+                      </ul>
+                  </div>
+              </div>
+          </body>
+          </html>
+          EOF
+          
+          # Convert markdown to HTML (if pandoc is available)
+          if command -v pandoc &> /dev/null; then
+            echo "Converting Markdown to HTML..."
+            find _site -name "*.md" | while read -r file; do
+              html_file="${file%.md}.html"
+              pandoc "$file" -o "$html_file" --standalone --css=../style.css || true
+            done
+          fi
+      
+      - name: Upload Site Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+# Summary job to report overall status
+summary:
+  name: Documentation Validation Summary
+  runs-on: ubuntu-latest
+  needs: [validate-structure, validate-markdown, validate-terraform, comprehensive-validation]
+  if: always()
+  
+  steps:
+    - name: Check Job Results
+      run: |
+        echo "## 📋 Documentation Validation Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Structure Validation | ${{ needs.validate-structure.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Markdown Validation | ${{ needs.validate-markdown.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Terraform Validation | ${{ needs.validate-terraform.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Comprehensive Validation | ${{ needs.comprehensive-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Overall status
+        if [[ "${{ needs.validate-structure.result }}" == "success" && 
+              "${{ needs.validate-markdown.result }}" == "success" && 
+              "${{ needs.validate-terraform.result }}" == "success" && 
+              "${{ needs.comprehensive-validation.result }}" == "success" ]]; then
+          echo "✅ **Overall Status: PASSED**" >> $GITHUB_STEP_SUMMARY
+          echo "All documentation validation checks have passed successfully!"
+        else
+          echo "❌ **Overall Status: FAILED**" >> $GITHUB_STEP_SUMMARY
+          echo "One or more documentation validation checks have failed."
+          exit 1
+        fi

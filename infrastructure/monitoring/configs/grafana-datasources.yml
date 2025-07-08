@@ -1,0 +1,291 @@
+# ==============================================================================
+# GRAFANA DATASOURCES CONFIGURATION
+# Multi-Source Data Integration
+# ==============================================================================
+
+apiVersion: 1
+
+datasources:
+  # Prometheus (Primary Metrics)
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: ${prometheus_url}
+    isDefault: true
+    version: 1
+    editable: true
+    jsonData:
+      httpMethod: POST
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: "2.40.0"
+      cacheLevel: High
+      incrementalQuerying: true
+      incrementalQueryOverlapWindow: 10m
+      exemplarTraceIdDestinations:
+        - name: Jaeger
+          datasourceUid: jaeger-uid
+          urlDisplayLabel: "View Trace"
+    secureJsonData: {}
+
+  # Victoria Metrics (Long-term Storage)
+  - name: VictoriaMetrics
+    type: prometheus
+    access: proxy
+    url: ${victoria_metrics_url}
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      httpMethod: POST
+      prometheusType: Prometheus
+      prometheusVersion: "2.40.0"
+      cacheLevel: High
+      incrementalQuerying: true
+      incrementalQueryOverlapWindow: 10m
+      timeInterval: "30s"
+    secureJsonData: {}
+
+  # Jaeger (Distributed Tracing)
+  - name: Jaeger
+    type: jaeger
+    uid: jaeger-uid
+    access: proxy
+    url: ${jaeger_url}
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      tracesToLogs:
+        datasourceUid: loki-uid
+        tags: ["job", "instance", "pod", "namespace"]
+        mappedTags:
+          - key: service.name
+            value: job
+        mapTagNamesEnabled: true
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
+        filterByTraceID: true
+        filterBySpanID: false
+      tracesToMetrics:
+        datasourceUid: prometheus-uid
+        tags:
+          - key: service.name
+            value: application
+          - key: operation
+            value: operation
+        queries:
+          - name: "Sample query"
+            query: "sum(rate(traces_spanmetrics_latency_bucket{$$__tags}[5m]))"
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      spanBar:
+        type: Tag
+        tag: component
+    secureJsonData: {}
+
+  # Elasticsearch (Logs)
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: ${elasticsearch_url}
+    database: "logs-*"
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      index: "logs-*"
+      timeField: "@timestamp"
+      esVersion: "8.11.0"
+      includeFrozen: false
+      logMessageField: "message"
+      logLevelField: "level"
+      maxConcurrentShardRequests: 5
+      interval: Daily
+      timeInterval: "10s"
+      queryTimeout: "60s"
+    secureJsonData: {}
+
+  # Loki (Alternative Log Source)
+  - name: Loki
+    type: loki
+    uid: loki-uid
+    access: proxy
+    url: http://loki.${environment}.svc.cluster.local:3100
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - name: "TraceID"
+          label: "traceID"
+          url: "$${__value.raw}"
+          datasourceUid: jaeger-uid
+          matcherRegex: "(?:trace_id|traceID)=([A-Fa-f0-9]+)"
+          urlDisplayLabel: "View Trace"
+    secureJsonData: {}
+
+  # TestData (For Development)
+  - name: TestData
+    type: testdata
+    access: proxy
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData: {}
+
+  # CloudWatch (AWS Metrics)
+  - name: CloudWatch
+    type: cloudwatch
+    access: proxy
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      authType: default
+      defaultRegion: us-east-1
+      assumeRoleArn: ""
+    secureJsonData:
+      accessKey: ""
+      secretKey: ""
+
+  # Google Cloud Monitoring
+  - name: Google Cloud Monitoring
+    type: stackdriver
+    access: proxy
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      authenticationType: jwt
+      defaultProject: ${environment}
+      clientEmail: ""
+      tokenUri: "https://oauth2.googleapis.com/token"
+    secureJsonData:
+      privateKey: ""
+
+  # Azure Monitor
+  - name: Azure Monitor
+    type: grafana-azure-monitor-datasource
+    access: proxy
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      azureAuthType: msi
+      subscriptionId: ""
+      cloudName: azuremonitor
+    secureJsonData:
+      clientId: ""
+      clientSecret: ""
+      tenantId: ""
+
+  # InfluxDB (Additional Time Series)
+  - name: InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://influxdb.${environment}.svc.cluster.local:8086
+    database: monitoring
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      httpMode: GET
+      httpHeaderName1: "Authorization"
+    secureJsonData:
+      httpHeaderValue1: "Token your-influxdb-token"
+
+  # MySQL (Application Database Metrics)
+  - name: MySQL
+    type: mysql
+    access: proxy
+    url: mysql.${environment}.svc.cluster.local:3306
+    database: performance_schema
+    user: grafana
+    isDefault: false
+    version: 1
+    editable: true
+    secureJsonData:
+      password: "grafana-db-password"
+
+  # PostgreSQL (Application Database Metrics)
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres.${environment}.svc.cluster.local:5432
+    database: monitoring
+    user: grafana
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      sslmode: require
+      postgresVersion: 1400
+      timescaledb: false
+    secureJsonData:
+      password: "grafana-db-password"
+
+  # Redis (Cache Metrics)
+  - name: Redis
+    type: redis-datasource
+    access: proxy
+    url: redis://redis.${environment}.svc.cluster.local:6379
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      client: standalone
+      poolSize: 5
+      timeout: 10
+      pingInterval: 0
+      pipelineWindow: 0
+    secureJsonData:
+      password: ""
+
+  # Tempo (Distributed Tracing Alternative)
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo.${environment}.svc.cluster.local:3200
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      httpMethod: GET
+      tracesToLogs:
+        datasourceUid: loki-uid
+        tags: ["job", "instance"]
+        mappedTags:
+          - key: service.name
+            value: job
+      tracesToMetrics:
+        datasourceUid: prometheus-uid
+        tags:
+          - key: service.name
+            value: application
+      serviceMap:
+        datasourceUid: prometheus-uid
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+    secureJsonData: {}
+
+  # Zipkin (Tracing Compatibility)
+  - name: Zipkin
+    type: zipkin
+    access: proxy
+    url: http://zipkin.${environment}.svc.cluster.local:9411
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData: {}
+
+deleteDatasources:
+  - name: old-prometheus
+    orgId: 1
+  - name: old-elasticsearch
+    orgId: 1

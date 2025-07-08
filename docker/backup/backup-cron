@@ -1,0 +1,55 @@
+# Learning Assistant Backup Service Cron Schedule
+# Automated backup and maintenance tasks
+# Format: minute hour day month weekday command
+
+# Set shell and path
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin:/opt/backup/scripts
+MAILTO=""
+
+# Environment variables
+BACKUP_DIR=/var/backups/learning-assistant
+LOG_DIR=/var/log/backup
+SCRIPTS_DIR=/opt/backup/scripts
+
+# Primary database backup (daily at 2:00 AM)
+0 2 * * * /opt/backup/scripts/database-backup.sh >> /var/log/backup/backup.log 2>&1
+
+# Application data backup (daily at 2:30 AM)
+30 2 * * * /opt/backup/scripts/app-data-backup.sh >> /var/log/backup/backup.log 2>&1
+
+# Cross-region replication (daily at 3:00 AM)
+0 3 * * * /opt/backup/scripts/cross-region-replication.sh >> /var/log/backup/replication.log 2>&1
+
+# Quick backup verification (daily at 4:00 AM)
+0 4 * * * /opt/backup/scripts/backup-verification.sh quick >> /var/log/backup/verification.log 2>&1
+
+# Deep backup verification (weekly on Sundays at 5:00 AM)
+0 5 * * 0 /opt/backup/scripts/backup-verification.sh deep >> /var/log/backup/verification.log 2>&1
+
+# Disaster recovery test (monthly on 1st at 6:00 AM)
+0 6 1 * * /opt/backup/scripts/disaster-recovery.sh dry-run >> /var/log/backup/dr-test.log 2>&1
+
+# Backup cleanup (daily at 1:00 AM)
+0 1 * * * find /var/backups/learning-assistant -name "*_backup_*" -type f -mtime +30 -delete >> /var/log/backup/cleanup.log 2>&1
+
+# Log rotation (daily at 11:30 PM)
+30 23 * * * /usr/sbin/logrotate /etc/logrotate.d/backup >> /var/log/backup/logrotate.log 2>&1
+
+# Health check monitoring (every 15 minutes)
+*/15 * * * * /opt/backup/healthcheck.sh >> /var/log/backup/healthcheck.log 2>&1
+
+# Weekly backup report (Mondays at 9:00 AM)
+0 9 * * 1 /opt/backup/scripts/generate-backup-report.sh weekly >> /var/log/backup/reports.log 2>&1
+
+# Monthly backup report (1st of month at 10:00 AM)
+0 10 1 * * /opt/backup/scripts/generate-backup-report.sh monthly >> /var/log/backup/reports.log 2>&1
+
+# Encryption key rotation (quarterly on 1st at 7:00 AM)
+0 7 1 1,4,7,10 * /opt/backup/scripts/rotate-encryption-keys.sh >> /var/log/backup/security.log 2>&1
+
+# Performance metrics collection (every 5 minutes)
+*/5 * * * * /opt/backup/scripts/collect-metrics.sh >> /var/log/backup/metrics.log 2>&1
+
+# Storage cleanup and optimization (weekly on Saturdays at 3:00 AM)
+0 3 * * 6 /opt/backup/scripts/optimize-storage.sh >> /var/log/backup/optimization.log 2>&1

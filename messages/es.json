@@ -1,0 +1,347 @@
+{
+  "common": {
+    "welcome": "Bienvenido",
+    "hello": "Hola",
+    "goodbye": "Adiós",
+    "yes": "Sí",
+    "no": "No",
+    "ok": "Aceptar",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "back": "Atrás",
+    "continue": "Continuar",
+    "submit": "Enviar",
+    "close": "Cerrar",
+    "open": "Abrir",
+    "settings": "Configuración",
+    "help": "Ayuda",
+    "about": "Acerca de",
+    "contact": "Contacto",
+    "privacy": "Privacidad",
+    "terms": "Términos de Servicio",
+    "language": "Idioma",
+    "theme": "Tema",
+    "profile": "Perfil",
+    "account": "Cuenta",
+    "logout": "Cerrar Sesión",
+    "login": "Iniciar Sesión",
+    "register": "Registrarse",
+    "dashboard": "Panel de Control",
+    "home": "Inicio",
+    "menu": "Menú"
+  },
+  "auth": {
+    "login": {
+      "title": "Inicia Sesión en Tu Cuenta",
+      "subtitle": "¡Bienvenido de vuelta! Por favor ingresa tus credenciales para continuar.",
+      "email": "Dirección de Correo",
+      "password": "Contraseña",
+      "remember": "Recordarme",
+      "forgot": "¿Olvidaste tu contraseña?",
+      "submit": "Iniciar Sesión",
+      "noAccount": "¿No tienes una cuenta?",
+      "createAccount": "Crea una aquí",
+      "socialLogin": "O continúa con",
+      "error": {
+        "invalid": "Correo o contraseña inválidos",
+        "required": "Por favor completa todos los campos requeridos",
+        "network": "Error de red. Por favor intenta de nuevo."
+      }
+    },
+    "register": {
+      "title": "Crea Tu Cuenta",
+      "subtitle": "¡Únete a nosotros y comienza tu viaje de aprendizaje hoy!",
+      "firstName": "Nombre",
+      "lastName": "Apellido",
+      "email": "Dirección de Correo",
+      "password": "Contraseña",
+      "confirmPassword": "Confirmar Contraseña",
+      "terms": "Acepto los {termsLink} y la {privacyLink}",
+      "termsLink": "Términos de Servicio",
+      "privacyLink": "Política de Privacidad",
+      "submit": "Crear Cuenta",
+      "hasAccount": "¿Ya tienes una cuenta?",
+      "signIn": "Inicia sesión aquí",
+      "error": {
+        "exists": "Ya existe una cuenta con este correo",
+        "weak": "La contraseña es muy débil",
+        "mismatch": "Las contraseñas no coinciden",
+        "terms": "Debes aceptar los términos y la política de privacidad"
+      }
+    },
+    "resetPassword": {
+      "title": "Restablece Tu Contraseña",
+      "subtitle": "Ingresa tu correo y te enviaremos un enlace de restablecimiento.",
+      "email": "Dirección de Correo",
+      "submit": "Enviar Enlace",
+      "backToLogin": "Volver al Inicio de Sesión",
+      "success": "Enlace de restablecimiento enviado a tu correo",
+      "error": {
+        "notFound": "No se encontró cuenta con este correo"
+      }
+    }
+  },
+  "navigation": {
+    "main": {
+      "dashboard": "Panel",
+      "learning": "Aprendizaje",
+      "courses": "Cursos",
+      "progress": "Progreso",
+      "analytics": "Analíticas",
+      "chat": "Tutor IA",
+      "profile": "Perfil",
+      "settings": "Configuración",
+      "help": "Centro de Ayuda"
+    },
+    "breadcrumb": {
+      "home": "Inicio",
+      "separator": ">"
+    }
+  },
+  "dashboard": {
+    "title": "Tu Panel de Aprendizaje",
+    "welcome": "¡Bienvenido de vuelta, {name}!",
+    "stats": {
+      "totalHours": "Horas Totales de Estudio",
+      "completedCourses": "Cursos Completados",
+      "currentStreak": "Racha Actual",
+      "skillsLearned": "Habilidades Aprendidas"
+    },
+    "quickActions": {
+      "title": "Acciones Rápidas",
+      "continueLearning": "Continuar Aprendiendo",
+      "startNewCourse": "Iniciar Nuevo Curso",
+      "reviewProgress": "Revisar Progreso",
+      "practiceSkills": "Practicar Habilidades"
+    },
+    "recentActivity": {
+      "title": "Actividad Reciente",
+      "empty": "No hay actividad reciente que mostrar",
+      "viewAll": "Ver Toda la Actividad"
+    },
+    "achievements": {
+      "title": "Logros Recientes",
+      "empty": "Aún no hay logros",
+      "viewAll": "Ver Todos los Logros"
+    }
+  },
+  "learning": {
+    "session": {
+      "title": "Sesión de Aprendizaje",
+      "start": "Comenzar Aprendizaje",
+      "pause": "Pausar Sesión",
+      "resume": "Reanudar Sesión",
+      "complete": "Completar Sesión",
+      "duration": "Duración de la Sesión: {duration}",
+      "progress": "Progreso: {percentage}% completado"
+    },
+    "content": {
+      "lesson": "Lección",
+      "quiz": "Examen",
+      "exercise": "Ejercicio",
+      "project": "Proyecto",
+      "difficulty": {
+        "beginner": "Principiante",
+        "intermediate": "Intermedio",
+        "advanced": "Avanzado",
+        "expert": "Experto"
+      },
+      "estimatedTime": "Tiempo estimado: {duration}",
+      "prerequisites": "Prerrequisitos",
+      "objectives": "Objetivos de Aprendizaje"
+    },
+    "quiz": {
+      "title": "Verificación de Conocimientos",
+      "question": "Pregunta {current} de {total}",
+      "submit": "Enviar Respuesta",
+      "next": "Siguiente Pregunta",
+      "previous": "Pregunta Anterior",
+      "results": "Resultados del Examen",
+      "score": "Tu Puntuación: {score}/{total}",
+      "passed": "¡Felicidades! ¡Aprobaste!",
+      "failed": "¡Sigue aprendiendo! Inténtalo de nuevo cuando estés listo.",
+      "retry": "Reintentar Examen",
+      "continue": "Continuar Aprendiendo"
+    },
+    "progress": {
+      "title": "Tu Progreso",
+      "overall": "Progreso General",
+      "course": "Progreso del Curso",
+      "skill": "Dominio de Habilidades",
+      "timeSpent": "Tiempo Dedicado al Aprendizaje",
+      "streak": "Racha de Aprendizaje",
+      "goals": "Metas de Aprendizaje",
+      "setGoal": "Establecer Meta de Aprendizaje",
+      "updateGoal": "Actualizar Meta"
+    }
+  },
+  "chat": {
+    "title": "Asistente de Aprendizaje IA",
+    "placeholder": "Pregúntame cualquier cosa sobre tu aprendizaje...",
+    "send": "Enviar",
+    "clear": "Limpiar Chat",
+    "typing": "La IA está escribiendo...",
+    "error": "Lo siento, no pude procesar tu solicitud. Por favor intenta de nuevo.",
+    "suggestions": {
+      "title": "Preguntas Rápidas",
+      "explain": "Explica este concepto",
+      "examples": "Dame ejemplos",
+      "practice": "Crear preguntas de práctica",
+      "review": "Revisar puntos clave"
+    },
+    "tutoring": {
+      "title": "Sesión de Tutoría Personal",
+      "start": "Comenzar Tutoría",
+      "end": "Terminar Sesión",
+      "feedback": "Obtener Retroalimentación",
+      "hint": "Obtener una Pista"
+    }
+  },
+  "profile": {
+    "title": "Tu Perfil",
+    "personalInfo": {
+      "title": "Información Personal",
+      "firstName": "Nombre",
+      "lastName": "Apellido",
+      "email": "Dirección de Correo",
+      "bio": "Biografía",
+      "location": "Ubicación",
+      "timezone": "Zona Horaria",
+      "update": "Actualizar Perfil"
+    },
+    "learningPreferences": {
+      "title": "Preferencias de Aprendizaje",
+      "style": "Estilo de Aprendizaje",
+      "pace": "Ritmo de Aprendizaje",
+      "difficulty": "Dificultad Preferida",
+      "language": "Idioma de la Interfaz",
+      "notifications": "Notificaciones"
+    },
+    "achievements": {
+      "title": "Logros",
+      "badges": "Insignias Obtenidas",
+      "certificates": "Certificados",
+      "milestones": "Hitos Alcanzados"
+    }
+  },
+  "settings": {
+    "title": "Configuración",
+    "general": {
+      "title": "General",
+      "language": "Idioma",
+      "theme": "Tema",
+      "timezone": "Zona Horaria",
+      "dateFormat": "Formato de Fecha",
+      "numberFormat": "Formato de Números"
+    },
+    "learning": {
+      "title": "Preferencias de Aprendizaje",
+      "style": "Estilo de Aprendizaje",
+      "pace": "Ritmo de Aprendizaje",
+      "reminders": "Recordatorios de Estudio",
+      "goals": "Metas de Aprendizaje"
+    },
+    "notifications": {
+      "title": "Notificaciones",
+      "email": "Notificaciones por Correo",
+      "push": "Notificaciones Push",
+      "achievement": "Notificaciones de Logros",
+      "reminder": "Recordatorios de Estudio"
+    },
+    "privacy": {
+      "title": "Privacidad y Seguridad",
+      "dataCollection": "Recolección de Datos",
+      "analytics": "Analíticas de Uso",
+      "cookies": "Preferencias de Cookies",
+      "deleteAccount": "Eliminar Cuenta"
+    },
+    "accessibility": {
+      "title": "Accesibilidad",
+      "fontSize": "Tamaño de Fuente",
+      "contrast": "Alto Contraste",
+      "animations": "Reducir Animaciones",
+      "screenReader": "Soporte para Lector de Pantalla"
+    }
+  },
+  "forms": {
+    "validation": {
+      "required": "Este campo es requerido",
+      "email": "Por favor ingresa una dirección de correo válida",
+      "minLength": "Debe tener al menos {min} caracteres",
+      "maxLength": "No debe tener más de {max} caracteres",
+      "match": "Los campos no coinciden",
+      "weak": "La contraseña es muy débil",
+      "invalid": "Entrada inválida"
+    },
+    "labels": {
+      "required": "Requerido",
+      "optional": "Opcional"
+    }
+  },
+  "time": {
+    "units": {
+      "second": "segundo",
+      "seconds": "segundos",
+      "minute": "minuto",
+      "minutes": "minutos",
+      "hour": "hora",
+      "hours": "horas",
+      "day": "día",
+      "days": "días",
+      "week": "semana",
+      "weeks": "semanas",
+      "month": "mes",
+      "months": "meses",
+      "year": "año",
+      "years": "años"
+    },
+    "relative": {
+      "now": "ahora",
+      "today": "hoy",
+      "yesterday": "ayer",
+      "tomorrow": "mañana",
+      "ago": "hace {time}",
+      "in": "en {time}"
+    }
+  },
+  "accessibility": {
+    "skipToContent": "Saltar al contenido principal",
+    "openMenu": "Abrir menú",
+    "closeMenu": "Cerrar menú",
+    "toggleTheme": "Cambiar tema",
+    "loading": "Cargando contenido",
+    "error": "Error al cargar contenido",
+    "expand": "Expandir",
+    "collapse": "Contraer",
+    "sortBy": "Ordenar por {field}",
+    "filterBy": "Filtrar por {field}"
+  },
+  "errors": {
+    "notFound": {
+      "title": "Página No Encontrada",
+      "message": "La página que buscas no existe.",
+      "action": "Ir al Panel"
+    },
+    "serverError": {
+      "title": "Error del Servidor",
+      "message": "Algo salió mal de nuestro lado. Por favor intenta de nuevo más tarde.",
+      "action": "Actualizar Página"
+    },
+    "networkError": {
+      "title": "Error de Red",
+      "message": "Por favor verifica tu conexión a internet e intenta de nuevo.",
+      "action": "Reintentar"
+    }
+  }
+}

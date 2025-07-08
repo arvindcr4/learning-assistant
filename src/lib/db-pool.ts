@@ -30,12 +30,8 @@ export interface PoolManagerConfig {
   ssl?: boolean;
   idleTimeoutMillis?: number;
   connectionTimeoutMillis?: number;
-  acquireTimeoutMillis?: number;
-  reapIntervalMillis?: number;
-  createTimeoutMillis?: number;
-  destroyTimeoutMillis?: number;
-  createRetryIntervalMillis?: number;
-  propagateCreateError?: boolean;
+  // Note: These options are not supported by node-postgres Pool
+  // but are kept for future compatibility
   
   // Performance settings
   maxWaitingClients?: number;
@@ -286,12 +282,6 @@ export class DatabasePoolManager extends EventEmitter {
       ssl: true,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
-      acquireTimeoutMillis: 60000,
-      reapIntervalMillis: 1000,
-      createTimeoutMillis: 3000,
-      destroyTimeoutMillis: 5000,
-      createRetryIntervalMillis: 200,
-      propagateCreateError: false,
       maxWaitingClients: 10,
       allowExitOnIdle: false,
       healthCheckInterval: 60000,
@@ -318,12 +308,7 @@ export class DatabasePoolManager extends EventEmitter {
       ssl: this.config.ssl ? { rejectUnauthorized: false } : false,
       idleTimeoutMillis: this.config.idleTimeoutMillis,
       connectionTimeoutMillis: this.config.connectionTimeoutMillis,
-      acquireTimeoutMillis: this.config.acquireTimeoutMillis,
-      reapIntervalMillis: this.config.reapIntervalMillis,
-      createTimeoutMillis: this.config.createTimeoutMillis,
-      destroyTimeoutMillis: this.config.destroyTimeoutMillis,
-      createRetryIntervalMillis: this.config.createRetryIntervalMillis,
-      propagateCreateError: this.config.propagateCreateError,
+      // Additional options not supported by node-postgres Pool are omitted
       maxWaitingClients: this.config.maxWaitingClients,
       allowExitOnIdle: this.config.allowExitOnIdle,
     };
@@ -345,12 +330,7 @@ export class DatabasePoolManager extends EventEmitter {
         ssl: this.config.ssl ? { rejectUnauthorized: false } : false,
         idleTimeoutMillis: this.config.idleTimeoutMillis,
         connectionTimeoutMillis: this.config.connectionTimeoutMillis,
-        acquireTimeoutMillis: this.config.acquireTimeoutMillis,
-        reapIntervalMillis: this.config.reapIntervalMillis,
-        createTimeoutMillis: this.config.createTimeoutMillis,
-        destroyTimeoutMillis: this.config.destroyTimeoutMillis,
-        createRetryIntervalMillis: this.config.createRetryIntervalMillis,
-        propagateCreateError: this.config.propagateCreateError,
+        // Additional options not supported by node-postgres Pool are omitted
         maxWaitingClients: this.config.maxWaitingClients,
         allowExitOnIdle: this.config.allowExitOnIdle,
       };
@@ -548,5 +528,6 @@ export const getPoolManagerConfig = (): PoolManagerConfig => {
   return config;
 };
 
-// Export types
+// Export types and classes
 export type { PoolManagerConfig, PoolMetrics };
+export { DatabasePoolManager };

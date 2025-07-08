@@ -3,7 +3,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import * as Sentry from '@sentry/nextjs';
 
-import { usePerformanceMonitoring } from '@/hooks/usePerformanceMonitoring';
+// Note: usePerformanceMonitoring is a hook and cannot be used in class components
 import { captureErrorBoundary } from '@/lib/sentry';
 
 // Error types

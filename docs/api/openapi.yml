@@ -1,0 +1,1315 @@
+openapi: 3.0.3
+info:
+  title: Learning Assistant API
+  description: |
+    Comprehensive API for the Learning Assistant platform - an intelligent, adaptive learning system that personalizes education based on individual learning styles, behavior patterns, and performance metrics.
+    
+    ## Key Features
+    - **Adaptive Learning**: Real-time adjustment of content delivery based on user performance
+    - **VARK Learning Styles**: Support for Visual, Auditory, Reading/Writing, and Kinesthetic preferences
+    - **AI-Powered Recommendations**: Intelligent content suggestions and study paths
+    - **Real-time Analytics**: Performance tracking and learning insights
+    - **Security-First**: Enterprise-grade security with RBAC, rate limiting, and comprehensive monitoring
+    
+    ## Authentication
+    This API uses JWT Bearer token authentication with role-based access control (RBAC).
+    Include the token in the Authorization header: `Authorization: Bearer <token>`
+    
+    ## Rate Limiting
+    API endpoints have different rate limits based on the endpoint type and user role:
+    - General endpoints: 1000 requests/hour per user, 100 requests/minute per IP
+    - Learning endpoints: 200 requests/minute per user
+    - Administrative endpoints: 50 requests/minute per admin
+    
+    ## Security Features
+    - CSRF protection for state-changing operations
+    - Input validation and sanitization
+    - Comprehensive audit logging
+    - Real-time threat detection
+    
+  version: 1.0.0
+  contact:
+    name: Learning Assistant Team
+    url: https://github.com/your-repo/learning-assistant
+    email: support@learning-assistant.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://learning-assistant-staging.com/api
+    description: Staging server
+  - url: https://learning-assistant.com/api
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  # Health and Monitoring
+  /health:
+    get:
+      tags:
+        - Health & Monitoring
+      summary: System Health Check
+      description: |
+        Comprehensive system health check including:
+        - Basic service availability
+        - Database connectivity
+        - Redis cache status
+        - Performance metrics
+        - Security monitoring
+        - Dependency health
+        - Circuit breaker status
+        - SLA compliance
+        - Auto-healing status
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: System is healthy or degraded
+          headers:
+            X-Health-Status:
+              description: Overall health status
+              schema:
+                type: string
+                enum: [healthy, degraded, unhealthy]
+            X-Health-Score:
+              description: Health score from 0-100
+              schema:
+                type: integer
+                minimum: 0
+                maximum: 100
+            X-Response-Time:
+              description: Response time in milliseconds
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: Healthy system
+                  value:
+                    status: healthy
+                    message: All systems operational and performing optimally
+                    healthScore: 98
+                    timestamp: "2024-01-01T12:00:00Z"
+                    responseTime: 45
+                    environment: production
+                    version: "1.0.0"
+                    uptime: 86400
+                degraded:
+                  summary: Degraded system
+                  value:
+                    status: degraded
+                    message: System performance is degraded
+                    healthScore: 75
+                    timestamp: "2024-01-01T12:00:00Z"
+                    responseTime: 150
+                    environment: production
+                    version: "1.0.0"
+                    uptime: 86400
+        '503':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: unhealthy
+                message: Critical dependencies or circuit breakers are failing
+                healthScore: 25
+                timestamp: "2024-01-01T12:00:00Z"
+                responseTime: 300
+                criticalIssues:
+                  - "Database connection failed"
+                  - "3 circuit breakers open"
+        '500':
+          description: Health check failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Authentication
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User Login
+      description: Authenticate user and return JWT token
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "user@example.com"
+              password: "securePassword123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /csrf:
+    get:
+      tags:
+        - Security
+      summary: Get CSRF Token
+      description: Retrieve CSRF token for state-changing operations
+      operationId: getCsrfToken
+      responses:
+        '200':
+          description: CSRF token retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfTokenResponse'
+              example:
+                token: "abc123def456ghi789jkl012mno345pqr678stu901vwx234yz"
+                expiresAt: "2024-01-01T13:00:00Z"
+
+  # Learning Profile Management
+  /learning/profile:
+    get:
+      tags:
+        - Learning Profile
+      summary: Get User Learning Profile
+      description: |
+        Retrieve the current user's learning profile including:
+        - Learning style preferences (VARK)
+        - Difficulty preferences
+        - Learning pace settings
+        - Subject preferences
+        - Progress statistics
+      operationId: getLearningProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Learning profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningProfileResponse'
+              example:
+                success: true
+                data:
+                  id: "profile-user123"
+                  userId: "user123"
+                  learningStyle: "visual"
+                  preferences:
+                    difficulty: "intermediate"
+                    pace: "normal"
+                    subjects: ["mathematics", "science"]
+                  progress:
+                    completedLessons: 45
+                    totalLessons: 100
+                    averageScore: 85
+                  lastActivity: "2024-01-01T12:00:00Z"
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Learning Profile
+      summary: Update Learning Profile
+      description: |
+        Update the user's learning profile with new preferences and settings.
+        Requires CSRF token for security.
+      operationId: updateLearningProfile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-CSRF-Token
+          in: header
+          required: true
+          description: CSRF token for request validation
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLearningProfileRequest'
+            example:
+              learningStyle: "kinesthetic"
+              preferences:
+                difficulty: "advanced"
+                pace: "fast"
+                subjects: ["physics", "chemistry"]
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningProfileResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Invalid CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Learning Sessions
+  /learning/session:
+    post:
+      tags:
+        - Learning Sessions
+      summary: Process Learning Session
+      description: |
+        Submit learning session data for processing and analysis.
+        Returns insights and recommendations based on session performance.
+        Requires CSRF token for security.
+      operationId: processLearningSession
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-CSRF-Token
+          in: header
+          required: true
+          description: CSRF token for request validation
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningSessionRequest'
+            example:
+              sessionData:
+                contentId: "content-123"
+                duration: 1800
+                score: 92
+                interactions: 45
+                completionRate: 100
+      responses:
+        '200':
+          description: Session processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningSessionResponse'
+              example:
+                success: true
+                data:
+                  id: "session-1641024000000"
+                  userId: "user123"
+                  contentId: "content-123"
+                  duration: 1800
+                  score: 92
+                  completed: true
+                  processedAt: "2024-01-01T12:30:00Z"
+                  insights:
+                    learningEfficiency: 85
+                    recommendedBreak: false
+                    nextDifficulty: "intermediate"
+                message: "Session processed successfully"
+        '400':
+          description: Invalid session data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Invalid CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Analytics and Monitoring
+  /analytics/dashboard:
+    get:
+      tags:
+        - Analytics
+      summary: Get Analytics Dashboard Data
+      description: |
+        Retrieve comprehensive analytics data for the dashboard.
+        Includes performance metrics, user engagement, and system health.
+        Admin access required.
+      operationId: getAnalyticsDashboard
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Analytics data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsDashboardResponse'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Insufficient permissions (admin required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Security Operations
+  /security/dashboard:
+    get:
+      tags:
+        - Security
+      summary: Get Security Dashboard
+      description: |
+        Retrieve security monitoring dashboard with threat detection,
+        authentication metrics, and security events.
+        Security team or admin access required.
+      operationId: getSecurityDashboard
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Security dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityDashboardResponse'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Insufficient permissions (security team required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /security/vulnerability-scan:
+    post:
+      tags:
+        - Security
+      summary: Run Vulnerability Scan
+      description: |
+        Initiate a comprehensive vulnerability scan of the system.
+        Returns scan results and security recommendations.
+        Security team access required.
+      operationId: runVulnerabilityScan
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Vulnerability scan completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VulnerabilityScanResponse'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Insufficient permissions (security team required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer token authentication. Include the token in the Authorization header.
+        Tokens are issued upon successful authentication and have a configurable expiration time.
+
+  schemas:
+    # Health and Status Schemas
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - message
+        - timestamp
+        - responseTime
+        - environment
+        - version
+        - uptime
+        - healthScore
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Overall system health status
+        message:
+          type: string
+          description: Human-readable health status message
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of health check
+        responseTime:
+          type: integer
+          minimum: 0
+          description: Health check response time in milliseconds
+        environment:
+          type: string
+          enum: [development, staging, production]
+          description: Current environment
+        version:
+          type: string
+          description: Application version
+        uptime:
+          type: integer
+          minimum: 0
+          description: System uptime in seconds
+        healthScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Overall health score
+        system:
+          $ref: '#/components/schemas/SystemHealth'
+        security:
+          $ref: '#/components/schemas/SecurityHealth'
+        features:
+          $ref: '#/components/schemas/FeatureStatus'
+        performance:
+          $ref: '#/components/schemas/PerformanceMetrics'
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+        criticalIssues:
+          type: array
+          items:
+            type: string
+          description: List of critical issues (only present when status is unhealthy)
+        performanceIssues:
+          type: array
+          items:
+            type: string
+          description: List of performance issues (only present when status is degraded)
+        recommendations:
+          type: array
+          items:
+            type: string
+          description: List of recommendations for improvement
+
+    SystemHealth:
+      type: object
+      properties:
+        memory:
+          type: string
+          description: Memory usage (e.g., "256MB")
+        cpu:
+          type: string
+          description: CPU usage percentage (e.g., "45%")
+        uptime:
+          type: integer
+          description: System uptime in seconds
+        nodeVersion:
+          type: string
+          description: Node.js version
+        platform:
+          type: string
+          description: Operating system platform
+        load:
+          type: array
+          items:
+            type: number
+          description: System load averages
+
+    SecurityHealth:
+      type: object
+      properties:
+        activeSessions:
+          type: integer
+          description: Number of active user sessions
+        uniqueUsers:
+          type: integer
+          description: Number of unique users
+        blacklistedTokens:
+          type: integer
+          description: Number of blacklisted tokens
+        securityEvents:
+          type: integer
+          description: Number of recent security events
+        status:
+          type: string
+          enum: [normal, elevated]
+          description: Security alert level
+
+    FeatureStatus:
+      type: object
+      properties:
+        jwtEnabled:
+          type: boolean
+        csrfEnabled:
+          type: boolean
+        sessionManagement:
+          type: boolean
+        rateLimiting:
+          type: boolean
+        roleBasedAccess:
+          type: boolean
+        monitoring:
+          type: boolean
+        tracing:
+          type: boolean
+        alerting:
+          type: boolean
+
+    PerformanceMetrics:
+      type: object
+      properties:
+        requests:
+          type: integer
+          description: Total number of requests processed
+        errors:
+          type: integer
+          description: Number of errors encountered
+        slowRequests:
+          type: integer
+          description: Number of slow requests
+        averageResponseTime:
+          type: integer
+          description: Average response time in milliseconds
+        activeTraces:
+          type: integer
+          description: Number of active traces
+        throughput:
+          type: number
+          description: Requests per second
+
+    HealthCheck:
+      type: object
+      required:
+        - name
+        - status
+        - responseTime
+      properties:
+        name:
+          type: string
+          description: Name of the health check
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Status of the specific check
+        responseTime:
+          type: integer
+          minimum: 0
+          description: Response time for this check in milliseconds
+        message:
+          type: string
+          description: Additional details about the check
+
+    # Authentication Schemas
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: User password
+          example: "securePassword123"
+
+    LoginResponse:
+      type: object
+      required:
+        - success
+        - token
+        - user
+      properties:
+        success:
+          type: boolean
+          description: Indicates successful authentication
+        token:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: JWT refresh token for obtaining new access tokens
+        user:
+          $ref: '#/components/schemas/User'
+        expiresIn:
+          type: integer
+          description: Token expiration time in seconds
+        sessionId:
+          type: string
+          description: Session identifier
+
+    CsrfTokenResponse:
+      type: object
+      required:
+        - token
+        - expiresAt
+      properties:
+        token:
+          type: string
+          description: CSRF token for request validation
+        expiresAt:
+          type: string
+          format: date-time
+          description: Token expiration timestamp
+
+    # User and Profile Schemas
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - role
+      properties:
+        id:
+          type: string
+          description: Unique user identifier
+        email:
+          type: string
+          format: email
+          description: User email address
+        name:
+          type: string
+          description: User display name
+        role:
+          type: string
+          enum: [user, admin, security]
+          description: User role
+        avatar:
+          type: string
+          format: uri
+          description: User avatar URL
+        verified:
+          type: boolean
+          description: Email verification status
+        lastLogin:
+          type: string
+          format: date-time
+          description: Last login timestamp
+
+    LearningProfile:
+      type: object
+      required:
+        - id
+        - userId
+        - learningStyle
+        - preferences
+        - progress
+      properties:
+        id:
+          type: string
+          description: Unique profile identifier
+        userId:
+          type: string
+          description: Associated user ID
+        learningStyle:
+          type: string
+          enum: [visual, auditory, reading, kinesthetic]
+          description: Primary learning style based on VARK assessment
+        preferences:
+          $ref: '#/components/schemas/LearningPreferences'
+        progress:
+          $ref: '#/components/schemas/LearningProgress'
+        lastActivity:
+          type: string
+          format: date-time
+          description: Last learning activity timestamp
+        createdAt:
+          type: string
+          format: date-time
+          description: Profile creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last profile update timestamp
+
+    LearningPreferences:
+      type: object
+      required:
+        - difficulty
+        - pace
+        - subjects
+      properties:
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced]
+          description: Preferred difficulty level
+        pace:
+          type: string
+          enum: [slow, normal, fast]
+          description: Preferred learning pace
+        subjects:
+          type: array
+          items:
+            type: string
+          description: List of preferred subjects
+        notificationSettings:
+          type: object
+          properties:
+            reminders:
+              type: boolean
+              description: Enable learning reminders
+            achievements:
+              type: boolean
+              description: Enable achievement notifications
+            recommendations:
+              type: boolean
+              description: Enable recommendation notifications
+
+    LearningProgress:
+      type: object
+      required:
+        - completedLessons
+        - totalLessons
+        - averageScore
+      properties:
+        completedLessons:
+          type: integer
+          minimum: 0
+          description: Number of completed lessons
+        totalLessons:
+          type: integer
+          minimum: 0
+          description: Total number of available lessons
+        averageScore:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Average score across all assessments
+        streakDays:
+          type: integer
+          minimum: 0
+          description: Current learning streak in days
+        totalTimeSpent:
+          type: integer
+          minimum: 0
+          description: Total time spent learning in minutes
+        achievements:
+          type: array
+          items:
+            type: string
+          description: List of earned achievements
+
+    LearningProfileResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates successful operation
+        data:
+          $ref: '#/components/schemas/LearningProfile'
+
+    UpdateLearningProfileRequest:
+      type: object
+      required:
+        - learningStyle
+        - preferences
+      properties:
+        learningStyle:
+          type: string
+          enum: [visual, auditory, reading, kinesthetic]
+          description: Updated learning style preference
+        preferences:
+          $ref: '#/components/schemas/LearningPreferences'
+
+    # Learning Session Schemas
+    LearningSessionRequest:
+      type: object
+      required:
+        - sessionData
+      properties:
+        sessionData:
+          type: object
+          required:
+            - contentId
+            - duration
+          properties:
+            contentId:
+              type: string
+              description: ID of the learning content
+            duration:
+              type: integer
+              minimum: 1
+              description: Session duration in seconds
+            score:
+              type: number
+              minimum: 0
+              maximum: 100
+              description: Session score percentage
+            interactions:
+              type: integer
+              minimum: 0
+              description: Number of user interactions
+            completionRate:
+              type: number
+              minimum: 0
+              maximum: 100
+              description: Percentage of content completed
+
+    LearningSession:
+      type: object
+      required:
+        - id
+        - userId
+        - contentId
+        - duration
+        - completed
+        - processedAt
+      properties:
+        id:
+          type: string
+          description: Unique session identifier
+        userId:
+          type: string
+          description: Associated user ID
+        contentId:
+          type: string
+          description: ID of the learning content
+        duration:
+          type: integer
+          description: Session duration in seconds
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Session score
+        completed:
+          type: boolean
+          description: Whether the session was completed
+        processedAt:
+          type: string
+          format: date-time
+          description: Session processing timestamp
+        insights:
+          type: object
+          properties:
+            learningEfficiency:
+              type: number
+              minimum: 0
+              maximum: 100
+              description: Calculated learning efficiency percentage
+            recommendedBreak:
+              type: boolean
+              description: Whether a break is recommended
+            nextDifficulty:
+              type: string
+              enum: [beginner, intermediate, advanced]
+              description: Recommended difficulty for next session
+
+    LearningSessionResponse:
+      type: object
+      required:
+        - success
+        - data
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Indicates successful operation
+        data:
+          $ref: '#/components/schemas/LearningSession'
+        message:
+          type: string
+          description: Success message
+
+    # Analytics Schemas
+    AnalyticsDashboardResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates successful operation
+        data:
+          type: object
+          properties:
+            userMetrics:
+              $ref: '#/components/schemas/UserMetrics'
+            performanceMetrics:
+              $ref: '#/components/schemas/PerformanceMetrics'
+            learningMetrics:
+              $ref: '#/components/schemas/LearningMetrics'
+            systemMetrics:
+              $ref: '#/components/schemas/SystemMetrics'
+
+    UserMetrics:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+          description: Total number of registered users
+        activeUsers:
+          type: integer
+          description: Number of users active in the last 30 days
+        newUsers:
+          type: integer
+          description: Number of new users in the last 30 days
+        userGrowthRate:
+          type: number
+          description: User growth rate percentage
+
+    LearningMetrics:
+      type: object
+      properties:
+        totalSessions:
+          type: integer
+          description: Total number of learning sessions
+        averageSessionDuration:
+          type: number
+          description: Average session duration in minutes
+        completionRate:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Overall completion rate percentage
+        averageScore:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Average score across all assessments
+
+    SystemMetrics:
+      type: object
+      properties:
+        uptime:
+          type: number
+          description: System uptime percentage
+        errorRate:
+          type: number
+          description: Error rate percentage
+        averageResponseTime:
+          type: number
+          description: Average response time in milliseconds
+        throughput:
+          type: number
+          description: Requests per second
+
+    # Security Schemas
+    SecurityDashboardResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates successful operation
+        data:
+          type: object
+          properties:
+            threatDetection:
+              $ref: '#/components/schemas/ThreatDetectionMetrics'
+            authenticationMetrics:
+              $ref: '#/components/schemas/AuthenticationMetrics'
+            securityEvents:
+              type: array
+              items:
+                $ref: '#/components/schemas/SecurityEvent'
+            vulnerabilityStatus:
+              $ref: '#/components/schemas/VulnerabilityStatus'
+
+    ThreatDetectionMetrics:
+      type: object
+      properties:
+        threatsDetected:
+          type: integer
+          description: Number of threats detected in the last 24 hours
+        threatsBlocked:
+          type: integer
+          description: Number of threats blocked
+        riskLevel:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Current risk level
+        lastThreatDetected:
+          type: string
+          format: date-time
+          description: Timestamp of last threat detection
+
+    AuthenticationMetrics:
+      type: object
+      properties:
+        loginAttempts:
+          type: integer
+          description: Total login attempts in the last 24 hours
+        failedLogins:
+          type: integer
+          description: Failed login attempts
+        successfulLogins:
+          type: integer
+          description: Successful login attempts
+        blockedIPs:
+          type: integer
+          description: Number of blocked IP addresses
+
+    SecurityEvent:
+      type: object
+      required:
+        - id
+        - type
+        - severity
+        - timestamp
+        - description
+      properties:
+        id:
+          type: string
+          description: Unique event identifier
+        type:
+          type: string
+          enum: [authentication_failure, suspicious_activity, threat_detected, access_violation]
+          description: Type of security event
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Event severity level
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+        description:
+          type: string
+          description: Event description
+        ipAddress:
+          type: string
+          description: Source IP address
+        userAgent:
+          type: string
+          description: User agent string
+        userId:
+          type: string
+          description: Associated user ID (if applicable)
+
+    VulnerabilityStatus:
+      type: object
+      properties:
+        lastScanDate:
+          type: string
+          format: date-time
+          description: Date of last vulnerability scan
+        totalVulnerabilities:
+          type: integer
+          description: Total number of vulnerabilities found
+        criticalVulnerabilities:
+          type: integer
+          description: Number of critical vulnerabilities
+        highVulnerabilities:
+          type: integer
+          description: Number of high-severity vulnerabilities
+        mediumVulnerabilities:
+          type: integer
+          description: Number of medium-severity vulnerabilities
+        lowVulnerabilities:
+          type: integer
+          description: Number of low-severity vulnerabilities
+
+    VulnerabilityScanResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates successful scan completion
+        data:
+          type: object
+          properties:
+            scanId:
+              type: string
+              description: Unique scan identifier
+            scanDate:
+              type: string
+              format: date-time
+              description: Scan execution timestamp
+            duration:
+              type: integer
+              description: Scan duration in seconds
+            vulnerabilities:
+              type: array
+              items:
+                $ref: '#/components/schemas/Vulnerability'
+            summary:
+              $ref: '#/components/schemas/VulnerabilityStatus'
+            recommendations:
+              type: array
+              items:
+                type: string
+              description: Security recommendations
+
+    Vulnerability:
+      type: object
+      required:
+        - id
+        - title
+        - severity
+        - description
+        - category
+      properties:
+        id:
+          type: string
+          description: Unique vulnerability identifier
+        title:
+          type: string
+          description: Vulnerability title
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Vulnerability severity level
+        description:
+          type: string
+          description: Detailed vulnerability description
+        category:
+          type: string
+          description: Vulnerability category
+        cveId:
+          type: string
+          description: CVE identifier (if applicable)
+        affectedComponent:
+          type: string
+          description: Affected system component
+        remediation:
+          type: string
+          description: Recommended remediation steps
+
+    # Error Response Schema
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error type or code
+        message:
+          type: string
+          description: Human-readable error message
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+        details:
+          type: object
+          description: Additional error details
+        requestId:
+          type: string
+          description: Unique request identifier for debugging
+        statusCode:
+          type: integer
+          description: HTTP status code
+
+tags:
+  - name: Health & Monitoring
+    description: System health checks and monitoring endpoints
+  - name: Authentication
+    description: User authentication and session management
+  - name: Security
+    description: Security operations and CSRF protection
+  - name: Learning Profile
+    description: User learning profiles and preferences management
+  - name: Learning Sessions
+    description: Learning session processing and analytics
+  - name: Analytics
+    description: System and learning analytics

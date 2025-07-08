@@ -1,0 +1,419 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+  labels:
+    app: learning-assistant
+    component: storage
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp3
+  fsType: ext4
+  encrypted: "true"
+  iops: "3000"
+  throughput: "125"
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard-storage
+  labels:
+    app: learning-assistant
+    component: storage
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+  fsType: ext4
+  encrypted: "true"
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
+reclaimPolicy: Delete
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: learning-assistant
+  labels:
+    app: postgres
+    component: database-storage
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "fast-ssd"
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: learning-assistant
+  labels:
+    app: redis
+    component: cache-storage
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "fast-ssd"
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-logs-pvc
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: logs-storage
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard-storage
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-storage-pvc
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: backup-storage
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: standard-storage
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: learning-assistant
+  labels:
+    app: postgres
+    component: config
+data:
+  postgresql.conf: |
+    # Memory Configuration
+    shared_buffers = 256MB
+    effective_cache_size = 1GB
+    work_mem = 4MB
+    maintenance_work_mem = 64MB
+    
+    # Checkpoint Configuration
+    checkpoint_completion_target = 0.9
+    wal_buffers = 16MB
+    default_statistics_target = 100
+    
+    # Connection Configuration
+    max_connections = 200
+    listen_addresses = '*'
+    port = 5432
+    
+    # Security Configuration
+    ssl = on
+    ssl_cert_file = '/var/lib/postgresql/server.crt'
+    ssl_key_file = '/var/lib/postgresql/server.key'
+    ssl_ca_file = '/var/lib/postgresql/ca.crt'
+    
+    # Logging Configuration
+    log_destination = 'stderr'
+    logging_collector = on
+    log_directory = 'pg_log'
+    log_filename = 'postgresql-%Y-%m-%d_%H%M%S.log'
+    log_statement = 'all'
+    log_duration = on
+    log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+    
+    # Performance Configuration
+    random_page_cost = 1.1
+    effective_io_concurrency = 200
+    max_worker_processes = 8
+    max_parallel_workers_per_gather = 2
+    max_parallel_workers = 8
+    max_parallel_maintenance_workers = 2
+    
+    # Replication Configuration
+    wal_level = replica
+    max_wal_senders = 3
+    max_replication_slots = 3
+    hot_standby = on
+    hot_standby_feedback = on
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: learning-assistant
+  labels:
+    app: postgres
+    component: init-scripts
+data:
+  01-init-database.sql: |
+    -- Create database if not exists
+    SELECT 'CREATE DATABASE learning_assistant'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'learning_assistant')\gexec
+    
+    -- Create user if not exists
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'learning_assistant_user') THEN
+        CREATE USER learning_assistant_user WITH PASSWORD 'PLACEHOLDER_PASSWORD';
+      END IF;
+    END
+    $$;
+    
+    -- Grant privileges
+    GRANT ALL PRIVILEGES ON DATABASE learning_assistant TO learning_assistant_user;
+    ALTER USER learning_assistant_user CREATEDB;
+    
+    -- Create extensions
+    \c learning_assistant;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+    CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+    CREATE EXTENSION IF NOT EXISTS "btree_gin";
+    CREATE EXTENSION IF NOT EXISTS "btree_gist";
+  
+  02-monitoring-setup.sql: |
+    \c learning_assistant;
+    
+    -- Create monitoring user
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'postgres_exporter') THEN
+        CREATE USER postgres_exporter WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+      END IF;
+    END
+    $$;
+    
+    -- Grant monitoring privileges
+    GRANT CONNECT ON DATABASE learning_assistant TO postgres_exporter;
+    GRANT pg_monitor TO postgres_exporter;
+    ALTER USER postgres_exporter SET statement_timeout = 0;
+    ALTER USER postgres_exporter SET lock_timeout = 0;
+    ALTER USER postgres_exporter SET idle_in_transaction_session_timeout = 0;
+  
+  03-backup-setup.sql: |
+    \c learning_assistant;
+    
+    -- Create backup user
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'backup_user') THEN
+        CREATE USER backup_user WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE REPLICATION;
+      END IF;
+    END
+    $$;
+    
+    -- Set backup user password
+    ALTER USER backup_user PASSWORD 'PLACEHOLDER_BACKUP_PASSWORD';
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: learning-assistant
+  labels:
+    app: redis
+    component: config
+data:
+  redis.conf: |
+    # Network Configuration
+    bind 0.0.0.0
+    port 6379
+    protected-mode yes
+    tcp-backlog 511
+    timeout 0
+    tcp-keepalive 300
+    
+    # General Configuration
+    daemonize no
+    supervised no
+    pidfile /var/run/redis_6379.pid
+    loglevel notice
+    logfile ""
+    databases 16
+    
+    # Security Configuration
+    requirepass PLACEHOLDER_PASSWORD
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+    rename-command EVAL ""
+    rename-command DEBUG ""
+    rename-command CONFIG "CONFIG_9a3c5e8f2d1b7e6a"
+    
+    # Memory Configuration
+    maxmemory 512mb
+    maxmemory-policy allkeys-lru
+    maxmemory-samples 5
+    
+    # Persistence Configuration
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    dbfilename dump.rdb
+    dir /data
+    
+    # Append Only File Configuration
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+    no-appendfsync-on-rewrite no
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb
+    aof-load-truncated yes
+    aof-use-rdb-preamble yes
+    
+    # Slow Log Configuration
+    slowlog-log-slower-than 10000
+    slowlog-max-len 128
+    
+    # Latency Monitoring
+    latency-monitor-threshold 100
+    
+    # Event Notification
+    notify-keyspace-events Ex
+    
+    # Client Configuration
+    timeout 0
+    tcp-keepalive 300
+    maxclients 10000
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: learning-assistant
+  labels:
+    app: postgres
+    component: backup
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: postgres-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: postgres-backup
+            image: postgres:15-alpine
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              BACKUP_FILE="backup-$(date +%Y%m%d_%H%M%S).sql"
+              pg_dump -h postgres-service -U $POSTGRES_USER -d $POSTGRES_DB > /backup/$BACKUP_FILE
+              gzip /backup/$BACKUP_FILE
+              echo "Backup completed: $BACKUP_FILE.gz"
+              
+              # Cleanup old backups (keep last 7 days)
+              find /backup -name "backup-*.sql.gz" -mtime +7 -delete
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secrets
+                  key: POSTGRES_DB
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-storage-pvc
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: learning-assistant
+  labels:
+    app: redis
+    component: backup
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: redis-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: redis-backup
+            image: redis:7-alpine
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              BACKUP_FILE="redis-backup-$(date +%Y%m%d_%H%M%S).rdb"
+              redis-cli -h redis-service -a $REDIS_PASSWORD --rdb /backup/$BACKUP_FILE
+              gzip /backup/$BACKUP_FILE
+              echo "Redis backup completed: $BACKUP_FILE.gz"
+              
+              # Cleanup old backups (keep last 7 days)
+              find /backup -name "redis-backup-*.rdb.gz" -mtime +7 -delete
+            env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secrets
+                  key: REDIS_PASSWORD
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-storage-pvc

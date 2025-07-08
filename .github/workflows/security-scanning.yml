@@ -1,0 +1,915 @@
+# =============================================================================
+# SECURITY SCANNING CI/CD PIPELINE
+# Comprehensive security scanning and compliance validation
+# =============================================================================
+
+name: Security Scanning and Compliance
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*', 'hotfix/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily security scan at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of security scan to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - infrastructure
+          - code
+          - dependencies
+          - containers
+          - compliance
+      severity_threshold:
+        description: 'Minimum severity level to report'
+        required: false
+        default: 'HIGH'
+        type: choice
+        options:
+          - LOW
+          - MEDIUM
+          - HIGH
+          - CRITICAL
+
+env:
+  # Security scanning configuration
+  CHECKOV_VERSION: "latest"
+  TFSEC_VERSION: "latest"
+  TERRASCAN_VERSION: "latest"
+  SEMGREP_VERSION: "latest"
+  TRIVY_VERSION: "latest"
+  SNYK_VERSION: "latest"
+  SONARQUBE_VERSION: "latest"
+  
+  # Compliance frameworks
+  COMPLIANCE_STANDARDS: "SOC2,GDPR,HIPAA,PCI-DSS,ISO27001"
+  
+  # Security thresholds
+  SECURITY_THRESHOLD: ${{ github.event.inputs.severity_threshold || 'HIGH' }}
+  FAIL_ON_SEVERITY: "HIGH"
+  
+  # Output configuration
+  RESULTS_PATH: "./security-results"
+  SARIF_PATH: "./sarif-results"
+  REPORTS_PATH: "./security-reports"
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  # =============================================================================
+  # SETUP AND PREPARATION
+  # =============================================================================
+  setup:
+    name: Setup Security Scanning
+    runs-on: ubuntu-latest
+    outputs:
+      scan_matrix: ${{ steps.scan_config.outputs.scan_matrix }}
+      should_scan: ${{ steps.scan_config.outputs.should_scan }}
+      cache_key: ${{ steps.cache_config.outputs.cache_key }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+      
+      - name: Configure scan matrix
+        id: scan_config
+        run: |
+          SCAN_TYPE="${{ github.event.inputs.scan_type || 'all' }}"
+          
+          if [[ "$SCAN_TYPE" == "all" ]]; then
+            MATRIX='["infrastructure", "code", "dependencies", "containers", "compliance"]'
+          else
+            MATRIX='["'$SCAN_TYPE'"]'
+          fi
+          
+          echo "scan_matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "should_scan=true" >> $GITHUB_OUTPUT
+          
+          echo "Scan configuration:"
+          echo "- Scan type: $SCAN_TYPE"
+          echo "- Scan matrix: $MATRIX"
+          echo "- Severity threshold: $SECURITY_THRESHOLD"
+      
+      - name: Configure cache
+        id: cache_config
+        run: |
+          CACHE_KEY="security-tools-${{ runner.os }}-$(date +'%Y-%m-%d')"
+          echo "cache_key=$CACHE_KEY" >> $GITHUB_OUTPUT
+      
+      - name: Create result directories
+        run: |
+          mkdir -p $RESULTS_PATH $SARIF_PATH $REPORTS_PATH
+          echo "Created result directories"
+
+  # =============================================================================
+  # INFRASTRUCTURE SECURITY SCANNING
+  # =============================================================================
+  infrastructure-security:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    needs: setup
+    if: contains(fromJson(needs.setup.outputs.scan_matrix), 'infrastructure')
+    
+    strategy:
+      matrix:
+        scanner: [checkov, tfsec, terrascan, kics]
+        include:
+          - scanner: checkov
+            config_file: .checkov.yml
+            output_format: sarif
+          - scanner: tfsec
+            config_file: .tfsec.yml
+            output_format: sarif
+          - scanner: terrascan
+            config_file: .terrascan.yml
+            output_format: sarif
+          - scanner: kics
+            config_file: .kics.yml
+            output_format: sarif
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Cache security tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/checkov
+            ~/.cache/tfsec
+            ~/.cache/terrascan
+            ~/.cache/kics
+          key: ${{ needs.setup.outputs.cache_key }}-infrastructure
+      
+      - name: Setup Python
+        if: matrix.scanner == 'checkov'
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install Checkov
+        if: matrix.scanner == 'checkov'
+        run: |
+          pip install checkov==$CHECKOV_VERSION
+          checkov --version
+      
+      - name: Install tfsec
+        if: matrix.scanner == 'tfsec'
+        run: |
+          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+          sudo mv tfsec /usr/local/bin/
+          tfsec --version
+      
+      - name: Install Terrascan
+        if: matrix.scanner == 'terrascan'
+        run: |
+          curl -L "$(curl -s https://api.github.com/repos/tenable/terrascan/releases/latest | grep -o -E "https://.+?_Linux_x86_64.tar.gz")" > terrascan.tar.gz
+          tar -xf terrascan.tar.gz terrascan && rm terrascan.tar.gz
+          sudo mv terrascan /usr/local/bin/
+          terrascan version
+      
+      - name: Install KICS
+        if: matrix.scanner == 'kics'
+        run: |
+          curl -sfL 'https://raw.githubusercontent.com/Checkmarx/kics/master/install.sh' | bash
+          sudo mv bin/kics /usr/local/bin/
+          kics version
+      
+      - name: Run Checkov scan
+        if: matrix.scanner == 'checkov'
+        continue-on-error: true
+        run: |
+          checkov \
+            --framework terraform \
+            --framework cloudformation \
+            --framework kubernetes \
+            --framework dockerfile \
+            --directory . \
+            --output sarif \
+            --output cli \
+            --output json \
+            --sarif-file $SARIF_PATH/checkov.sarif \
+            --output-file $RESULTS_PATH/checkov.json \
+            --soft-fail \
+            --config-file ${{ matrix.config_file }} || true
+      
+      - name: Run tfsec scan
+        if: matrix.scanner == 'tfsec'
+        continue-on-error: true
+        run: |
+          tfsec . \
+            --format sarif \
+            --format json \
+            --out $SARIF_PATH/tfsec.sarif \
+            --out $RESULTS_PATH/tfsec.json \
+            --config-file ${{ matrix.config_file }} \
+            --soft-fail || true
+      
+      - name: Run Terrascan scan
+        if: matrix.scanner == 'terrascan'
+        continue-on-error: true
+        run: |
+          terrascan scan \
+            --iac-type terraform \
+            --iac-dir . \
+            --output sarif \
+            --output json \
+            --output-file $SARIF_PATH/terrascan.sarif \
+            --config-path ${{ matrix.config_file }} || true
+      
+      - name: Run KICS scan
+        if: matrix.scanner == 'kics'
+        continue-on-error: true
+        run: |
+          kics scan \
+            --path . \
+            --output-path $RESULTS_PATH \
+            --output-name kics \
+            --format sarif \
+            --format json \
+            --config ${{ matrix.config_file }} || true
+      
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ${{ env.SARIF_PATH }}/${{ matrix.scanner }}.sarif
+          category: infrastructure-${{ matrix.scanner }}
+      
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infrastructure-${{ matrix.scanner }}-results
+          path: |
+            ${{ env.RESULTS_PATH }}/${{ matrix.scanner }}.*
+            ${{ env.SARIF_PATH }}/${{ matrix.scanner }}.sarif
+          retention-days: 30
+
+  # =============================================================================
+  # CODE SECURITY SCANNING
+  # =============================================================================
+  code-security:
+    name: Code Security Scan
+    runs-on: ubuntu-latest
+    needs: setup
+    if: contains(fromJson(needs.setup.outputs.scan_matrix), 'code')
+    
+    strategy:
+      matrix:
+        scanner: [semgrep, codeql, sonarqube]
+        include:
+          - scanner: semgrep
+            config: "auto"
+          - scanner: codeql
+            language: javascript
+          - scanner: sonarqube
+            project_key: learning-assistant
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run Semgrep scan
+        if: matrix.scanner == 'semgrep'
+        continue-on-error: true
+        run: |
+          pip install semgrep
+          semgrep \
+            --config=${{ matrix.config }} \
+            --sarif \
+            --output=$SARIF_PATH/semgrep.sarif \
+            --json \
+            --output=$RESULTS_PATH/semgrep.json \
+            --severity=$SECURITY_THRESHOLD \
+            . || true
+      
+      - name: Initialize CodeQL
+        if: matrix.scanner == 'codeql'
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+      
+      - name: Autobuild for CodeQL
+        if: matrix.scanner == 'codeql'
+        uses: github/codeql-action/autobuild@v3
+      
+      - name: Perform CodeQL Analysis
+        if: matrix.scanner == 'codeql'
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: code-${{ matrix.language }}
+      
+      - name: Setup SonarQube Scanner
+        if: matrix.scanner == 'sonarqube'
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      
+      - name: Run SonarQube scan
+        if: matrix.scanner == 'sonarqube'
+        continue-on-error: true
+        run: |
+          sonar-scanner \
+            -Dsonar.projectKey=${{ matrix.project_key }} \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.qualitygate.wait=true || true
+      
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && matrix.scanner != 'codeql'
+        with:
+          sarif_file: ${{ env.SARIF_PATH }}/${{ matrix.scanner }}.sarif
+          category: code-${{ matrix.scanner }}
+      
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-${{ matrix.scanner }}-results
+          path: |
+            ${{ env.RESULTS_PATH }}/${{ matrix.scanner }}.*
+            ${{ env.SARIF_PATH }}/${{ matrix.scanner }}.sarif
+          retention-days: 30
+
+  # =============================================================================
+  # DEPENDENCY SECURITY SCANNING
+  # =============================================================================
+  dependency-security:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    needs: setup
+    if: contains(fromJson(needs.setup.outputs.scan_matrix), 'dependencies')
+    
+    strategy:
+      matrix:
+        scanner: [npm-audit, snyk, trivy, osv-scanner]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run npm audit
+        if: matrix.scanner == 'npm-audit'
+        continue-on-error: true
+        run: |
+          npm audit --audit-level=${{ env.SECURITY_THRESHOLD }} --json > $RESULTS_PATH/npm-audit.json || true
+          npm audit --audit-level=${{ env.SECURITY_THRESHOLD }} || true
+      
+      - name: Setup Snyk
+        if: matrix.scanner == 'snyk'
+        uses: snyk/actions/setup@master
+      
+      - name: Run Snyk scan
+        if: matrix.scanner == 'snyk'
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk test \
+            --severity-threshold=${{ env.SECURITY_THRESHOLD }} \
+            --json > $RESULTS_PATH/snyk.json || true
+          snyk test \
+            --severity-threshold=${{ env.SECURITY_THRESHOLD }} \
+            --sarif > $SARIF_PATH/snyk.sarif || true
+      
+      - name: Install Trivy
+        if: matrix.scanner == 'trivy'
+        run: |
+          sudo apt-get update
+          sudo apt-get install wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy
+      
+      - name: Run Trivy scan
+        if: matrix.scanner == 'trivy'
+        continue-on-error: true
+        run: |
+          trivy fs \
+            --format sarif \
+            --output $SARIF_PATH/trivy.sarif \
+            --severity ${{ env.SECURITY_THRESHOLD }},CRITICAL \
+            . || true
+          trivy fs \
+            --format json \
+            --output $RESULTS_PATH/trivy.json \
+            --severity ${{ env.SECURITY_THRESHOLD }},CRITICAL \
+            . || true
+      
+      - name: Install OSV-Scanner
+        if: matrix.scanner == 'osv-scanner'
+        run: |
+          curl -L https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o osv-scanner
+          chmod +x osv-scanner
+          sudo mv osv-scanner /usr/local/bin/
+      
+      - name: Run OSV-Scanner
+        if: matrix.scanner == 'osv-scanner'
+        continue-on-error: true
+        run: |
+          osv-scanner \
+            --format sarif \
+            --output $SARIF_PATH/osv-scanner.sarif \
+            . || true
+          osv-scanner \
+            --format json \
+            --output $RESULTS_PATH/osv-scanner.json \
+            . || true
+      
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && matrix.scanner != 'npm-audit'
+        with:
+          sarif_file: ${{ env.SARIF_PATH }}/${{ matrix.scanner }}.sarif
+          category: dependency-${{ matrix.scanner }}
+      
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-${{ matrix.scanner }}-results
+          path: |
+            ${{ env.RESULTS_PATH }}/${{ matrix.scanner }}.*
+            ${{ env.SARIF_PATH }}/${{ matrix.scanner }}.sarif
+          retention-days: 30
+
+  # =============================================================================
+  # CONTAINER SECURITY SCANNING
+  # =============================================================================
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: setup
+    if: contains(fromJson(needs.setup.outputs.scan_matrix), 'containers')
+    
+    strategy:
+      matrix:
+        target: [dockerfile, image]
+        scanner: [trivy, hadolint, dockle]
+        exclude:
+          - target: image
+            scanner: hadolint
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Docker tools
+        run: |
+          # Install Trivy
+          sudo apt-get update
+          sudo apt-get install wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy
+          
+          # Install Hadolint
+          wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          chmod +x hadolint
+          sudo mv hadolint /usr/local/bin/
+          
+          # Install Dockle
+          curl -L https://github.com/goodwithtech/dockle/releases/latest/download/dockle_Linux-64bit.tar.gz | tar xz
+          sudo mv dockle /usr/local/bin/
+      
+      - name: Build Docker image
+        if: matrix.target == 'image'
+        run: |
+          docker build -t learning-assistant:security-scan .
+      
+      - name: Run Trivy Dockerfile scan
+        if: matrix.scanner == 'trivy' && matrix.target == 'dockerfile'
+        continue-on-error: true
+        run: |
+          trivy config \
+            --format sarif \
+            --output $SARIF_PATH/trivy-dockerfile.sarif \
+            --severity ${{ env.SECURITY_THRESHOLD }},CRITICAL \
+            Dockerfile || true
+      
+      - name: Run Trivy image scan
+        if: matrix.scanner == 'trivy' && matrix.target == 'image'
+        continue-on-error: true
+        run: |
+          trivy image \
+            --format sarif \
+            --output $SARIF_PATH/trivy-image.sarif \
+            --severity ${{ env.SECURITY_THRESHOLD }},CRITICAL \
+            learning-assistant:security-scan || true
+      
+      - name: Run Hadolint scan
+        if: matrix.scanner == 'hadolint'
+        continue-on-error: true
+        run: |
+          hadolint \
+            --format sarif \
+            Dockerfile > $SARIF_PATH/hadolint.sarif || true
+          hadolint \
+            --format json \
+            Dockerfile > $RESULTS_PATH/hadolint.json || true
+      
+      - name: Run Dockle scan
+        if: matrix.scanner == 'dockle' && matrix.target == 'image'
+        continue-on-error: true
+        run: |
+          dockle \
+            --format sarif \
+            --output $SARIF_PATH/dockle.sarif \
+            learning-assistant:security-scan || true
+          dockle \
+            --format json \
+            --output $RESULTS_PATH/dockle.json \
+            learning-assistant:security-scan || true
+      
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ${{ env.SARIF_PATH }}/${{ matrix.scanner }}.sarif
+          category: container-${{ matrix.scanner }}-${{ matrix.target }}
+      
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: container-${{ matrix.scanner }}-${{ matrix.target }}-results
+          path: |
+            ${{ env.RESULTS_PATH }}/${{ matrix.scanner }}.*
+            ${{ env.SARIF_PATH }}/${{ matrix.scanner }}.sarif
+          retention-days: 30
+
+  # =============================================================================
+  # COMPLIANCE VALIDATION
+  # =============================================================================
+  compliance-validation:
+    name: Compliance Validation
+    runs-on: ubuntu-latest
+    needs: setup
+    if: contains(fromJson(needs.setup.outputs.scan_matrix), 'compliance')
+    
+    strategy:
+      matrix:
+        standard: [SOC2, GDPR, HIPAA, PCI-DSS, ISO27001]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install compliance tools
+        run: |
+          pip install checkov boto3 compliance-checker
+      
+      - name: Run SOC2 compliance check
+        if: matrix.standard == 'SOC2'
+        continue-on-error: true
+        run: |
+          checkov \
+            --framework terraform \
+            --check CKV_AWS_* \
+            --directory . \
+            --output json \
+            --output-file $RESULTS_PATH/soc2-compliance.json \
+            --soft-fail || true
+      
+      - name: Run GDPR compliance check
+        if: matrix.standard == 'GDPR'
+        continue-on-error: true
+        run: |
+          # Custom GDPR compliance validation script
+          python scripts/security/gdpr-compliance-check.py \
+            --output $RESULTS_PATH/gdpr-compliance.json || true
+      
+      - name: Run HIPAA compliance check
+        if: matrix.standard == 'HIPAA'
+        continue-on-error: true
+        run: |
+          checkov \
+            --framework terraform \
+            --check CKV_AWS_* \
+            --directory . \
+            --output json \
+            --output-file $RESULTS_PATH/hipaa-compliance.json \
+            --soft-fail || true
+      
+      - name: Run PCI-DSS compliance check
+        if: matrix.standard == 'PCI-DSS'
+        continue-on-error: true
+        run: |
+          python scripts/security/pci-dss-compliance-check.py \
+            --output $RESULTS_PATH/pci-dss-compliance.json || true
+      
+      - name: Run ISO27001 compliance check
+        if: matrix.standard == 'ISO27001'
+        continue-on-error: true
+        run: |
+          python scripts/security/iso27001-compliance-check.py \
+            --output $RESULTS_PATH/iso27001-compliance.json || true
+      
+      - name: Generate compliance report
+        run: |
+          python scripts/security/generate-compliance-report.py \
+            --standard ${{ matrix.standard }} \
+            --input $RESULTS_PATH/${{ matrix.standard }}-compliance.json \
+            --output $REPORTS_PATH/${{ matrix.standard }}-report.html || true
+      
+      - name: Upload compliance results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-${{ matrix.standard }}-results
+          path: |
+            ${{ env.RESULTS_PATH }}/*${{ matrix.standard }}*
+            ${{ env.REPORTS_PATH }}/*${{ matrix.standard }}*
+          retention-days: 90
+
+  # =============================================================================
+  # SECURITY REPORT GENERATION
+  # =============================================================================
+  generate-security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [infrastructure-security, code-security, dependency-security, container-security, compliance-validation]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download all scan results
+        uses: actions/download-artifact@v4
+        with:
+          path: ./all-results/
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install report dependencies
+        run: |
+          pip install jinja2 matplotlib pandas plotly kaleido
+      
+      - name: Generate consolidated security report
+        run: |
+          python scripts/security/generate-security-report.py \
+            --results-dir ./all-results/ \
+            --output-dir $REPORTS_PATH \
+            --format html \
+            --format pdf \
+            --include-charts \
+            --compliance-standards "$COMPLIANCE_STANDARDS" \
+            --severity-threshold "$SECURITY_THRESHOLD"
+      
+      - name: Generate executive summary
+        run: |
+          python scripts/security/generate-executive-summary.py \
+            --results-dir ./all-results/ \
+            --output $REPORTS_PATH/executive-summary.html \
+            --github-context '${{ toJson(github) }}'
+      
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: ${{ env.REPORTS_PATH }}/
+          retention-days: 90
+      
+      - name: Comment on PR with security summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = './security-reports/pr-summary.md';
+            
+            if (fs.existsSync(path)) {
+              const summary = fs.readFileSync(path, 'utf8');
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: summary
+              });
+            }
+
+  # =============================================================================
+  # SECURITY GATE
+  # =============================================================================
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    needs: [infrastructure-security, code-security, dependency-security, container-security, compliance-validation]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download all scan results
+        uses: actions/download-artifact@v4
+        with:
+          path: ./all-results/
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Evaluate security gate
+        id: security_gate
+        run: |
+          python scripts/security/security-gate.py \
+            --results-dir ./all-results/ \
+            --fail-on-severity "$FAIL_ON_SEVERITY" \
+            --compliance-required \
+            --output-json gate-results.json
+          
+          # Read the gate results
+          GATE_PASSED=$(python -c "import json; print(json.load(open('gate-results.json'))['passed'])")
+          echo "gate_passed=$GATE_PASSED" >> $GITHUB_OUTPUT
+          
+          if [[ "$GATE_PASSED" == "False" ]]; then
+            echo "❌ Security gate failed"
+            exit 1
+          else
+            echo "✅ Security gate passed"
+          fi
+      
+      - name: Update commit status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const gatePassed = '${{ steps.security_gate.outputs.gate_passed }}';
+            const state = gatePassed === 'True' ? 'success' : 'failure';
+            const description = gatePassed === 'True' ? 
+              'Security gate passed - no critical vulnerabilities found' : 
+              'Security gate failed - critical vulnerabilities detected';
+            
+            github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: state,
+              target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: description,
+              context: 'security/gate'
+            });
+
+  # =============================================================================
+  # NOTIFICATION AND ALERTING
+  # =============================================================================
+  notify-security-team:
+    name: Notify Security Team
+    runs-on: ubuntu-latest
+    needs: [generate-security-report, security-gate]
+    if: always() && (needs.security-gate.outputs.gate_passed == 'False' || github.event_name == 'schedule')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download security reports
+        uses: actions/download-artifact@v4
+        with:
+          name: security-reports
+          path: ./security-reports/
+      
+      - name: Send Slack notification
+        if: vars.SLACK_WEBHOOK_URL
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          custom_payload: |
+            {
+              "text": "Security Scan Results for ${{ github.repository }}",
+              "attachments": [
+                {
+                  "color": "${{ needs.security-gate.outputs.gate_passed == 'True' && 'good' || 'danger' }}",
+                  "fields": [
+                    {
+                      "title": "Repository",
+                      "value": "${{ github.repository }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Branch",
+                      "value": "${{ github.ref_name }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Security Gate",
+                      "value": "${{ needs.security-gate.outputs.gate_passed == 'True' && '✅ Passed' || '❌ Failed' }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Action",
+                      "value": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Results>",
+                      "short": true
+                    }
+                  ]
+                }
+              ]
+            }
+      
+      - name: Send email notification
+        if: vars.SECURITY_EMAIL
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Security Scan Results - ${{ github.repository }}"
+          to: ${{ vars.SECURITY_EMAIL }}
+          from: "Security Scanner <noreply@${{ github.repository_owner }}.com>"
+          html_body: file://security-reports/executive-summary.html
+          attachments: security-reports/security-report.pdf
+
+# =============================================================================
+# CLEANUP
+# =============================================================================
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [generate-security-report, security-gate, notify-security-team]
+    if: always()
+    
+    steps:
+      - name: Clean up old artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+            
+            // Keep only the latest security reports
+            const oldArtifacts = artifacts.data.artifacts.filter(artifact => 
+              artifact.name.includes('security') && 
+              new Date() - new Date(artifact.created_at) > 7 * 24 * 60 * 60 * 1000
+            );
+            
+            for (const artifact of oldArtifacts) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id
+              });
+            }
+      
+      - name: Update security dashboard
+        run: |
+          echo "Security scan completed at $(date)"
+          echo "Results uploaded to GitHub Security tab"
+          echo "Reports available in workflow artifacts"

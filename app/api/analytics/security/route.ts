@@ -284,6 +284,13 @@ export async function POST(request: NextRequest) {
       details: details || {},
     });
     
+    if (!event) {
+      return NextResponse.json(
+        { error: 'Failed to track security event' },
+        { status: 500 }
+      );
+    }
+    
     apm.endTrace(traceId, { 
       eventType: type, 
       severity, 

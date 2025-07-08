@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const metrics = url.searchParams.get('metrics')?.split(',') || [];
     
     // Get monitoring state
-    const monitoringState = monitoring.getState();
+    const monitoringState = monitoring.getHealth();
     const performanceMetrics = apm.getMetrics();
     
     // Mock data for different time ranges (in production, this would come from your database)
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
           p95: 580,
           p99: 1200,
         },
-        errorRate: monitoringState.errorCount,
+        errorRate: monitoringState.metrics?.errorCount || 0,
         throughput: 450, // requests per minute
         availability: 99.9,
       },
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       
       // Security Metrics
       securityMetrics: {
-        securityEvents: monitoringState.securityEvents,
+        securityEvents: monitoringState.metrics?.securityEvents || [],
         failedLogins: 8,
         suspiciousActivity: 2,
         blockedRequests: 45,
@@ -91,8 +91,8 @@ export async function GET(request: NextRequest) {
       
       // Error Tracking
       errorMetrics: {
-        totalErrors: monitoringState.errorCount,
-        errorRate: (monitoringState.errorCount / (performanceMetrics.requests || 1)) * 100,
+        totalErrors: monitoringState.metrics?.errorCount || 0,
+        errorRate: ((monitoringState.metrics?.errorCount || 0) / (performanceMetrics.requests || 1)) * 100,
         criticalErrors: 2,
         warnings: 12,
         resolved: 89,

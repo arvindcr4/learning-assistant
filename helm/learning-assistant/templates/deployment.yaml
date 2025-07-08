@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "learning-assistant.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning-assistant.labels" . | nindent 4 }}
+    component: backend
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    kubernetes.io/change-cause: "Helm deployment"
+    {{- with .Values.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.app.replicas }}
+  {{- include "learning-assistant.strategy" . | nindent 2 }}
+  selector:
+    matchLabels:
+      {{- include "learning-assistant.selectorLabels" . | nindent 6 }}
+      version: v1
+  template:
+    metadata:
+      labels:
+        {{- include "learning-assistant.podLabels" . | nindent 8 }}
+      annotations:
+        {{- include "learning-assistant.podAnnotations" . | nindent 8 }}
+        {{- include "learning-assistant.monitoringAnnotations" . | nindent 8 }}
+    spec:
+      {{- include "learning-assistant.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "learning-assistant.serviceAccountName" . }}
+      securityContext:
+        {{- include "learning-assistant.securityContext" . | nindent 8 }}
+      {{- if .Values.initContainers.migration.enabled }}
+      initContainers:
+      - name: migration
+        image: "{{ .Values.initContainers.migration.image.repository }}:{{ .Values.initContainers.migration.image.tag | default .Values.app.image.tag }}"
+        imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+        command:
+          {{- toYaml .Values.initContainers.migration.command | nindent 10 }}
+        env:
+          {{- include "learning-assistant.env" . | nindent 10 }}
+        securityContext:
+          {{- include "learning-assistant.containerSecurityContext" . | nindent 10 }}
+        volumeMounts:
+          {{- include "learning-assistant.volumeMounts" . | nindent 10 }}
+      {{- end }}
+      containers:
+      - name: {{ include "learning-assistant.name" . }}
+        image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        env:
+          {{- include "learning-assistant.env" . | nindent 10 }}
+        {{- include "learning-assistant.resources" . | nindent 8 }}
+        {{- include "learning-assistant.livenessProbe" . | nindent 8 }}
+        {{- include "learning-assistant.readinessProbe" . | nindent 8 }}
+        {{- include "learning-assistant.startupProbe" . | nindent 8 }}
+        volumeMounts:
+          {{- include "learning-assistant.volumeMounts" . | nindent 10 }}
+        securityContext:
+          {{- include "learning-assistant.containerSecurityContext" . | nindent 10 }}
+      {{- if .Values.nginx.enabled }}
+      - name: nginx-sidecar
+        image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+        imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+        ports:
+        - containerPort: 80
+          name: nginx
+          protocol: TCP
+        {{- include "learning-assistant.nginxResources" . | nindent 8 }}
+        volumeMounts:
+          {{- include "learning-assistant.nginxVolumeMounts" . | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+          runAsNonRoot: true
+          runAsUser: 101
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      {{- end }}
+      volumes:
+        {{- include "learning-assistant.volumes" . | nindent 8 }}
+      {{- include "learning-assistant.affinity" . | nindent 6 }}
+      {{- include "learning-assistant.tolerations" . | nindent 6 }}
+      {{- include "learning-assistant.nodeSelector" . | nindent 6 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      dnsPolicy: {{ .Values.dnsPolicy }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      restartPolicy: Always

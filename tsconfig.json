@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "types": ["jest", "@testing-library/jest-dom", "jest-axe"],
     "allowJs": true,
@@ -15,6 +15,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
+    "downlevelIteration": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -22,11 +23,13 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "tsBuildInfoFile": ".next/cache/tsconfig.tsbuildinfo",
     "plugins": [
       {
         "name": "next"
       }
     ],
+    "assumeChangesOnlyAffectDirectDependencies": true,
     "paths": {
       "@/*": ["./src/*"],
       "@/components/*": ["./src/components/*"],
@@ -41,9 +44,37 @@
       "@/middleware/*": ["./src/middleware/*"]
     },
     "baseUrl": ".",
-    "exactOptionalPropertyTypes": false,
-    "forceConsistentCasingInFileNames": true
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitThis": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "useUnknownInCatchVariables": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    "checkJs": false,
+    "declaration": false,
+    "declarationMap": false,
+    "emitDecoratorMetadata": false,
+    "experimentalDecorators": false,
+    "importsNotUsedAsValues": "remove",
+    "noEmitHelpers": false,
+    "noEmitOnError": false,
+    "outDir": "./dist",
+    "removeComments": false,
+    "sourceMap": false,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "preserveWatchOutput": true,
+    "pretty": true
   },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  },
+  "compileOnSave": false,
   "include": ["next-env.d.ts", "jest.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "__tests__/**", "app/demo/**", "**/*.test.ts", "**/*.test.tsx"]
+  "exclude": ["node_modules", "__tests__/**", "app/demo/**", "**/*.test.ts", "**/*.test.tsx", "dist/**", ".next/**", "out/**", "build/**", "coverage/**", "playwright-report/**", "test-results/**"]
 }

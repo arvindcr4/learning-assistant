@@ -1,4 +1,9 @@
-const { withSentryConfig } = require('@sentry/nextjs');
+// Required imports
+const path = require('path');
+
+// Temporarily disable Sentry for development builds
+const sentryAvailable = false; // Disabled until properly configured
+let withSentryConfig = null;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -9,13 +14,19 @@ const nextConfig = {
   experimental: {
     // Enable Next.js 15+ app router optimizations
     optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react', 'framer-motion'],
-    // Enable advanced optimizations
+    // Enable stable experimental features only
     optimizeCss: true,
-    optimizeServerReact: true,
     webpackBuildWorker: true,
-    // Enable partial pre-rendering for better performance
-    ppr: true,
+    // Enhanced performance optimizations
+    optimizeServerReact: true,
+    // Enable parallel build processing
+    parallelServerBuildTraces: true,
+    // Memory optimization
+    memoryBasedWorkersCount: true,
   },
+  
+  // Server external packages (moved from experimental)
+  serverExternalPackages: ['@opentelemetry/sdk-node'],
   
   // Turbopack configuration (stable in Next.js 15)
   turbopack: {
@@ -31,6 +42,10 @@ const nextConfig = {
   compiler: {
     // Remove console logs in production
     removeConsole: process.env.NODE_ENV === 'production',
+    // Enable SWC minification for better performance
+    styledComponents: true,
+    // Enable React compiler optimizations
+    reactRemoveProperties: process.env.NODE_ENV === 'production',
   },
   
   // Advanced image optimization
@@ -136,6 +151,17 @@ const nextConfig = {
         destination: '/auth/login',
         permanent: true,
       },
+      // Prevent any locale-based redirects that might still exist
+      {
+        source: '/en',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/en/:path*',
+        destination: '/:path*',
+        permanent: true,
+      },
     ];
   },
   
@@ -146,6 +172,67 @@ const nextConfig = {
       test: /\.svg$/,
       use: ['@svgr/webpack'],
     });
+    
+    // Suppress OpenTelemetry instrumentation warnings
+    config.ignoreWarnings = [
+      // Ignore critical dependency warnings from OpenTelemetry instrumentation
+      {
+        module: /@opentelemetry\/instrumentation/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+      // Ignore warnings from Sentry's OpenTelemetry integrations
+      {
+        module: /@sentry\/.*\/node_modules\/@opentelemetry\/instrumentation/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+      // Ignore warnings from Prisma instrumentation
+      {
+        module: /@prisma\/instrumentation/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+      // General OpenTelemetry warnings filter
+      (warning) => {
+        return (
+          warning.message && 
+          warning.message.includes('Critical dependency: the request of a dependency is an expression') &&
+          warning.module &&
+          typeof warning.module === 'string' &&
+          (warning.module.includes('@opentelemetry/instrumentation') || 
+           warning.module.includes('@sentry/') ||
+           warning.module.includes('@prisma/instrumentation'))
+        );
+      },
+    ];
+    
+    // Exclude OpenTelemetry packages from client bundle
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        util: false,
+        url: false,
+        zlib: false,
+        http: false,
+        https: false,
+        assert: false,
+        os: false,
+        path: false,
+      };
+
+      config.externals = config.externals || [];
+      config.externals.push({
+        '@opentelemetry/sdk-node': 'commonjs @opentelemetry/sdk-node',
+        '@opentelemetry/sdk-trace-node': 'commonjs @opentelemetry/sdk-trace-node',
+        '@opentelemetry/exporter-otlp-http': 'commonjs @opentelemetry/exporter-otlp-http',
+        '@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation',
+        '@opentelemetry/resources': 'commonjs @opentelemetry/resources',
+        '@opentelemetry/semantic-conventions': 'commonjs @opentelemetry/semantic-conventions',
+      });
+    }
     
     // Optimize bundle size with advanced code splitting
     if (!dev && !isServer) {
@@ -212,7 +299,56 @@ const nextConfig = {
       // Tree shaking optimizations
       config.optimization.usedExports = true;
       config.optimization.sideEffects = false;
+      
+      // Advanced optimization flags
+      config.optimization.innerGraph = true;
+      config.optimization.providedExports = true;
+      config.optimization.mangleExports = true;
+      
+      // Enable persistent caching
+      config.cache = {
+        type: 'filesystem',
+        buildDependencies: {
+          config: [__filename],
+        },
+        cacheDirectory: path.join(process.cwd(), '.next/cache/webpack'),
+      };
+    } else {
+      // Development optimizations
+      config.cache = {
+        type: 'memory',
+        maxGenerations: 2,
+      };
+      
+      // Faster development builds
+      config.optimization.moduleIds = 'named';
+      config.optimization.chunkIds = 'named';
+      
+      // Reduce bundle size in development
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        // Use development versions of heavy libraries
+        'react-dom$': 'react-dom/profiling',
+        'scheduler/tracing': 'scheduler/tracing-profiling',
+      };
     }
+    
+    // Memory optimization
+    config.snapshot = {
+      managedPaths: [path.join(process.cwd(), 'node_modules')],
+      immutablePaths: [],
+      buildDependencies: {
+        hash: true,
+        timestamp: true,
+      },
+    };
+    
+    // Resolve optimization
+    config.resolve.cacheWithContext = false;
+    config.resolve.unsafeCache = /node_modules/;
+    
+    // Module optimization
+    config.module.unsafeCache = true;
     
     return config;
   },
@@ -230,9 +366,6 @@ const nextConfig = {
   
   // Compression enabled
   compress: true,
-  
-  // Enable SWC minification for better performance
-  swcMinify: true,
   
   // Enable modularize imports for better tree shaking
   modularizeImports: {
@@ -270,15 +403,25 @@ const sentryWebpackPluginOptions = {
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
   
+  // Disable source maps if not properly configured
+  disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+  disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+  
+  // Disable sourcemaps generation and upload if Sentry is not configured
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
+  },
+  
   // Source maps
-  widenClientFileUpload: true,
+  widenClientFileUpload: !!process.env.SENTRY_AUTH_TOKEN,
   transpileClientSDK: true,
   tunnelRoute: '/monitoring',
   hideSourceMaps: true,
   disableLogger: process.env.NODE_ENV === 'production',
   
   // Release tracking
-  automaticVercelMonitors: true,
+  automaticVercelMonitors: !!process.env.VERCEL,
 };
 
 // Bundle analyzer for production builds
@@ -286,7 +429,18 @@ if (process.env.ANALYZE === 'true') {
   const withBundleAnalyzer = require('@next/bundle-analyzer')({
     enabled: process.env.ANALYZE === 'true',
   });
-  module.exports = withSentryConfig(withBundleAnalyzer(nextConfig), sentryWebpackPluginOptions);
+  
+  // Only add Sentry if properly configured
+  if (sentryAvailable && withSentryConfig) {
+    module.exports = withSentryConfig(withBundleAnalyzer(nextConfig), sentryWebpackPluginOptions);
+  } else {
+    module.exports = withBundleAnalyzer(nextConfig);
+  }
 } else {
-  module.exports = withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+  // Only add Sentry if properly configured
+  if (sentryAvailable && withSentryConfig) {
+    module.exports = withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+  } else {
+    module.exports = nextConfig;
+  }
 }

@@ -4,12 +4,7 @@ import React, { createContext, useContext, useReducer, useCallback, useEffect, R
 
 import type { NotificationState, NotificationAction, Notification as AppNotification, Alert, NotificationSettings } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { 
-  sendWelcomeEmail, 
-  sendProgressUpdateEmail, 
-  sendStudyReminderEmail, 
-  sendSystemAlertEmail 
-} from '@/lib/email';
+// Email functions are imported lazily to prevent build-time validation
 
 // Initial state
 const initialState: NotificationState = {
@@ -292,6 +287,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!state.settings.email) return;
 
     try {
+      // Lazy import to prevent build-time validation
+      const { sendWelcomeEmail } = await import('@/lib/email');
       const result = await sendWelcomeEmail(userEmail, userName, activationLink);
       if (result.success) {
         addNotification({
@@ -330,6 +327,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!state.settings.email || !state.settings.progressUpdates) return;
 
     try {
+      // Lazy import to prevent build-time validation
+      const { sendProgressUpdateEmail } = await import('@/lib/email');
       const result = await sendProgressUpdateEmail(userEmail, userName, progressData);
       if (result.success) {
         addNotification({
@@ -366,6 +365,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!state.settings.email || !state.settings.studyReminders) return;
 
     try {
+      // Lazy import to prevent build-time validation
+      const { sendStudyReminderEmail } = await import('@/lib/email');
       const result = await sendStudyReminderEmail(userEmail, userName, reminderData);
       if (result.success) {
         addNotification({
@@ -404,6 +405,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!state.settings.email || !state.settings.systemAlerts) return;
 
     try {
+      // Lazy import to prevent build-time validation
+      const { sendSystemAlertEmail } = await import('@/lib/email');
       const result = await sendSystemAlertEmail(userEmail, userName, alertData);
       if (result.success) {
         addNotification({

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     
     // Return JSON metrics for dashboard
     const performanceMetrics = apm.getMetrics();
-    const healthData = await healthCheck.performHealthCheck();
+    const healthData = await healthCheck();
     
     const metricsData = {
       timestamp: new Date().toISOString(),

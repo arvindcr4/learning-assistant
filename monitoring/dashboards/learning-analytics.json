@@ -1,0 +1,1296 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Learning Assistant - Learning Analytics Dashboard",
+    "description": "Comprehensive learning analytics dashboard for educators, instructional designers, and learning specialists with educational KPIs, student progress tracking, and learning effectiveness metrics",
+    "tags": ["learning-assistant", "learning-analytics", "education", "student-progress", "learning-effectiveness"],
+    "style": "light",
+    "timezone": "browser",
+    "refresh": "2m",
+    "schemaVersion": 30,
+    "version": 1,
+    "time": {
+      "from": "now-7d",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["30s", "1m", "2m", "5m", "15m", "30m", "1h", "2h", "1d"],
+      "time_options": ["1h", "6h", "12h", "24h", "2d", "7d", "30d", "90d"]
+    },
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        },
+        {
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "changes(learning_assistant_curriculum_updates[7d])",
+          "iconColor": "green",
+          "name": "Curriculum Updates",
+          "titleFormat": "Curriculum Update",
+          "textFormat": "Content updated: {{topic}}"
+        },
+        {
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "changes(learning_assistant_assessment_updates[7d])",
+          "iconColor": "blue",
+          "name": "Assessment Updates",
+          "titleFormat": "Assessment Update",
+          "textFormat": "Assessment modified: {{assessment_name}}"
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "course",
+        "type": "query",
+        "datasource": "prometheus",
+        "query": "label_values(learning_assistant_course_metrics, course)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1
+      },
+      {
+        "name": "learning_style",
+        "type": "query",
+        "datasource": "prometheus",
+        "query": "label_values(learning_assistant_student_metrics, learning_style)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1
+      },
+      {
+        "name": "difficulty_level",
+        "type": "custom",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [
+          { "text": "All", "value": "$__all", "selected": true },
+          { "text": "Beginner", "value": "beginner", "selected": false },
+          { "text": "Intermediate", "value": "intermediate", "selected": false },
+          { "text": "Advanced", "value": "advanced", "selected": false }
+        ],
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "time_range",
+        "type": "interval",
+        "current": {
+          "selected": false,
+          "text": "5m",
+          "value": "5m"
+        },
+        "options": [
+          { "text": "1m", "value": "1m", "selected": false },
+          { "text": "5m", "value": "5m", "selected": true },
+          { "text": "15m", "value": "15m", "selected": false },
+          { "text": "30m", "value": "30m", "selected": false },
+          { "text": "1h", "value": "1h", "selected": false }
+        ]
+      }
+    ],
+    "panels": [
+      {
+        "id": 1,
+        "title": "🎓 Learning Effectiveness Overview",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_learning_effectiveness_score{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Overall Effectiveness",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_knowledge_retention_rate{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Retention Rate",
+            "refId": "B"
+          },
+          {
+            "expr": "learning_assistant_mastery_rate{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Mastery Rate",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 60
+                },
+                {
+                  "color": "green",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "vertical",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "📊 Student Engagement Metrics",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_student_engagement_score{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Engagement Score",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_session_duration_avg{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Avg Session Duration",
+            "refId": "B"
+          },
+          {
+            "expr": "learning_assistant_completion_rate{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Completion Rate",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 50
+                },
+                {
+                  "color": "green",
+                  "value": 75
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Avg Session Duration"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "m"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byRegexp",
+                "options": ".*Rate|.*Score"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "percent"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "vertical",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 3,
+        "title": "🧠 Adaptive Learning Performance",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_adaptive_algorithm_accuracy{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Algorithm Accuracy",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_recommendation_relevance{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Recommendation Relevance",
+            "refId": "B"
+          },
+          {
+            "expr": "learning_assistant_personalization_score{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Personalization Score",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "green",
+                  "value": 85
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "vertical",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 4,
+        "title": "📈 Learning Progress Velocity",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_progress_velocity{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Progress Velocity",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_skill_acquisition_rate{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Skill Acquisition Rate",
+            "refId": "B"
+          },
+          {
+            "expr": "learning_assistant_improvement_rate{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Improvement Rate",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 5
+                },
+                {
+                  "color": "green",
+                  "value": 10
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "vertical",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 5,
+        "title": "📚 Learning Progress Trends",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+        "targets": [
+          {
+            "expr": "learning_assistant_progress_score{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Overall Progress - {{course}}",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_competency_score{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Competency Score - {{course}}",
+            "refId": "B"
+          },
+          {
+            "expr": "learning_assistant_mastery_level{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Mastery Level - {{course}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "🎯 Assessment Performance Analysis",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+        "targets": [
+          {
+            "expr": "learning_assistant_assessment_score{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Assessment Score - {{assessment_type}}",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_quiz_accuracy{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Quiz Accuracy - {{difficulty}}",
+            "refId": "B"
+          },
+          {
+            "expr": "learning_assistant_assignment_completion{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Assignment Completion - {{course}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "🧩 Learning Style Distribution",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+        "targets": [
+          {
+            "expr": "learning_assistant_students_by_learning_style{course=~\"$course\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "{{learning_style}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": [],
+            "unit": "short"
+          }
+        },
+        "options": {
+          "pieType": "pie",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["percent"]
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "📊 Difficulty Level Performance",
+        "type": "barchart",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+        "targets": [
+          {
+            "expr": "learning_assistant_performance_by_difficulty{course=~\"$course\", learning_style=~\"$learning_style\"}",
+            "legendFormat": "{{difficulty}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "displayMode": "list",
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "legendDisplayMode": "list",
+              "orientation": "horizontal",
+              "penWidth": 0,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "horizontal",
+          "xTickLabelRotation": 0,
+          "xTickLabelSpacing": 0,
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "⏱️ Time-to-Mastery Distribution",
+        "type": "histogram",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+        "targets": [
+          {
+            "expr": "learning_assistant_time_to_mastery{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Time to Mastery (hours)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": [],
+            "unit": "h"
+          }
+        },
+        "options": {
+          "bucketOffset": 0,
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "🔄 Spaced Repetition Effectiveness",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+        "targets": [
+          {
+            "expr": "learning_assistant_spaced_repetition_retention{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Retention Rate - {{interval}}",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_spaced_repetition_effectiveness{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Effectiveness Score - {{interval}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "🎯 Content Effectiveness Heatmap",
+        "type": "heatmap",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+        "targets": [
+          {
+            "expr": "learning_assistant_content_effectiveness{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "{{content_type}} - {{topic}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "spectrum"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": [],
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "calculate": false,
+          "calculation": {},
+          "cellGap": 2,
+          "cellValues": {},
+          "color": {
+            "exponent": 0.5,
+            "fill": "#1f77b4",
+            "mode": "spectrum",
+            "reverse": false,
+            "scale": "exponential",
+            "scheme": "RdYlGn",
+            "steps": 64
+          },
+          "exemplars": {
+            "color": "rgba(255,0,255,0.7)"
+          },
+          "filterValues": {
+            "le": 1e-9
+          },
+          "legend": {
+            "show": true
+          },
+          "rowsFrame": {
+            "layout": "auto"
+          },
+          "tooltip": {
+            "show": true,
+            "yHistogram": false
+          },
+          "yAxis": {
+            "axisPlacement": "left",
+            "reverse": false,
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "📈 Learning Path Optimization",
+        "type": "sankey",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+        "targets": [
+          {
+            "expr": "learning_assistant_learning_path_flow{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": [],
+            "unit": "short"
+          }
+        },
+        "options": {
+          "orientation": "horizontal"
+        }
+      },
+      {
+        "id": 13,
+        "title": "🎓 Competency Gap Analysis",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+        "targets": [
+          {
+            "expr": "learning_assistant_competency_gaps{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "color-background",
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 50
+                },
+                {
+                  "color": "green",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Priority"
+              },
+              "properties": [
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "options": {
+                        "1": {
+                          "color": "red",
+                          "index": 0,
+                          "text": "Critical"
+                        },
+                        "2": {
+                          "color": "orange",
+                          "index": 1,
+                          "text": "High"
+                        },
+                        "3": {
+                          "color": "yellow",
+                          "index": 2,
+                          "text": "Medium"
+                        },
+                        "4": {
+                          "color": "green",
+                          "index": 3,
+                          "text": "Low"
+                        }
+                      },
+                      "type": "value"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "Gap Score"
+            }
+          ]
+        },
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "__name__": true,
+                "job": true,
+                "instance": true
+              },
+              "indexByName": {
+                "competency": 0,
+                "current_level": 1,
+                "target_level": 2,
+                "gap_score": 3,
+                "priority": 4,
+                "recommendation": 5
+              },
+              "renameByName": {
+                "competency": "Competency",
+                "current_level": "Current Level",
+                "target_level": "Target Level",
+                "gap_score": "Gap Score",
+                "priority": "Priority",
+                "recommendation": "Recommendation"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "🤖 AI Tutor Interactions",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+        "targets": [
+          {
+            "expr": "learning_assistant_ai_tutor_interactions{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Interactions - {{interaction_type}}",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_ai_tutor_effectiveness{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "Effectiveness - {{interaction_type}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byRegexp",
+                "options": "Effectiveness.*"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "percent"
+                },
+                {
+                  "id": "custom.axisPlacement",
+                  "value": "right"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 15,
+        "title": "📊 Learning Analytics Summary",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+        "targets": [
+          {
+            "expr": "learning_assistant_analytics_summary{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "color-background",
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Trend"
+              },
+              "properties": [
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "options": {
+                        "pattern": "↑.*",
+                        "result": {
+                          "color": "green",
+                          "index": 0
+                        }
+                      },
+                      "type": "regex"
+                    },
+                    {
+                      "options": {
+                        "pattern": "↓.*",
+                        "result": {
+                          "color": "red",
+                          "index": 1
+                        }
+                      },
+                      "type": "regex"
+                    },
+                    {
+                      "options": {
+                        "pattern": "→.*",
+                        "result": {
+                          "color": "yellow",
+                          "index": 2
+                        }
+                      },
+                      "type": "regex"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": false,
+              "displayName": "Metric"
+            }
+          ]
+        },
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "__name__": true,
+                "job": true,
+                "instance": true
+              },
+              "indexByName": {
+                "metric": 0,
+                "current_value": 1,
+                "target_value": 2,
+                "performance": 3,
+                "trend": 4,
+                "insights": 5
+              },
+              "renameByName": {
+                "metric": "Metric",
+                "current_value": "Current",
+                "target_value": "Target",
+                "performance": "Performance",
+                "trend": "Trend",
+                "insights": "Insights"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "📱 Mobile Learning Analytics",
+        "type": "row",
+        "collapsed": true,
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 46 },
+        "panels": [
+          {
+            "id": 17,
+            "title": "Mobile - Learning KPIs",
+            "type": "stat",
+            "gridPos": { "h": 8, "w": 24, "x": 0, "y": 47 },
+            "targets": [
+              {
+                "expr": "learning_assistant_learning_effectiveness_score{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+                "legendFormat": "Learning Effectiveness",
+                "refId": "A"
+              },
+              {
+                "expr": "learning_assistant_student_engagement_score{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+                "legendFormat": "Student Engagement",
+                "refId": "B"
+              },
+              {
+                "expr": "learning_assistant_completion_rate{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+                "legendFormat": "Completion Rate",
+                "refId": "C"
+              },
+              {
+                "expr": "learning_assistant_mastery_rate{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+                "legendFormat": "Mastery Rate",
+                "refId": "D"
+              },
+              {
+                "expr": "learning_assistant_knowledge_retention_rate{course=~\"$course\", learning_style=~\"$learning_style\", difficulty=~\"$difficulty_level\"}",
+                "legendFormat": "Retention Rate",
+                "refId": "E"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "mappings": [],
+                "thresholds": {
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 60
+                    },
+                    {
+                      "color": "green",
+                      "value": 80
+                    }
+                  ]
+                },
+                "unit": "percent"
+              }
+            },
+            "options": {
+              "colorMode": "background",
+              "graphMode": "area",
+              "justifyMode": "center",
+              "orientation": "vertical",
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"],
+                "fields": ""
+              },
+              "textMode": "auto"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

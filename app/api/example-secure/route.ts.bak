@@ -1,0 +1,252 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createSecureEndpoint } from '@/lib/security/security-config';
+import { createSuccessResponse, createErrorResponse } from '@/app/api/schemas/validation';
+
+/**
+ * Example of a fully secured API endpoint using the comprehensive security system
+ * 
+ * This endpoint demonstrates:
+ * - Comprehensive input validation
+ * - Authentication and authorization
+ * - Rate limiting
+ * - Security headers
+ * - Security monitoring
+ * - Proper error handling
+ */
+
+async function handleSecureEndpoint(
+  request: NextRequest,
+  context: {
+    user: any;
+    securityContext: any;
+    validatedData: any;
+    requestId: string;
+  }
+): Promise<NextResponse> {
+  const { user, securityContext, validatedData, requestId } = context;
+  
+  try {
+    // Your business logic here
+    const responseData = {
+      message: 'Secure endpoint accessed successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        roles: user.roles,
+      },
+      security: {
+        riskScore: securityContext.riskScore,
+        mfaVerified: securityContext.mfaVerified,
+        deviceFingerprint: securityContext.deviceFingerprint.substring(0, 10) + '...',
+      },
+      requestId,
+      timestamp: new Date().toISOString(),
+      validatedInput: validatedData,
+    };
+    
+    return NextResponse.json(createSuccessResponse(responseData, { requestId }));
+    
+  } catch (error) {
+    console.error('Secure endpoint error:', error);
+    
+    return NextResponse.json(
+      createErrorResponse(
+        'Failed to process secure request',
+        'PROCESSING_ERROR',
+        { requestId }
+      ),
+      { status: 500 }
+    );
+  }
+}
+
+// Create secure GET endpoint
+export const GET = createSecureEndpoint(
+  handleSecureEndpoint,
+  {
+    endpoint: '/api/example-secure',
+    requiredPermissions: [
+      { resource: 'example', action: 'read' }
+    ],
+    rateLimits: {
+      maxRequestsPerUser: 100,
+      maxRequestsPerIP: 50,
+      windowMs: 60 * 1000, // 1 minute
+    },
+    requireMFA: false,
+    maxRiskScore: 80,
+    validateBody: false, // GET requests don't have body
+  }
+);
+
+// Create secure POST endpoint with body validation
+export const POST = createSecureEndpoint(
+  async (request: NextRequest, context: any): Promise<NextResponse> => {
+    const { user, securityContext, validatedData, requestId } = context;
+    
+    try {
+      // Your POST business logic here
+      const result = {
+        message: 'Data processed successfully',
+        userId: user.id,
+        processedData: validatedData,
+        requestId,
+        timestamp: new Date().toISOString(),
+      };
+      
+      return NextResponse.json(createSuccessResponse(result, { requestId }));
+      
+    } catch (error) {
+      console.error('Secure POST endpoint error:', error);
+      
+      return NextResponse.json(
+        createErrorResponse(
+          'Failed to process data',
+          'DATA_PROCESSING_ERROR',
+          { requestId }
+        ),
+        { status: 500 }
+      );
+    }
+  },
+  {
+    endpoint: '/api/example-secure',
+    requiredPermissions: [
+      { resource: 'example', action: 'create' }
+    ],
+    rateLimits: {
+      maxRequestsPerUser: 50,
+      maxRequestsPerIP: 25,
+      windowMs: 60 * 1000, // 1 minute
+    },
+    requireMFA: true, // Require MFA for data modification
+    maxRiskScore: 60,   // Lower risk tolerance for POST
+    validateBody: true, // Validate and sanitize request body
+  }
+);
+
+// Create secure PUT endpoint for updates
+export const PUT = createSecureEndpoint(
+  async (request: NextRequest, context: any): Promise<NextResponse> => {
+    const { user, securityContext, validatedData, requestId } = context;
+    
+    try {
+      // Your PUT business logic here
+      const result = {
+        message: 'Data updated successfully',
+        userId: user.id,
+        updatedData: validatedData,
+        requestId,
+        timestamp: new Date().toISOString(),
+      };
+      
+      return NextResponse.json(createSuccessResponse(result, { requestId }));
+      
+    } catch (error) {
+      console.error('Secure PUT endpoint error:', error);
+      
+      return NextResponse.json(
+        createErrorResponse(
+          'Failed to update data',
+          'UPDATE_ERROR',
+          { requestId }
+        ),
+        { status: 500 }
+      );
+    }
+  },
+  {
+    endpoint: '/api/example-secure',
+    requiredPermissions: [
+      { resource: 'example', action: 'update' }
+    ],
+    rateLimits: {
+      maxRequestsPerUser: 30,
+      maxRequestsPerIP: 15,
+      windowMs: 60 * 1000, // 1 minute
+    },
+    requireMFA: true,    // Require MFA for updates
+    maxRiskScore: 50,    // Even lower risk tolerance for updates
+    validateBody: true,
+  }
+);
+
+// Create secure DELETE endpoint
+export const DELETE = createSecureEndpoint(
+  async (request: NextRequest, context: any): Promise<NextResponse> => {
+    const { user, securityContext, requestId } = context;
+    
+    try {
+      // Your DELETE business logic here
+      const result = {
+        message: 'Data deleted successfully',
+        userId: user.id,
+        requestId,
+        timestamp: new Date().toISOString(),
+      };
+      
+      return NextResponse.json(createSuccessResponse(result, { requestId }));
+      
+    } catch (error) {
+      console.error('Secure DELETE endpoint error:', error);
+      
+      return NextResponse.json(
+        createErrorResponse(
+          'Failed to delete data',
+          'DELETE_ERROR',
+          { requestId }
+        ),
+        { status: 500 }
+      );
+    }
+  },
+  {
+    endpoint: '/api/example-secure',
+    requiredPermissions: [
+      { resource: 'example', action: 'delete' }
+    ],
+    rateLimits: {
+      maxRequestsPerUser: 10,
+      maxRequestsPerIP: 5,
+      windowMs: 60 * 1000, // 1 minute
+    },
+    requireMFA: true,     // Always require MFA for deletions
+    maxRiskScore: 30,     // Lowest risk tolerance for deletions
+    validateBody: false,  // DELETE typically doesn't have body
+  }
+);
+
+/**
+ * Example usage without the security wrapper (manual security implementation)
+ * 
+ * This shows how you can use individual security components if needed
+ */
+/*
+import { securityManager } from '@/lib/security/security-config';
+
+export async function GET(request: NextRequest) {
+  // Apply security middleware manually
+  const securityMiddleware = securityManager.createSecurityMiddleware({
+    endpoint: '/api/example-manual',
+    requiredPermissions: [{ resource: 'example', action: 'read' }],
+    customRateLimits: {
+      maxRequestsPerUser: 100,
+      maxRequestsPerIP: 50,
+      windowMs: 60000,
+    },
+  });
+  
+  const securityResponse = await securityMiddleware(request);
+  if (securityResponse) {
+    return securityResponse; // Security check failed
+  }
+  
+  // Your handler logic here
+  const data = { message: 'Manual security implementation' };
+  
+  // Create secure response
+  return securityManager.createSecureResponse(data, 200, request, {
+    generateCSPNonce: true,
+  });
+}
+*/

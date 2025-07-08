@@ -1,0 +1,360 @@
+{
+  "dashboard": {
+    "title": "Learning Assistant - Learning System Dashboard",
+    "description": "Specialized dashboard for monitoring learning algorithms and educational effectiveness",
+    "tags": ["learning-assistant", "learning-system", "ai", "education"],
+    "refresh": "1m",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "title": "Adaptive Algorithm Performance",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_adaptive_algorithm_accuracy",
+            "legendFormat": "Algorithm Accuracy"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 80 },
+                { "color": "green", "value": 90 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Learning Style Distribution",
+        "type": "piechart",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum by (learning_style) (learning_assistant_users_by_learning_style)",
+            "legendFormat": "{{learning_style}}"
+          }
+        ]
+      },
+      {
+        "title": "Content Recommendation Accuracy",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_recommendation_accuracy",
+            "legendFormat": "Recommendation Accuracy"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 75 },
+                { "color": "green", "value": 85 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "AI Model Performance",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_ai_model_latency",
+            "legendFormat": "AI Model Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 500 },
+                { "color": "red", "value": 1000 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Learning Progress Tracking",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "avg(learning_assistant_user_progress_score)",
+            "legendFormat": "Average Progress"
+          },
+          {
+            "expr": "learning_assistant_users_completed_modules",
+            "legendFormat": "Completed Modules"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "title": "Spaced Repetition Effectiveness",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "learning_assistant_spaced_repetition_retention_rate",
+            "legendFormat": "Retention Rate"
+          },
+          {
+            "expr": "learning_assistant_spaced_repetition_schedule_adherence",
+            "legendFormat": "Schedule Adherence"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "title": "Difficulty Calibration",
+        "type": "heatmap",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "learning_assistant_difficulty_calibration_accuracy",
+            "legendFormat": "{{difficulty_level}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "title": "Assessment Performance",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "expr": "avg(learning_assistant_assessment_score) by (assessment_type)",
+            "legendFormat": "{{assessment_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "title": "Learning Path Optimization",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+        "targets": [
+          {
+            "expr": "learning_assistant_learning_path_completion_rate",
+            "legendFormat": "Completion Rate"
+          },
+          {
+            "expr": "learning_assistant_learning_path_optimization_score",
+            "legendFormat": "Optimization Score"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "title": "Engagement Analytics",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+        "targets": [
+          {
+            "expr": "learning_assistant_user_engagement_time",
+            "legendFormat": "Average Engagement Time"
+          },
+          {
+            "expr": "learning_assistant_session_interaction_count",
+            "legendFormat": "Interactions per Session"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "title": "Adaptive Learning Events",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+        "targets": [
+          {
+            "expr": "rate(learning_assistant_adaptive_changes_total[5m])",
+            "legendFormat": "{{change_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "cps"
+          }
+        }
+      },
+      {
+        "title": "VARK Assessment Distribution",
+        "type": "barchart",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+        "targets": [
+          {
+            "expr": "sum by (vark_type) (learning_assistant_vark_assessment_results)",
+            "legendFormat": "{{vark_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "orientation": "horizontal"
+            }
+          }
+        }
+      },
+      {
+        "title": "Learning Fatigue Detection",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+        "targets": [
+          {
+            "expr": "learning_assistant_fatigue_detection_alerts",
+            "legendFormat": "Fatigue Alerts"
+          },
+          {
+            "expr": "learning_assistant_session_break_recommendations",
+            "legendFormat": "Break Recommendations"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "title": "Content Adaptation Rate",
+        "type": "gauge",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+        "targets": [
+          {
+            "expr": "learning_assistant_content_adaptation_rate",
+            "legendFormat": "Adaptation Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 60 },
+                { "color": "green", "value": 80 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "AI Model Health",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+        "targets": [
+          {
+            "expr": "learning_assistant_ai_model_health",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "model_name": "Model Name",
+                "model_version": "Version",
+                "accuracy": "Accuracy",
+                "latency": "Latency",
+                "error_rate": "Error Rate"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "Learning Algorithm Performance",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+        "targets": [
+          {
+            "expr": "learning_assistant_algorithm_performance_metrics",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "algorithm_name": "Algorithm",
+                "precision": "Precision",
+                "recall": "Recall",
+                "f1_score": "F1 Score",
+                "execution_time": "Execution Time"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "Real-time Learning Events",
+        "type": "logs",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 52 },
+        "targets": [
+          {
+            "expr": "{job=\"learning-assistant\", category=\"learning\"}"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "wrapLogMessage": true
+        }
+      }
+    ]
+  }
+}

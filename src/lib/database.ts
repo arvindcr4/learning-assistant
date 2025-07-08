@@ -433,6 +433,6 @@ export const getDatabaseConfig = (): DatabaseConfig => {
   return config;
 };
 
-// Export types
+// Export types and classes
 export type { DatabaseConfig, QueryMetrics, PoolStats, TransactionOptions };
 export { DatabaseConnection };

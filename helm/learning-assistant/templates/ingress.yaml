@@ -1,0 +1,81 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "learning-assistant.fullname" . }}-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning-assistant.labels" . | nindent 4 }}
+    component: ingress
+  annotations:
+    {{- include "learning-assistant.certManagerAnnotation" . | nindent 4 }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- include "learning-assistant.ingressTLS" . | nindent 2 }}
+  rules:
+  {{- range .Values.ingress.hosts }}
+  - host: {{ .host | quote }}
+    http:
+      paths:
+      {{- range .paths }}
+      - path: {{ .path }}
+        pathType: {{ .pathType }}
+        backend:
+          service:
+            name: {{ include "learning-assistant.fullname" $ }}-service
+            port:
+              number: {{ $.Values.nginx.enabled | ternary 80 $.Values.service.port }}
+      {{- end }}
+  {{- end }}
+{{- end }}
+---
+{{- if .Values.apiIngress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "learning-assistant.fullname" . }}-api-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "learning-assistant.labels" . | nindent 4 }}
+    component: api-ingress
+  annotations:
+    {{- include "learning-assistant.certManagerAnnotation" . | nindent 4 }}
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    {{- with .Values.apiIngress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.apiIngress.className }}
+  ingressClassName: {{ .Values.apiIngress.className }}
+  {{- end }}
+  {{- if .Values.tls.enabled }}
+  tls:
+  {{- range .Values.apiIngress.tls }}
+  - secretName: {{ .secretName }}
+    hosts:
+    {{- range .hosts }}
+      - {{ . }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  rules:
+  {{- range .Values.apiIngress.hosts }}
+  - host: {{ .host | quote }}
+    http:
+      paths:
+      {{- range .paths }}
+      - path: {{ .path }}(/|$)(.*)
+        pathType: {{ .pathType }}
+        backend:
+          service:
+            name: {{ include "learning-assistant.fullname" $ }}-service
+            port:
+              number: {{ $.Values.service.targetPort }}
+      {{- end }}
+  {{- end }}
+{{- end }}

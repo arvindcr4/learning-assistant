@@ -1,0 +1,155 @@
+{
+  "wcagLevel": "AAA",
+  "score": 95,
+  "totalTests": 20,
+  "passedTests": 19,
+  "failedTests": 1,
+  "categories": {
+    "perceivable": {
+      "score": 80,
+      "tests": [
+        {
+          "name": "Image Alternatives",
+          "description": "Checking for proper alt text on images",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Color Contrast",
+          "description": "Checking color contrast ratios",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Text Alternatives",
+          "description": "Checking for text alternatives to non-text content",
+          "passed": false,
+          "issues": [
+            "Label coverage: 46.7% (target: 90%+)"
+          ]
+        },
+        {
+          "name": "Adaptable Content",
+          "description": "Checking for semantic HTML and proper structure",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Audio/Video Alternatives",
+          "description": "Checking for captions and audio descriptions",
+          "passed": true,
+          "issues": []
+        }
+      ]
+    },
+    "operable": {
+      "score": 100,
+      "tests": [
+        {
+          "name": "Keyboard Accessibility",
+          "description": "Checking for keyboard navigation support",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "No Seizures",
+          "description": "Checking for seizure-inducing content",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Navigability",
+          "description": "Checking for navigation aids",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Input Modalities",
+          "description": "Checking for multiple input method support",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Timing Adjustable",
+          "description": "Checking for adjustable time limits",
+          "passed": true,
+          "issues": []
+        }
+      ]
+    },
+    "understandable": {
+      "score": 100,
+      "tests": [
+        {
+          "name": "Readability",
+          "description": "Checking for readable and understandable text",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Predictability",
+          "description": "Checking for consistent and predictable interfaces",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Input Assistance",
+          "description": "Checking for error prevention and correction",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Language Identification",
+          "description": "Checking for proper language identification",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Error Prevention",
+          "description": "Checking for error prevention mechanisms",
+          "passed": true,
+          "issues": []
+        }
+      ]
+    },
+    "robust": {
+      "score": 100,
+      "tests": [
+        {
+          "name": "Markup Validity",
+          "description": "Checking for valid and semantic markup",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Assistive Technology Compatibility",
+          "description": "Checking for screen reader compatibility",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Future Proofing",
+          "description": "Checking for standards compliance and extensibility",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Status Messages",
+          "description": "Checking for proper status message implementation",
+          "passed": true,
+          "issues": []
+        },
+        {
+          "name": "Focus Management",
+          "description": "Checking for proper focus management",
+          "passed": true,
+          "issues": []
+        }
+      ]
+    }
+  },
+  "recommendations": [
+    "Perceivable: Label coverage: 46.7% (target: 90%+)"
+  ],
+  "timestamp": "2025-07-08T03:09:43.966Z"
+}

@@ -1,0 +1,1435 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Learning Assistant - Security Monitoring Dashboard",
+    "description": "Comprehensive security monitoring dashboard for cybersecurity teams with threat detection, incident response, vulnerability tracking, and security analytics",
+    "tags": ["learning-assistant", "security", "threat-detection", "incident-response", "cybersecurity"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "schemaVersion": 30,
+    "version": 1,
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+      "time_options": ["1h", "6h", "12h", "24h", "2d", "7d", "30d", "90d"]
+    },
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        },
+        {
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "changes(learning_assistant_security_incidents[24h])",
+          "iconColor": "red",
+          "name": "Security Incidents",
+          "titleFormat": "Security Incident",
+          "textFormat": "Incident: {{incident_type}} - {{severity}}"
+        },
+        {
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "changes(learning_assistant_vulnerability_scans[24h])",
+          "iconColor": "orange",
+          "name": "Vulnerability Scans",
+          "titleFormat": "Vulnerability Scan",
+          "textFormat": "Scan completed: {{scan_type}}"
+        },
+        {
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "changes(learning_assistant_security_patches[7d])",
+          "iconColor": "green",
+          "name": "Security Patches",
+          "titleFormat": "Security Patch",
+          "textFormat": "Patch applied: {{patch_id}}"
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "severity",
+        "type": "custom",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [
+          { "text": "All", "value": "$__all", "selected": true },
+          { "text": "Critical", "value": "critical", "selected": false },
+          { "text": "High", "value": "high", "selected": false },
+          { "text": "Medium", "value": "medium", "selected": false },
+          { "text": "Low", "value": "low", "selected": false }
+        ],
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "attack_type",
+        "type": "query",
+        "datasource": "prometheus",
+        "query": "label_values(learning_assistant_security_events, attack_type)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1
+      },
+      {
+        "name": "source_ip_range",
+        "type": "query",
+        "datasource": "prometheus",
+        "query": "label_values(learning_assistant_security_events, source_ip_range)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1
+      }
+    ],
+    "panels": [
+      {
+        "id": 1,
+        "title": "🛡️ Security Status Overview",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_security_status{severity=~\"$severity\", attack_type=~\"$attack_type\", source_ip_range=~\"$source_ip_range\"}",
+            "legendFormat": "Security Status",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "0": { "color": "red", "index": 0, "text": "COMPROMISED" },
+                  "1": { "color": "yellow", "index": 1, "text": "AT RISK" },
+                  "2": { "color": "green", "index": 2, "text": "SECURE" }
+                },
+                "type": "value"
+              }
+            ],
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 1 },
+                { "color": "green", "value": 2 }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "🚨 Active Threats",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_active_threats{severity=~\"$severity\", attack_type=~\"$attack_type\", source_ip_range=~\"$source_ip_range\"}",
+            "legendFormat": "Active Threats",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 1 },
+                { "color": "orange", "value": 5 },
+                { "color": "red", "value": 10 }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 3,
+        "title": "🔥 Failed Login Attempts",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+        "targets": [
+          {
+            "expr": "rate(learning_assistant_failed_login_attempts_total{severity=~\"$severity\", source_ip_range=~\"$source_ip_range\"}[5m]) * 300",
+            "legendFormat": "Failed Logins (5m)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 10 },
+                { "color": "orange", "value": 50 },
+                { "color": "red", "value": 100 }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 4,
+        "title": "🔒 Blocked IPs",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_blocked_ips_total{severity=~\"$severity\", source_ip_range=~\"$source_ip_range\"}",
+            "legendFormat": "Blocked IPs",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 10 },
+                { "color": "orange", "value": 50 },
+                { "color": "red", "value": 100 }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 5,
+        "title": "⚠️ Vulnerability Score",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_vulnerability_score{severity=~\"$severity\"}",
+            "legendFormat": "Vulnerability Score",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "max": 10,
+            "min": 0,
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 4 },
+                { "color": "orange", "value": 7 },
+                { "color": "red", "value": 9 }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 6,
+        "title": "🔐 Security Compliance",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_security_compliance_score{severity=~\"$severity\"}",
+            "legendFormat": "Compliance Score",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 70 },
+                { "color": "green", "value": 90 }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 7,
+        "title": "🚨 Security Events Timeline",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "rate(learning_assistant_security_events_total{severity=~\"$severity\", attack_type=~\"$attack_type\", source_ip_range=~\"$source_ip_range\"}[5m])",
+            "legendFormat": "{{severity}} - {{attack_type}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "eps"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "max"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "🗺️ Attack Source Geographic Distribution",
+        "type": "geomap",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "learning_assistant_attacks_by_country{severity=~\"$severity\", attack_type=~\"$attack_type\"}",
+            "legendFormat": "{{country}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "continuous-RdYlBu"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": [],
+            "unit": "short"
+          }
+        },
+        "options": {
+          "basemap": {
+            "config": {},
+            "name": "Layer 0",
+            "type": "default"
+          },
+          "controls": {
+            "mouseWheelZoom": true,
+            "showAttribution": true,
+            "showDebug": false,
+            "showScale": false,
+            "showZoom": true
+          },
+          "layers": [
+            {
+              "config": {
+                "showLegend": true,
+                "style": {
+                  "color": {
+                    "field": "Value",
+                    "fixed": "dark-red"
+                  },
+                  "opacity": 0.6,
+                  "rotation": {
+                    "fixed": 0,
+                    "max": 360,
+                    "min": -360,
+                    "mode": "mod"
+                  },
+                  "size": {
+                    "field": "Value",
+                    "fixed": 5,
+                    "max": 20,
+                    "min": 2
+                  },
+                  "symbol": {
+                    "fixed": "img/icons/marker/circle.svg",
+                    "mode": "fixed"
+                  },
+                  "textConfig": {
+                    "fontSize": 12,
+                    "offsetX": 0,
+                    "offsetY": 0,
+                    "textAlign": "center",
+                    "textBaseline": "middle"
+                  }
+                }
+              },
+              "location": {
+                "mode": "auto"
+              },
+              "name": "Attack Sources",
+              "tooltip": true,
+              "type": "markers"
+            }
+          ],
+          "view": {
+            "allLayers": true,
+            "id": "zero",
+            "lat": 0,
+            "lon": 0,
+            "zoom": 1
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "🔍 Threat Intelligence Feed",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "learning_assistant_threat_intelligence_indicators{severity=~\"$severity\", attack_type=~\"$attack_type\"}",
+            "legendFormat": "{{indicator_type}} - {{threat_level}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "max"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "🛡️ Security Controls Effectiveness",
+        "type": "barchart",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "expr": "learning_assistant_security_controls_effectiveness{severity=~\"$severity\"}",
+            "legendFormat": "{{control_name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "displayMode": "list",
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "legendDisplayMode": "list",
+              "orientation": "horizontal",
+              "penWidth": 0,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "green",
+                  "value": 90
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "horizontal",
+          "xTickLabelRotation": 0,
+          "xTickLabelSpacing": 0,
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "🚫 WAF & Rate Limiting",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+        "targets": [
+          {
+            "expr": "rate(learning_assistant_waf_blocks_total{severity=~\"$severity\", attack_type=~\"$attack_type\", source_ip_range=~\"$source_ip_range\"}[5m])",
+            "legendFormat": "WAF Blocks - {{rule_name}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(learning_assistant_rate_limit_violations_total{severity=~\"$severity\", source_ip_range=~\"$source_ip_range\"}[5m])",
+            "legendFormat": "Rate Limit Violations - {{endpoint}}",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(learning_assistant_ddos_mitigation_total{severity=~\"$severity\", source_ip_range=~\"$source_ip_range\"}[5m])",
+            "legendFormat": "DDoS Mitigation - {{type}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "eps"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "max"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "🔐 Authentication & Authorization",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+        "targets": [
+          {
+            "expr": "rate(learning_assistant_auth_events_total{severity=~\"$severity\", source_ip_range=~\"$source_ip_range\"}[5m])",
+            "legendFormat": "{{event_type}} - {{status}}",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_active_sessions{severity=~\"$severity\"}",
+            "legendFormat": "Active Sessions",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(learning_assistant_mfa_challenges_total{severity=~\"$severity\", source_ip_range=~\"$source_ip_range\"}[5m])",
+            "legendFormat": "MFA Challenges - {{status}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byRegexp",
+                "options": ".*Sessions"
+              },
+              "properties": [
+                {
+                  "id": "custom.axisPlacement",
+                  "value": "right"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "max"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "🔍 Vulnerability Assessment",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+        "targets": [
+          {
+            "expr": "learning_assistant_vulnerabilities{severity=~\"$severity\"}",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "color-background",
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [
+              {
+                "options": {
+                  "critical": {
+                    "color": "red",
+                    "index": 0
+                  },
+                  "high": {
+                    "color": "orange",
+                    "index": 1
+                  },
+                  "medium": {
+                    "color": "yellow",
+                    "index": 2
+                  },
+                  "low": {
+                    "color": "green",
+                    "index": 3
+                  }
+                },
+                "type": "value"
+              }
+            ],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "CVSS Score"
+              },
+              "properties": [
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "yellow",
+                        "value": 4
+                      },
+                      {
+                        "color": "orange",
+                        "value": 7
+                      },
+                      {
+                        "color": "red",
+                        "value": 9
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "CVSS Score"
+            }
+          ]
+        },
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "__name__": true,
+                "job": true,
+                "instance": true
+              },
+              "indexByName": {
+                "vulnerability_id": 0,
+                "severity": 1,
+                "cvss_score": 2,
+                "description": 3,
+                "affected_component": 4,
+                "status": 5,
+                "remediation": 6
+              },
+              "renameByName": {
+                "vulnerability_id": "CVE ID",
+                "severity": "Severity",
+                "cvss_score": "CVSS Score",
+                "description": "Description",
+                "affected_component": "Component",
+                "status": "Status",
+                "remediation": "Remediation"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "📊 Security Incident Response",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+        "targets": [
+          {
+            "expr": "learning_assistant_security_incidents{severity=~\"$severity\", attack_type=~\"$attack_type\"}",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "displayMode": "color-background",
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [
+              {
+                "options": {
+                  "open": {
+                    "color": "red",
+                    "index": 0
+                  },
+                  "investigating": {
+                    "color": "yellow",
+                    "index": 1
+                  },
+                  "resolved": {
+                    "color": "green",
+                    "index": 2
+                  },
+                  "closed": {
+                    "color": "blue",
+                    "index": 3
+                  }
+                },
+                "type": "value"
+              }
+            ],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Response Time"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "m"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "yellow",
+                        "value": 15
+                      },
+                      {
+                        "color": "red",
+                        "value": 60
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "Timestamp"
+            }
+          ]
+        },
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "__name__": true,
+                "job": true,
+                "instance": true
+              },
+              "indexByName": {
+                "incident_id": 0,
+                "timestamp": 1,
+                "severity": 2,
+                "type": 3,
+                "status": 4,
+                "response_time": 5,
+                "assigned_to": 6,
+                "description": 7
+              },
+              "renameByName": {
+                "incident_id": "Incident ID",
+                "timestamp": "Timestamp",
+                "severity": "Severity",
+                "type": "Type",
+                "status": "Status",
+                "response_time": "Response Time",
+                "assigned_to": "Assigned To",
+                "description": "Description"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "🔒 Data Privacy & Compliance",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+        "targets": [
+          {
+            "expr": "learning_assistant_data_access_events{severity=~\"$severity\"}",
+            "legendFormat": "Data Access - {{data_type}}",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_pii_exposure_events{severity=~\"$severity\"}",
+            "legendFormat": "PII Exposure - {{severity}}",
+            "refId": "B"
+          },
+          {
+            "expr": "learning_assistant_gdpr_requests{severity=~\"$severity\"}",
+            "legendFormat": "GDPR Requests - {{request_type}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": ["mean", "max"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        }
+      },
+      {
+        "id": 16,
+        "title": "📈 Security Metrics & KPIs",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+        "targets": [
+          {
+            "expr": "learning_assistant_mean_time_to_detection{severity=~\"$severity\"}",
+            "legendFormat": "MTTD (minutes)",
+            "refId": "A"
+          },
+          {
+            "expr": "learning_assistant_mean_time_to_response{severity=~\"$severity\"}",
+            "legendFormat": "MTTR (minutes)",
+            "refId": "B"
+          },
+          {
+            "expr": "learning_assistant_false_positive_rate{severity=~\"$severity\"}",
+            "legendFormat": "False Positive Rate",
+            "refId": "C"
+          },
+          {
+            "expr": "learning_assistant_security_posture_score{severity=~\"$severity\"}",
+            "legendFormat": "Security Posture",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byRegexp",
+                "options": "MTT.*"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "m"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "yellow",
+                        "value": 15
+                      },
+                      {
+                        "color": "red",
+                        "value": 60
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byRegexp",
+                "options": ".*Rate|.*Posture"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "percent"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      {
+                        "color": "red",
+                        "value": 0
+                      },
+                      {
+                        "color": "yellow",
+                        "value": 70
+                      },
+                      {
+                        "color": "green",
+                        "value": 90
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "vertical",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 17,
+        "title": "📱 Mobile Security Dashboard",
+        "type": "row",
+        "collapsed": true,
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 },
+        "panels": [
+          {
+            "id": 18,
+            "title": "Mobile - Security Overview",
+            "type": "stat",
+            "gridPos": { "h": 8, "w": 24, "x": 0, "y": 45 },
+            "targets": [
+              {
+                "expr": "learning_assistant_security_status{severity=~\"$severity\"}",
+                "legendFormat": "Security Status",
+                "refId": "A"
+              },
+              {
+                "expr": "learning_assistant_active_threats{severity=~\"$severity\"}",
+                "legendFormat": "Active Threats",
+                "refId": "B"
+              },
+              {
+                "expr": "learning_assistant_blocked_ips_total{severity=~\"$severity\"}",
+                "legendFormat": "Blocked IPs",
+                "refId": "C"
+              },
+              {
+                "expr": "learning_assistant_vulnerability_score{severity=~\"$severity\"}",
+                "legendFormat": "Vulnerability Score",
+                "refId": "D"
+              },
+              {
+                "expr": "learning_assistant_security_compliance_score{severity=~\"$severity\"}",
+                "legendFormat": "Compliance Score",
+                "refId": "E"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "mappings": [],
+                "thresholds": {
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              },
+              "overrides": [
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "Security Status"
+                  },
+                  "properties": [
+                    {
+                      "id": "mappings",
+                      "value": [
+                        {
+                          "options": {
+                            "0": { "color": "red", "index": 0, "text": "COMPROMISED" },
+                            "1": { "color": "yellow", "index": 1, "text": "AT RISK" },
+                            "2": { "color": "green", "index": 2, "text": "SECURE" }
+                          },
+                          "type": "value"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "options": {
+              "colorMode": "background",
+              "graphMode": "area",
+              "justifyMode": "center",
+              "orientation": "vertical",
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"],
+                "fields": ""
+              },
+              "textMode": "auto"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

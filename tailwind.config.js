@@ -10,7 +10,19 @@ module.exports = {
     extend: {
       // Custom colors for the learning assistant
       colors: {
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
         primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
           50: '#eff6ff',
           100: '#dbeafe',
           200: '#bfdbfe',
@@ -24,6 +36,8 @@ module.exports = {
           950: '#172554',
         },
         secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
           50: '#f0f9ff',
           100: '#e0f2fe',
           200: '#bae6fd',
@@ -36,6 +50,48 @@ module.exports = {
           900: '#0c4a6e',
           950: '#082f49',
         },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        // Learning Assistant Brand Colors
+        'learning-primary': 'hsl(var(--learning-primary))',
+        'learning-secondary': 'hsl(var(--learning-secondary))',
+        'learning-accent': 'hsl(var(--learning-accent))',
+        'learning-warning': 'hsl(var(--learning-warning))',
+        'learning-error': 'hsl(var(--learning-error))',
+        'learning-success': 'hsl(var(--learning-success))',
+        'learning-info': 'hsl(var(--learning-info))',
+        // Learning Style Colors
+        visual: 'hsl(var(--visual-primary))',
+        auditory: 'hsl(var(--auditory-primary))',
+        reading: 'hsl(var(--reading-primary))',
+        kinesthetic: 'hsl(var(--kinesthetic-primary))',
+        // Progress Colors
+        'progress-bg': 'hsl(var(--progress-bg))',
+        'progress-fill': 'hsl(var(--progress-fill))',
+        // Chart Colors
+        'chart-1': 'hsl(var(--chart-1))',
+        'chart-2': 'hsl(var(--chart-2))',
+        'chart-3': 'hsl(var(--chart-3))',
+        'chart-4': 'hsl(var(--chart-4))',
+        'chart-5': 'hsl(var(--chart-5))',
+        'chart-6': 'hsl(var(--chart-6))',
+        // Difficulty Level Colors
+        beginner: 'hsl(var(--beginner))',
+        intermediate: 'hsl(var(--intermediate))',
+        advanced: 'hsl(var(--advanced))',
         success: {
           50: '#f0fdf4',
           100: '#dcfce7',
@@ -213,15 +269,15 @@ module.exports = {
             width: '8px',
           },
           '&::-webkit-scrollbar-track': {
-            background: theme('colors.gray.100'),
+            background: 'hsl(var(--muted))',
             'border-radius': '4px',
           },
           '&::-webkit-scrollbar-thumb': {
-            background: theme('colors.gray.400'),
+            background: 'hsl(var(--muted-foreground))',
             'border-radius': '4px',
           },
           '&::-webkit-scrollbar-thumb:hover': {
-            background: theme('colors.gray.500'),
+            background: 'hsl(var(--border))',
           },
         },
       };

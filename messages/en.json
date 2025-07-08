@@ -1,0 +1,347 @@
+{
+  "common": {
+    "welcome": "Welcome",
+    "hello": "Hello",
+    "goodbye": "Goodbye",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Information",
+    "next": "Next",
+    "previous": "Previous",
+    "back": "Back",
+    "continue": "Continue",
+    "submit": "Submit",
+    "close": "Close",
+    "open": "Open",
+    "settings": "Settings",
+    "help": "Help",
+    "about": "About",
+    "contact": "Contact",
+    "privacy": "Privacy",
+    "terms": "Terms of Service",
+    "language": "Language",
+    "theme": "Theme",
+    "profile": "Profile",
+    "account": "Account",
+    "logout": "Log Out",
+    "login": "Log In",
+    "register": "Register",
+    "dashboard": "Dashboard",
+    "home": "Home",
+    "menu": "Menu"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign In to Your Account",
+      "subtitle": "Welcome back! Please enter your credentials to continue.",
+      "email": "Email Address",
+      "password": "Password",
+      "remember": "Remember me",
+      "forgot": "Forgot your password?",
+      "submit": "Sign In",
+      "noAccount": "Don't have an account?",
+      "createAccount": "Create one here",
+      "socialLogin": "Or continue with",
+      "error": {
+        "invalid": "Invalid email or password",
+        "required": "Please fill in all required fields",
+        "network": "Network error. Please try again."
+      }
+    },
+    "register": {
+      "title": "Create Your Account",
+      "subtitle": "Join us and start your learning journey today!",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email Address",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "terms": "I agree to the {termsLink} and {privacyLink}",
+      "termsLink": "Terms of Service",
+      "privacyLink": "Privacy Policy",
+      "submit": "Create Account",
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign in here",
+      "error": {
+        "exists": "An account with this email already exists",
+        "weak": "Password is too weak",
+        "mismatch": "Passwords do not match",
+        "terms": "You must agree to the terms and privacy policy"
+      }
+    },
+    "resetPassword": {
+      "title": "Reset Your Password",
+      "subtitle": "Enter your email and we'll send you a reset link.",
+      "email": "Email Address",
+      "submit": "Send Reset Link",
+      "backToLogin": "Back to Sign In",
+      "success": "Password reset link sent to your email",
+      "error": {
+        "notFound": "No account found with this email address"
+      }
+    }
+  },
+  "navigation": {
+    "main": {
+      "dashboard": "Dashboard",
+      "learning": "Learning",
+      "courses": "Courses",
+      "progress": "Progress",
+      "analytics": "Analytics",
+      "chat": "AI Tutor",
+      "profile": "Profile",
+      "settings": "Settings",
+      "help": "Help Center"
+    },
+    "breadcrumb": {
+      "home": "Home",
+      "separator": ">"
+    }
+  },
+  "dashboard": {
+    "title": "Your Learning Dashboard",
+    "welcome": "Welcome back, {name}!",
+    "stats": {
+      "totalHours": "Total Study Hours",
+      "completedCourses": "Completed Courses",
+      "currentStreak": "Current Streak",
+      "skillsLearned": "Skills Learned"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "continueLearning": "Continue Learning",
+      "startNewCourse": "Start New Course",
+      "reviewProgress": "Review Progress",
+      "practiceSkills": "Practice Skills"
+    },
+    "recentActivity": {
+      "title": "Recent Activity",
+      "empty": "No recent activity to show",
+      "viewAll": "View All Activity"
+    },
+    "achievements": {
+      "title": "Recent Achievements",
+      "empty": "No achievements yet",
+      "viewAll": "View All Achievements"
+    }
+  },
+  "learning": {
+    "session": {
+      "title": "Learning Session",
+      "start": "Start Learning",
+      "pause": "Pause Session",
+      "resume": "Resume Session",
+      "complete": "Complete Session",
+      "duration": "Session Duration: {duration}",
+      "progress": "Progress: {percentage}% complete"
+    },
+    "content": {
+      "lesson": "Lesson",
+      "quiz": "Quiz",
+      "exercise": "Exercise",
+      "project": "Project",
+      "difficulty": {
+        "beginner": "Beginner",
+        "intermediate": "Intermediate",
+        "advanced": "Advanced",
+        "expert": "Expert"
+      },
+      "estimatedTime": "Estimated time: {duration}",
+      "prerequisites": "Prerequisites",
+      "objectives": "Learning Objectives"
+    },
+    "quiz": {
+      "title": "Knowledge Check",
+      "question": "Question {current} of {total}",
+      "submit": "Submit Answer",
+      "next": "Next Question",
+      "previous": "Previous Question",
+      "results": "Quiz Results",
+      "score": "Your Score: {score}/{total}",
+      "passed": "Congratulations! You passed!",
+      "failed": "Keep learning! Try again when you're ready.",
+      "retry": "Retry Quiz",
+      "continue": "Continue Learning"
+    },
+    "progress": {
+      "title": "Your Progress",
+      "overall": "Overall Progress",
+      "course": "Course Progress",
+      "skill": "Skill Mastery",
+      "timeSpent": "Time Spent Learning",
+      "streak": "Learning Streak",
+      "goals": "Learning Goals",
+      "setGoal": "Set Learning Goal",
+      "updateGoal": "Update Goal"
+    }
+  },
+  "chat": {
+    "title": "AI Learning Assistant",
+    "placeholder": "Ask me anything about your learning...",
+    "send": "Send",
+    "clear": "Clear Chat",
+    "typing": "AI is typing...",
+    "error": "Sorry, I couldn't process your request. Please try again.",
+    "suggestions": {
+      "title": "Quick Questions",
+      "explain": "Explain this concept",
+      "examples": "Give me examples",
+      "practice": "Create practice questions",
+      "review": "Review key points"
+    },
+    "tutoring": {
+      "title": "Personal Tutoring Session",
+      "start": "Start Tutoring",
+      "end": "End Session",
+      "feedback": "Get Feedback",
+      "hint": "Get a Hint"
+    }
+  },
+  "profile": {
+    "title": "Your Profile",
+    "personalInfo": {
+      "title": "Personal Information",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email Address",
+      "bio": "Bio",
+      "location": "Location",
+      "timezone": "Time Zone",
+      "update": "Update Profile"
+    },
+    "learningPreferences": {
+      "title": "Learning Preferences",
+      "style": "Learning Style",
+      "pace": "Learning Pace",
+      "difficulty": "Preferred Difficulty",
+      "language": "Interface Language",
+      "notifications": "Notifications"
+    },
+    "achievements": {
+      "title": "Achievements",
+      "badges": "Badges Earned",
+      "certificates": "Certificates",
+      "milestones": "Milestones Reached"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "general": {
+      "title": "General",
+      "language": "Language",
+      "theme": "Theme",
+      "timezone": "Time Zone",
+      "dateFormat": "Date Format",
+      "numberFormat": "Number Format"
+    },
+    "learning": {
+      "title": "Learning Preferences",
+      "style": "Learning Style",
+      "pace": "Learning Pace",
+      "reminders": "Study Reminders",
+      "goals": "Learning Goals"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "email": "Email Notifications",
+      "push": "Push Notifications",
+      "achievement": "Achievement Notifications",
+      "reminder": "Study Reminders"
+    },
+    "privacy": {
+      "title": "Privacy & Security",
+      "dataCollection": "Data Collection",
+      "analytics": "Usage Analytics",
+      "cookies": "Cookie Preferences",
+      "deleteAccount": "Delete Account"
+    },
+    "accessibility": {
+      "title": "Accessibility",
+      "fontSize": "Font Size",
+      "contrast": "High Contrast",
+      "animations": "Reduce Animations",
+      "screenReader": "Screen Reader Support"
+    }
+  },
+  "forms": {
+    "validation": {
+      "required": "This field is required",
+      "email": "Please enter a valid email address",
+      "minLength": "Must be at least {min} characters",
+      "maxLength": "Must be no more than {max} characters",
+      "match": "Fields do not match",
+      "weak": "Password is too weak",
+      "invalid": "Invalid input"
+    },
+    "labels": {
+      "required": "Required",
+      "optional": "Optional"
+    }
+  },
+  "time": {
+    "units": {
+      "second": "second",
+      "seconds": "seconds",
+      "minute": "minute",
+      "minutes": "minutes",
+      "hour": "hour",
+      "hours": "hours",
+      "day": "day",
+      "days": "days",
+      "week": "week",
+      "weeks": "weeks",
+      "month": "month",
+      "months": "months",
+      "year": "year",
+      "years": "years"
+    },
+    "relative": {
+      "now": "now",
+      "today": "today",
+      "yesterday": "yesterday",
+      "tomorrow": "tomorrow",
+      "ago": "{time} ago",
+      "in": "in {time}"
+    }
+  },
+  "accessibility": {
+    "skipToContent": "Skip to main content",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "toggleTheme": "Toggle theme",
+    "loading": "Loading content",
+    "error": "Error loading content",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "sortBy": "Sort by {field}",
+    "filterBy": "Filter by {field}"
+  },
+  "errors": {
+    "notFound": {
+      "title": "Page Not Found",
+      "message": "The page you're looking for doesn't exist.",
+      "action": "Go to Dashboard"
+    },
+    "serverError": {
+      "title": "Server Error",
+      "message": "Something went wrong on our end. Please try again later.",
+      "action": "Refresh Page"
+    },
+    "networkError": {
+      "title": "Network Error",
+      "message": "Please check your internet connection and try again.",
+      "action": "Retry"
+    }
+  }
+}

@@ -1,0 +1,77 @@
+# Code Climate Configuration for A+ Quality Standards
+version: "2"
+
+checks:
+  argument-count:
+    config:
+      threshold: 5
+  complex-logic:
+    config:
+      threshold: 6
+  file-lines:
+    config:
+      threshold: 500
+  method-complexity:
+    config:
+      threshold: 10
+  method-count:
+    config:
+      threshold: 25
+  method-lines:
+    config:
+      threshold: 50
+  nested-control-flow:
+    config:
+      threshold: 4
+  return-statements:
+    config:
+      threshold: 4
+  similar-code:
+    config:
+      threshold: 5
+  identical-code:
+    config:
+      threshold: 3
+
+plugins:
+  eslint:
+    enabled: true
+    config:
+      config: eslint.config.js
+  duplication:
+    enabled: true
+    config:
+      languages:
+        - typescript
+        - javascript
+  sonar-typescript:
+    enabled: true
+  fixme:
+    enabled: true
+
+exclude_patterns:
+  - "node_modules/"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "__tests__/"
+  - "**/*.d.ts"
+  - "dist/"
+  - ".next/"
+  - "coverage/"
+  - "storybook-static/"
+  - "**/*.config.js"
+  - "**/*.config.ts"
+  - "migrations/"
+  - "scripts/"
+  - "logs/"
+  - "test-results/"
+  - "*.md"
+  - ".github/"
+  - "deploy/"
+  - "docs/"
+  - "infra/"
+  - "modules/"
+  - "stacks/"
+  - "terraform/"

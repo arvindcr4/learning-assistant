@@ -1,0 +1,306 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: prometheus
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: learning-assistant
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'learning-assistant'
+        environment: 'production'
+    
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+    
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+    
+    scrape_configs:
+      # Prometheus itself
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+      
+      # Kubernetes API server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - default
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+      
+      # Kubernetes nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+      
+      # Kubernetes pods
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - learning-assistant
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+      
+      # Learning Assistant application
+      - job_name: 'learning-assistant'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - learning-assistant
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: learning-assistant-service
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+      
+      # PostgreSQL
+      - job_name: 'postgres'
+        static_configs:
+          - targets: ['postgres-service:5432']
+        metrics_path: /metrics
+        scrape_interval: 30s
+      
+      # Redis
+      - job_name: 'redis'
+        static_configs:
+          - targets: ['redis-service:6379']
+        metrics_path: /metrics
+        scrape_interval: 30s
+      
+      # Node Exporter
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - monitoring
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: node-exporter
+      
+      # kube-state-metrics
+      - job_name: 'kube-state-metrics'
+        static_configs:
+          - targets: ['kube-state-metrics.kube-system:8080']
+      
+      # Ingress NGINX
+      - job_name: 'ingress-nginx'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - ingress-nginx
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: keep
+            regex: ingress-nginx
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: (.+)
+            replacement: $1:10254
+  
+  alerting_rules.yml: |
+    groups:
+      - name: learning-assistant.rules
+        rules:
+          # Application alerts
+          - alert: LearningAssistantDown
+            expr: up{job="learning-assistant"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Learning Assistant is down"
+              description: "Learning Assistant has been down for more than 1 minute."
+          
+          - alert: LearningAssistantHighLatency
+            expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="learning-assistant"}[5m])) by (le)) > 0.5
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Learning Assistant high latency"
+              description: "Learning Assistant 95th percentile latency is {{ $value }}s"
+          
+          - alert: LearningAssistantHighErrorRate
+            expr: sum(rate(http_requests_total{job="learning-assistant",code=~"5.."}[5m])) / sum(rate(http_requests_total{job="learning-assistant"}[5m])) > 0.05
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Learning Assistant high error rate"
+              description: "Learning Assistant error rate is {{ $value | humanizePercentage }}"
+          
+          # Database alerts
+          - alert: PostgreSQLDown
+            expr: up{job="postgres"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "PostgreSQL is down"
+              description: "PostgreSQL has been down for more than 1 minute."
+          
+          - alert: PostgreSQLHighConnections
+            expr: sum(pg_stat_activity_count) > 150
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PostgreSQL high connections"
+              description: "PostgreSQL has {{ $value }} connections"
+          
+          - alert: PostgreSQLSlowQueries
+            expr: avg(pg_stat_statements_mean_time_seconds) > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PostgreSQL slow queries"
+              description: "PostgreSQL average query time is {{ $value }}s"
+          
+          # Redis alerts
+          - alert: RedisDown
+            expr: up{job="redis"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Redis is down"
+              description: "Redis has been down for more than 1 minute."
+          
+          - alert: RedisHighMemoryUsage
+            expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Redis high memory usage"
+              description: "Redis memory usage is {{ $value | humanizePercentage }}"
+          
+          # Infrastructure alerts
+          - alert: NodeHighCPUUsage
+            expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node high CPU usage"
+              description: "Node {{ $labels.instance }} CPU usage is {{ $value }}%"
+          
+          - alert: NodeHighMemoryUsage
+            expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.8
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node high memory usage"
+              description: "Node {{ $labels.instance }} memory usage is {{ $value | humanizePercentage }}"
+          
+          - alert: NodeHighDiskUsage
+            expr: (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} > 0.8
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node high disk usage"
+              description: "Node {{ $labels.instance }} disk usage is {{ $value | humanizePercentage }}"
+          
+          # Kubernetes alerts
+          - alert: KubernetesPodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Kubernetes pod crash looping"
+              description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is crash looping"
+          
+          - alert: KubernetesPodNotReady
+            expr: kube_pod_status_ready{condition="false"} == 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kubernetes pod not ready"
+              description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is not ready"
+          
+          - alert: KubernetesNodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Kubernetes node not ready"
+              description: "Node {{ $labels.node }} is not ready"
+          
+          - alert: KubernetesDeploymentReplicasMismatch
+            expr: kube_deployment_spec_replicas != kube_deployment_status_available_replicas
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kubernetes deployment replicas mismatch"
+              description: "Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }} has {{ $value }} replicas available, expected {{ $labels.spec_replicas }}"

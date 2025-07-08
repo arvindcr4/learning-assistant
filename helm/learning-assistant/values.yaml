@@ -1,0 +1,510 @@
+# Global Configuration
+global:
+  environment: production
+  domain: learning-assistant.example.com
+  timezone: UTC
+  imagePullSecrets: []
+  storageClass: "fast-ssd"
+
+# Application Configuration
+app:
+  name: learning-assistant
+  version: "1.0.0"
+  replicas: 3
+  image:
+    repository: ghcr.io/learning-assistant/learning-assistant
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  # Resource Configuration
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  # Environment Variables
+  env:
+    NODE_ENV: production
+    PORT: "3000"
+    NEXT_TELEMETRY_DISABLED: "1"
+    LOG_LEVEL: info
+    CACHE_TTL: "3600"
+    SESSION_TIMEOUT: "7200"
+    MAX_UPLOAD_SIZE: "10485760"
+    RATE_LIMIT_WINDOW: "900000"
+    RATE_LIMIT_MAX: "100"
+    FEATURES_ENABLED: "analytics,recommendations,chat,assessment"
+    PAGINATION_DEFAULT_SIZE: "20"
+    PAGINATION_MAX_SIZE: "100"
+  
+  # Health Checks
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /api/health/ready
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  startupProbe:
+    httpGet:
+      path: /api/health/startup
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+# Nginx Sidecar Configuration
+nginx:
+  enabled: true
+  image:
+    repository: nginx
+    tag: "1.25-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Database Configuration
+postgresql:
+  enabled: true
+  auth:
+    username: learning_assistant_user
+    database: learning_assistant
+    existingSecret: postgres-secrets
+    secretKeys:
+      adminPasswordKey: POSTGRES_PASSWORD
+      userPasswordKey: POSTGRES_PASSWORD
+  
+  primary:
+    persistence:
+      enabled: true
+      storageClass: "fast-ssd"
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    configuration: |
+      shared_buffers = 256MB
+      effective_cache_size = 1GB
+      work_mem = 4MB
+      maintenance_work_mem = 64MB
+      checkpoint_completion_target = 0.9
+      wal_buffers = 16MB
+      max_connections = 200
+      log_statement = 'all'
+      log_duration = on
+  
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Redis Configuration
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: redis-secrets
+    existingSecretPasswordKey: REDIS_PASSWORD
+  
+  master:
+    persistence:
+      enabled: true
+      storageClass: "fast-ssd"
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    configuration: |
+      maxmemory 512mb
+      maxmemory-policy allkeys-lru
+      save 900 1
+      save 300 10
+      save 60 10000
+      appendonly yes
+      slowlog-log-slower-than 10000
+  
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Service Configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/api/metrics"
+
+# Load Balancer Service
+loadBalancer:
+  enabled: false
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: ""
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  
+  hosts:
+    - host: learning-assistant.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: www.learning-assistant.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  
+  tls:
+    - secretName: learning-assistant-tls
+      hosts:
+        - learning-assistant.example.com
+        - www.learning-assistant.example.com
+
+# API Ingress Configuration
+apiIngress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "200"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  
+  hosts:
+    - host: api.learning-assistant.example.com
+      paths:
+        - path: /v1
+          pathType: Prefix
+  
+  tls:
+    - secretName: learning-assistant-api-tls
+      hosts:
+        - api.learning-assistant.example.com
+
+# Autoscaling Configuration
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  
+  # KEDA Configuration
+  keda:
+    enabled: true
+    triggers:
+      - type: prometheus
+        metadata:
+          serverAddress: http://prometheus-service:9090
+          metricName: http_requests_per_second
+          threshold: '100'
+          query: sum(rate(http_requests_total{job="learning-assistant"}[1m]))
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Security Configuration
+security:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+  
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    runAsUser: 1001
+  
+  networkPolicy:
+    enabled: true
+    ingress:
+      - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+    egress:
+      - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+
+# Service Account Configuration
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+    iam.gke.io/gcp-service-account: ""
+  name: ""
+
+# RBAC Configuration
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets", "pods", "services"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets"]
+      verbs: ["get", "list", "watch"]
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      path: /api/metrics
+      labels:
+        app: learning-assistant
+  
+  grafana:
+    enabled: true
+    adminPassword: ""
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-service:9090
+        access: proxy
+        isDefault: true
+  
+  alertmanager:
+    enabled: true
+    config:
+      global:
+        smtp_smarthost: 'smtp.example.com:587'
+        smtp_from: 'alerts@example.com'
+      route:
+        group_by: ['alertname']
+        group_wait: 10s
+        group_interval: 10s
+        repeat_interval: 1h
+        receiver: 'web.hook'
+
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 7  # days
+  storage:
+    size: 100Gi
+    storageClass: "standard-storage"
+
+# Secrets Configuration
+secrets:
+  create: true
+  data:
+    # Database secrets (will be base64 encoded)
+    DATABASE_URL: ""
+    DATABASE_USER: "learning_assistant_user"
+    DATABASE_PASSWORD: ""
+    DATABASE_NAME: "learning_assistant"
+    
+    # Redis secrets
+    REDIS_URL: ""
+    REDIS_PASSWORD: ""
+    
+    # JWT and authentication
+    JWT_SECRET: ""
+    NEXTAUTH_SECRET: ""
+    NEXTAUTH_URL: ""
+    
+    # Encryption
+    ENCRYPTION_KEY: ""
+    API_KEY_SALT: ""
+    
+    # Third-party services
+    OPENAI_API_KEY: ""
+    GOOGLE_CLIENT_ID: ""
+    GOOGLE_CLIENT_SECRET: ""
+    
+    # Monitoring
+    SENTRY_DSN: ""
+    DATADOG_API_KEY: ""
+    NEW_RELIC_LICENSE_KEY: ""
+    
+    # Email
+    SMTP_HOST: "smtp.example.com"
+    SMTP_PORT: "587"
+    SMTP_USER: ""
+    SMTP_PASSWORD: ""
+    
+    # Storage
+    AWS_ACCESS_KEY_ID: ""
+    AWS_SECRET_ACCESS_KEY: ""
+    AWS_REGION: "us-east-1"
+    AWS_S3_BUCKET: "learning-assistant-storage"
+
+# External Secrets Configuration
+externalSecrets:
+  enabled: false
+  secretStore:
+    provider: vault
+    vault:
+      server: "https://vault.example.com"
+      path: "secret"
+      version: "v2"
+      auth:
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "learning-assistant"
+
+# TLS Configuration
+tls:
+  enabled: true
+  certManager:
+    enabled: true
+    issuer: letsencrypt-prod
+    email: admin@example.com
+
+# Volume Configuration
+volumes:
+  tmp:
+    enabled: true
+    sizeLimit: 1Gi
+  logs:
+    enabled: true
+    sizeLimit: 5Gi
+  cache:
+    enabled: true
+    sizeLimit: 2Gi
+
+# Init Containers
+initContainers:
+  migration:
+    enabled: true
+    image:
+      repository: ghcr.io/learning-assistant/learning-assistant
+      tag: "latest"
+    command:
+      - npm
+      - run
+      - migrate
+
+# Deployment Strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Node Affinity
+nodeAffinity:
+  enabled: false
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+    - matchExpressions:
+      - key: kubernetes.io/arch
+        operator: In
+        values:
+        - amd64
+
+# Pod Anti-Affinity
+podAntiAffinity:
+  enabled: true
+  preferredDuringSchedulingIgnoredDuringExecution:
+  - weight: 100
+    podAffinityTerm:
+      labelSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - learning-assistant
+      topologyKey: kubernetes.io/hostname
+
+# Tolerations
+tolerations: []
+
+# Node Selector
+nodeSelector: {}
+
+# Priority Class
+priorityClassName: ""
+
+# DNS Configuration
+dnsPolicy: ClusterFirst
+dnsConfig: {}
+
+# Termination Grace Period
+terminationGracePeriodSeconds: 30
+
+# Image Pull Secrets
+imagePullSecrets: []
+
+# Additional Labels
+labels: {}
+
+# Additional Annotations
+annotations: {}
+
+# Pod Labels
+podLabels: {}
+
+# Pod Annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+  prometheus.io/path: "/api/metrics"

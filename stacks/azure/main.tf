@@ -2,6 +2,11 @@ provider "azurerm" {
   features {}
 }
 
+resource "azurerm_resource_group" "main" {
+  name     = "example-resources"
+  location = var.location
+}
+
 resource "azurerm_virtual_network" "main" {
   name                = "main-vnet"
   address_space       = ["10.0.0.0/16"]
@@ -58,10 +63,17 @@ resource "azurerm_cdn_profile" "example" {
   sku                 = "Standard_Microsoft"
 }
 
+# Placeholder for CDN Profile - replace with your actual CDN profile
+resource "azurerm_cdn_profile" "placeholder" {
+  name                = "placeholder-profile"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku                 = "Standard_Microsoft"
+}
+
 resource "azurerm_cdn_endpoint" "cdn" {
   name                = "example-endpoint"
   profile_name        = azurerm_cdn_profile.example.name
-  location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   origin {
     name      = "example-origin"

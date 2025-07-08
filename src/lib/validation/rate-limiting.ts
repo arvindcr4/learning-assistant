@@ -28,7 +28,90 @@ export interface RateLimitStore {
 }
 
 // ====================
-// IN-MEMORY STORE
+// REDIS STORE
+// ====================
+
+import { executeRedisCommand } from '../redis-client';
+
+class RedisStore {
+  async get(key: string): Promise<RateLimitStore | undefined> {
+    try {
+      const data = await executeRedisCommand<string>('get', [key]);
+      if (data) {
+        return JSON.parse(data) as RateLimitStore;
+      }
+      return undefined;
+    } catch (error) {
+      console.error('Redis rate limit get error:', error);
+      return undefined;
+    }
+  }
+
+  async set(key: string, value: RateLimitStore, ttlSeconds: number): Promise<void> {
+    try {
+      await executeRedisCommand('setex', [key, ttlSeconds, JSON.stringify(value)]);
+    } catch (error) {
+      console.error('Redis rate limit set error:', error);
+    }
+  }
+
+  async increment(key: string, windowMs: number): Promise<RateLimitStore> {
+    const now = Date.now();
+    const resetTime = now + windowMs;
+    const ttlSeconds = Math.ceil(windowMs / 1000);
+    
+    try {
+      // Use Redis INCR for atomic increment
+      const requests = await executeRedisCommand<number>('incr', [key]);
+      
+      if (requests === 1) {
+        // First request, set expiration
+        await executeRedisCommand('expire', [key, ttlSeconds]);
+      }
+      
+      const entry: RateLimitStore = {
+        key,
+        requests: requests || 1,
+        resetTime,
+      };
+      
+      return entry;
+    } catch (error) {
+      console.error('Redis rate limit increment error:', error);
+      // Fallback to basic increment
+      const existing = await this.get(key);
+      
+      if (existing) {
+        existing.requests += 1;
+        await this.set(key, existing, ttlSeconds);
+        return existing;
+      } else {
+        const newEntry: RateLimitStore = {
+          key,
+          requests: 1,
+          resetTime,
+        };
+        await this.set(key, newEntry, ttlSeconds);
+        return newEntry;
+      }
+    }
+  }
+
+  async reset(key: string): Promise<void> {
+    try {
+      await executeRedisCommand('del', [key]);
+    } catch (error) {
+      console.error('Redis rate limit reset error:', error);
+    }
+  }
+
+  destroy(): void {
+    // Redis connections are managed by the Redis client manager
+  }
+}
+
+// ====================
+// IN-MEMORY STORE (FALLBACK)
 // ====================
 
 class MemoryStore {
@@ -50,7 +133,7 @@ class MemoryStore {
     return undefined;
   }
 
-  async set(key: string, value: RateLimitStore): Promise<void> {
+  async set(key: string, value: RateLimitStore, ttlSeconds?: number): Promise<void> {
     this.store.set(key, value);
   }
 
@@ -97,15 +180,100 @@ class MemoryStore {
 }
 
 // ====================
+// ADAPTIVE STORE
+// ====================
+
+class AdaptiveStore {
+  private redisStore: RedisStore;
+  private memoryStore: MemoryStore;
+  private useRedis: boolean = true;
+  private fallbackMode: boolean = false;
+
+  constructor() {
+    this.redisStore = new RedisStore();
+    this.memoryStore = new MemoryStore();
+    this.checkRedisAvailability();
+  }
+
+  private async checkRedisAvailability(): Promise<void> {
+    try {
+      await executeRedisCommand('ping');
+      this.useRedis = true;
+      this.fallbackMode = false;
+    } catch (error) {
+      console.warn('⚠️ Redis unavailable, falling back to memory store for rate limiting');
+      this.useRedis = false;
+      this.fallbackMode = true;
+    }
+  }
+
+  async get(key: string): Promise<RateLimitStore | undefined> {
+    if (this.useRedis && !this.fallbackMode) {
+      try {
+        return await this.redisStore.get(key);
+      } catch (error) {
+        console.warn('⚠️ Redis error, falling back to memory store');
+        this.fallbackMode = true;
+        return await this.memoryStore.get(key);
+      }
+    }
+    return await this.memoryStore.get(key);
+  }
+
+  async set(key: string, value: RateLimitStore, ttlSeconds?: number): Promise<void> {
+    if (this.useRedis && !this.fallbackMode) {
+      try {
+        await this.redisStore.set(key, value, ttlSeconds || 3600);
+        return;
+      } catch (error) {
+        console.warn('⚠️ Redis error, falling back to memory store');
+        this.fallbackMode = true;
+      }
+    }
+    await this.memoryStore.set(key, value);
+  }
+
+  async increment(key: string, windowMs: number): Promise<RateLimitStore> {
+    if (this.useRedis && !this.fallbackMode) {
+      try {
+        return await this.redisStore.increment(key, windowMs);
+      } catch (error) {
+        console.warn('⚠️ Redis error, falling back to memory store');
+        this.fallbackMode = true;
+      }
+    }
+    return await this.memoryStore.increment(key, windowMs);
+  }
+
+  async reset(key: string): Promise<void> {
+    if (this.useRedis && !this.fallbackMode) {
+      try {
+        await this.redisStore.reset(key);
+        return;
+      } catch (error) {
+        console.warn('⚠️ Redis error, falling back to memory store');
+        this.fallbackMode = true;
+      }
+    }
+    await this.memoryStore.reset(key);
+  }
+
+  destroy(): void {
+    this.redisStore.destroy();
+    this.memoryStore.destroy();
+  }
+}
+
+// ====================
 // RATE LIMITER CLASS
 // ====================
 
 export class RateLimiter {
-  private store: MemoryStore;
+  private store: AdaptiveStore;
   private config: Required<RateLimitConfig>;
 
   constructor(config: RateLimitConfig) {
-    this.store = new MemoryStore();
+    this.store = new AdaptiveStore();
     this.config = {
       windowMs: config.windowMs,
       maxRequests: config.maxRequests,
@@ -208,7 +376,7 @@ export class RateLimiter {
 }
 
 // ====================
-// PREDEFINED RATE LIMITERS
+// PREDEFINED RATE LIMITERS WITH REDIS SUPPORT
 // ====================
 
 // General API rate limiter
@@ -216,6 +384,14 @@ export const apiRateLimiter = new RateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
   maxRequests: 100, // 100 requests per 15 minutes
   message: 'Too many API requests from this IP, please try again later',
+  keyGenerator: (request: NextRequest) => {
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0].trim() : 
+               request.headers.get('x-real-ip') || 
+               request.ip || 
+               'unknown';
+    return `api:${ip}`;
+  },
 });
 
 // Authentication rate limiter (stricter)
@@ -233,7 +409,7 @@ export const authRateLimiter = new RateLimiter({
   },
 });
 
-// Chat/AI rate limiter
+// Chat/AI rate limiter with user-specific limits
 export const chatRateLimiter = new RateLimiter({
   windowMs: 1 * 60 * 1000, // 1 minute
   maxRequests: 30, // 30 messages per minute
@@ -254,7 +430,7 @@ export const chatRateLimiter = new RateLimiter({
   },
 });
 
-// Assessment rate limiter
+// Assessment rate limiter with user tracking
 export const assessmentRateLimiter = new RateLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
   maxRequests: 10, // 10 assessment submissions per hour
@@ -274,11 +450,104 @@ export const assessmentRateLimiter = new RateLimiter({
   },
 });
 
-// File upload rate limiter
+// File upload rate limiter with size consideration
 export const uploadRateLimiter = new RateLimiter({
   windowMs: 10 * 60 * 1000, // 10 minutes
   maxRequests: 5, // 5 uploads per 10 minutes
   message: 'Too many file uploads, please wait before trying again',
+  keyGenerator: (request: NextRequest) => {
+    const userId = request.headers.get('x-user-id');
+    if (userId) {
+      return `upload:user:${userId}`;
+    }
+    
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0].trim() : 
+               request.headers.get('x-real-ip') || 
+               request.ip || 
+               'unknown';
+    return `upload:ip:${ip}`;
+  },
+});
+
+// Content access rate limiter
+export const contentRateLimiter = new RateLimiter({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  maxRequests: 50, // 50 content requests per 5 minutes
+  message: 'Too many content requests, please slow down',
+  keyGenerator: (request: NextRequest) => {
+    const userId = request.headers.get('x-user-id');
+    if (userId) {
+      return `content:user:${userId}`;
+    }
+    
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0].trim() : 
+               request.headers.get('x-real-ip') || 
+               request.ip || 
+               'unknown';
+    return `content:ip:${ip}`;
+  },
+});
+
+// Analytics rate limiter
+export const analyticsRateLimiter = new RateLimiter({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  maxRequests: 10, // 10 analytics requests per minute
+  message: 'Too many analytics requests, please wait',
+  keyGenerator: (request: NextRequest) => {
+    const userId = request.headers.get('x-user-id');
+    if (userId) {
+      return `analytics:user:${userId}`;
+    }
+    
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0].trim() : 
+               request.headers.get('x-real-ip') || 
+               request.ip || 
+               'unknown';
+    return `analytics:ip:${ip}`;
+  },
+});
+
+// Email rate limiter
+export const emailRateLimiter = new RateLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  maxRequests: 5, // 5 emails per hour
+  message: 'Too many email requests, please wait before sending more emails',
+  keyGenerator: (request: NextRequest) => {
+    const userId = request.headers.get('x-user-id');
+    if (userId) {
+      return `email:user:${userId}`;
+    }
+    
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0].trim() : 
+               request.headers.get('x-real-ip') || 
+               request.ip || 
+               'unknown';
+    return `email:ip:${ip}`;
+  },
+});
+
+// Search rate limiter
+export const searchRateLimiter = new RateLimiter({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  maxRequests: 20, // 20 search requests per minute
+  message: 'Too many search requests, please slow down',
+  keyGenerator: (request: NextRequest) => {
+    const userId = request.headers.get('x-user-id');
+    if (userId) {
+      return `search:user:${userId}`;
+    }
+    
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded ? forwarded.split(',')[0].trim() : 
+               request.headers.get('x-real-ip') || 
+               request.ip || 
+               'unknown';
+    return `search:ip:${ip}`;
+  },
 });
 
 // ====================
@@ -514,6 +783,10 @@ export default {
   chatRateLimiter,
   assessmentRateLimiter,
   uploadRateLimiter,
+  contentRateLimiter,
+  analyticsRateLimiter,
+  emailRateLimiter,
+  searchRateLimiter,
   withRateLimit,
   withUserRateLimit,
   withMultipleRateLimits,

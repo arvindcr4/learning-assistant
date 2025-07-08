@@ -142,7 +142,7 @@ const LoginForm = React.forwardRef<HTMLDivElement, LoginFormProps>(
                   <input
                     {...register('rememberMe')}
                     type="checkbox"
-                    className="rounded border-input bg-background focus:ring-2 focus:ring-learning-primary focus:ring-offset-2"
+                    className="h-4 w-4 rounded border-input bg-background text-learning-primary focus:ring-2 focus:ring-learning-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={isLoading}
                   />
                   <span className="text-sm text-muted-foreground">Remember me</span>
@@ -167,7 +167,7 @@ const LoginForm = React.forwardRef<HTMLDivElement, LoginFormProps>(
               >
                 {isLoading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-b-transparent mr-2" />
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-b-transparent mr-2" />
                     Signing in...
                   </>
                 ) : (
@@ -181,7 +181,7 @@ const LoginForm = React.forwardRef<HTMLDivElement, LoginFormProps>(
 
             {onSignUp && (
               <div className="mt-6 text-center text-sm">
-                <span className="text-muted-foreground">Don't have an account? </span>
+                <span className="text-muted-foreground">Don&apos;t have an account? </span>
                 <button
                   onClick={onSignUp}
                   className="text-learning-primary hover:underline font-medium focus:outline-none focus:underline"

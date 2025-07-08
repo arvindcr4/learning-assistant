@@ -1,0 +1,284 @@
+# Docker Compose configuration for Learning Assistant Backup Service
+# Production-ready backup and disaster recovery setup
+# Version: 2.0.0
+
+version: '3.8'
+
+services:
+  # Primary backup service
+  backup-service:
+    build:
+      context: ../../
+      dockerfile: docker/backup/Dockerfile
+      target: production
+    image: learning-assistant/backup-service:2.0.0
+    container_name: learning-assistant-backup
+    restart: unless-stopped
+    
+    environment:
+      # Database configuration
+      - DB_HOST=${DB_HOST:-postgresql}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-learning_assistant_db}
+      - DB_USER=${DB_USER:-learning_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      
+      # Backup configuration
+      - BACKUP_SCHEDULE=0 2 * * *
+      - RETENTION_DAYS=30
+      - RETENTION_MONTHS=12
+      - COMPRESSION_LEVEL=6
+      - ENCRYPTION_ENABLED=true
+      - PARALLEL_JOBS=4
+      
+      # Cloud storage configuration
+      - S3_BUCKET=${S3_BUCKET:-learning-assistant-backups}
+      - S3_PREFIX=backups/
+      - AZURE_CONTAINER=${AZURE_CONTAINER:-}
+      - GCS_BUCKET=${GCS_BUCKET:-}
+      
+      # AWS credentials
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      
+      # Monitoring configuration
+      - MONITORING_ENABLED=true
+      - MONITORING_INTERVAL=300
+      - HEALTH_CHECK_INTERVAL=900
+      
+      # Notification configuration
+      - SLACK_WEBHOOK=${SLACK_WEBHOOK}
+      - DISCORD_WEBHOOK=${DISCORD_WEBHOOK}
+      - EMAIL_ALERTS=${EMAIL_ALERTS}
+      - PAGERDUTY_INTEGRATION_KEY=${PAGERDUTY_INTEGRATION_KEY}
+      
+      # Security configuration
+      - ENCRYPTION_KEY_FILE=/etc/backup/encryption.key
+      - ACCESS_LOG_ENABLED=true
+      - AUDIT_LOG_ENABLED=true
+      
+      # Performance configuration
+      - MAX_PARALLEL_TRANSFERS=4
+      - BACKUP_TIMEOUT=7200
+      - TRANSFER_TIMEOUT=3600
+      - BANDWIDTH_LIMIT=100M
+      
+    volumes:
+      # Backup storage
+      - backup-data:/var/backups/learning-assistant
+      - backup-logs:/var/log/backup
+      
+      # Configuration and secrets
+      - ./encryption:/etc/backup:ro
+      - ./config:/opt/backup/config:ro
+      
+      # Application data (if running locally)
+      - app-data:/app/data:ro
+      
+    networks:
+      - backup-network
+      - app-network
+      
+    depends_on:
+      - postgresql
+      - redis
+      
+    healthcheck:
+      test: ["/opt/backup/healthcheck.sh"]
+      interval: 5m
+      timeout: 30s
+      start_period: 1m
+      retries: 3
+      
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        
+    labels:
+      - "com.learning-assistant.service=backup"
+      - "com.learning-assistant.environment=production"
+      - "com.learning-assistant.version=2.0.0"
+      
+  # Backup monitoring dashboard (optional)
+  backup-dashboard:
+    image: grafana/grafana:latest
+    container_name: backup-dashboard
+    restart: unless-stopped
+    
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      
+    ports:
+      - "3001:3000"
+      
+    networks:
+      - backup-network
+      
+    labels:
+      - "com.learning-assistant.service=backup-dashboard"
+      
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: backup-prometheus
+    restart: unless-stopped
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+      
+    ports:
+      - "9090:9090"
+      
+    networks:
+      - backup-network
+      
+    labels:
+      - "com.learning-assistant.service=backup-metrics"
+      
+  # PostgreSQL (if not using external database)
+  postgresql:
+    image: postgres:15-alpine
+    container_name: learning-assistant-db
+    restart: unless-stopped
+    
+    environment:
+      - POSTGRES_DB=${DB_NAME:-learning_assistant_db}
+      - POSTGRES_USER=${DB_USER:-learning_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--auth-host=md5
+      
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      
+    command: >
+      postgres
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c log_statement=all
+      -c log_directory=/var/log/postgresql
+      -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log
+      -c logging_collector=on
+      -c log_rotation_age=1d
+      -c log_rotation_size=100MB
+      
+    networks:
+      - backup-network
+      - app-network
+      
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-learning_user} -d ${DB_NAME:-learning_assistant_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+    labels:
+      - "com.learning-assistant.service=database"
+      
+  # Redis (if not using external cache)
+  redis:
+    image: redis:7-alpine
+    container_name: learning-assistant-redis
+    restart: unless-stopped
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      
+    volumes:
+      - redis-data:/data
+      
+    networks:
+      - backup-network
+      - app-network
+      
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+    labels:
+      - "com.learning-assistant.service=cache"
+      
+# Network definitions
+networks:
+  backup-network:
+    driver: bridge
+    name: learning-assistant-backup
+    
+  app-network:
+    driver: bridge
+    name: learning-assistant-app
+    external: true
+    
+# Volume definitions
+volumes:
+  # Backup storage volumes
+  backup-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BACKUP_DATA_PATH:-./data/backups}
+      
+  backup-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BACKUP_LOGS_PATH:-./logs/backup}
+      
+  # Application data volumes
+  app-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${APP_DATA_PATH:-../data}
+      
+  # Database volumes
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${POSTGRES_DATA_PATH:-./data/postgres}
+      
+  redis-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${REDIS_DATA_PATH:-./data/redis}
+      
+  # Monitoring volumes
+  grafana-data:
+    driver: local
+    
+  prometheus-data:
+    driver: local

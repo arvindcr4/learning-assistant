@@ -1,0 +1,691 @@
+name: Enhanced CI/CD Pipeline with Quality Gates
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      skip_tests:
+        description: 'Skip test execution'
+        required: false
+        default: false
+        type: boolean
+      deploy_strategy:
+        description: 'Deployment strategy'
+        required: false
+        default: 'rolling'
+        type: choice
+        options:
+        - rolling
+        - blue-green
+        - canary
+
+env:
+  NODE_VERSION: '20.x'
+  DOCKER_BUILDKIT: 1
+  BUILDX_VERSION: 0.11.2
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  ENVIRONMENT: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+  DEPLOY_STRATEGY: ${{ github.event.inputs.deploy_strategy || 'rolling' }}
+
+jobs:
+  # Pre-flight checks and validation
+  pre-flight:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should_deploy: ${{ steps.deploy_check.outputs.should_deploy }}
+      changed_files: ${{ steps.changes.outputs.changed_files }}
+      test_suite: ${{ steps.test_suite.outputs.suite }}
+      environment: ${{ steps.env_check.outputs.environment }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check changed files
+        id: changes
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Check if deployment files changed
+          if echo "$CHANGED_FILES" | grep -E "(k8s/|terraform/|Dockerfile|docker-compose|.github/workflows/)"; then
+            echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "infrastructure_changed=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Determine test suite
+        id: test_suite
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "suite=quick" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "suite=full" >> $GITHUB_OUTPUT
+          else
+            echo "suite=standard" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Environment validation
+        id: env_check
+        run: |
+          ENV="${{ env.ENVIRONMENT }}"
+          if [[ "$ENV" == "production" && "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "❌ Production deployments only allowed from main branch"
+            exit 1
+          fi
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+      
+      - name: Deployment decision
+        id: deploy_check
+        run: |
+          if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Code quality and security gates
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: pre-flight
+    if: "!github.event.inputs.skip_tests"
+    
+    strategy:
+      matrix:
+        check: [lint, types, security, format, complexity]
+        include:
+          - check: lint
+            command: npm run lint:ci
+          - check: types
+            command: npm run type-check
+          - check: security
+            command: npm run security:check
+          - check: format
+            command: npm run format:check
+          - check: complexity
+            command: npm run complexity:check
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+      
+      - name: Run ${{ matrix.check }} check
+        run: ${{ matrix.command }}
+      
+      - name: Upload ${{ matrix.check }} results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.check }}-results
+          path: |
+            reports/${{ matrix.check }}-report.*
+            coverage/
+          retention-days: 30
+
+  # Comprehensive testing with parallel execution
+  testing:
+    name: Testing Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [pre-flight, quality-gates]
+    if: "!github.event.inputs.skip_tests"
+    
+    strategy:
+      matrix:
+        test-type: [unit, integration, e2e]
+        include:
+          - test-type: unit
+            command: npm run test:unit:ci
+            artifacts: coverage/unit/
+          - test-type: integration
+            command: npm run test:integration:ci
+            artifacts: coverage/integration/
+          - test-type: e2e
+            command: npm run test:e2e:ci
+            artifacts: test-results/
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: learning_assistant_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+      
+      - name: Setup test environment
+        run: |
+          cp .env.test.example .env.test
+          npm run db:migrate:test
+          npm run db:seed:test
+      
+      - name: Run ${{ matrix.test-type }} tests
+        run: ${{ matrix.command }}
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/learning_assistant_test
+          REDIS_URL: redis://localhost:6379
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.test-type }}-test-results
+          path: ${{ matrix.artifacts }}
+          retention-days: 30
+
+  # Multi-platform container builds
+  build-container:
+    name: Build Container Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [pre-flight, quality-gates, testing]
+    if: needs.pre-flight.outputs.should_deploy == 'true'
+    
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: v${{ env.BUILDX_VERSION }}
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ env.ENVIRONMENT }},enable=true
+      
+      - name: Build and push container image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            NEXT_TELEMETRY_DISABLED=1
+      
+      - name: Run container security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload security scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Infrastructure validation and provisioning
+  infrastructure:
+    name: Infrastructure Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [pre-flight]
+    if: needs.pre-flight.outputs.should_deploy == 'true'
+    
+    strategy:
+      matrix:
+        provider: [aws, gcp, azure]
+        include:
+          - provider: aws
+            terraform_dir: terraform/aws
+            validate_cmd: terraform validate
+          - provider: gcp
+            terraform_dir: terraform/gcp
+            validate_cmd: terraform validate
+          - provider: azure
+            terraform_dir: terraform/azure
+            validate_cmd: terraform validate
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~1.6.0
+      
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: ${{ matrix.terraform_dir }}
+      
+      - name: Terraform Init
+        run: terraform init -backend=false
+        working-directory: ${{ matrix.terraform_dir }}
+      
+      - name: Terraform Validate
+        run: ${{ matrix.validate_cmd }}
+        working-directory: ${{ matrix.terraform_dir }}
+      
+      - name: Run Checkov security scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ${{ matrix.terraform_dir }}
+          soft_fail: true
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-${{ matrix.provider }}.sarif
+      
+      - name: Upload infrastructure scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infrastructure-scan-${{ matrix.provider }}
+          path: checkov-${{ matrix.provider }}.sarif
+          retention-days: 30
+
+  # Kubernetes manifest validation
+  k8s-validation:
+    name: Kubernetes Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [pre-flight]
+    if: needs.pre-flight.outputs.should_deploy == 'true'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Kubernetes tools
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          curl -L https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+      
+      - name: Validate Kubernetes manifests
+        run: |
+          find k8s/ -name "*.yaml" -o -name "*.yml" | xargs kubeconform -strict -summary
+      
+      - name: Dry-run Kubernetes deployment
+        run: |
+          kubectl apply --dry-run=client -f k8s/namespace.yaml
+          kubectl apply --dry-run=client -f k8s/configmap.yaml
+          kubectl apply --dry-run=client -f k8s/secrets.yaml
+          kubectl apply --dry-run=client -f k8s/deployment.yaml
+          kubectl apply --dry-run=client -f k8s/service.yaml
+          kubectl apply --dry-run=client -f k8s/ingress.yaml
+      
+      - name: Run Polaris security scan
+        run: |
+          curl -L https://github.com/FairwindsOps/polaris/releases/latest/download/polaris_linux_amd64.tar.gz | tar xz
+          ./polaris audit --audit-path k8s/ --format json > polaris-report.json
+      
+      - name: Upload K8s validation results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k8s-validation-results
+          path: polaris-report.json
+          retention-days: 30
+
+  # Deployment orchestration
+  deploy:
+    name: Deploy to ${{ needs.pre-flight.outputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [pre-flight, build-container, infrastructure, k8s-validation]
+    if: needs.pre-flight.outputs.should_deploy == 'true'
+    environment: ${{ needs.pre-flight.outputs.environment }}
+    
+    strategy:
+      matrix:
+        deployment:
+          - name: database-migration
+            type: migration
+          - name: application-deployment
+            type: application
+          - name: post-deployment-tests
+            type: verification
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup deployment tools
+        run: |
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          
+          # Install ArgoCD CLI
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Database Migration
+        if: matrix.deployment.type == 'migration'
+        run: |
+          # Create migration job
+          envsubst < k8s/jobs/migration-job.yaml | kubectl apply -f -
+          
+          # Wait for migration to complete
+          kubectl wait --for=condition=complete job/db-migration-${{ github.run_number }} --timeout=300s
+          
+          # Check migration status
+          kubectl logs job/db-migration-${{ github.run_number }}
+        env:
+          IMAGE_TAG: ${{ needs.build-container.outputs.image-tag }}
+          ENVIRONMENT: ${{ needs.pre-flight.outputs.environment }}
+          RUN_NUMBER: ${{ github.run_number }}
+      
+      - name: Application Deployment
+        if: matrix.deployment.type == 'application'
+        run: |
+          case "${{ env.DEPLOY_STRATEGY }}" in
+            "rolling")
+              # Rolling deployment
+              helm upgrade --install learning-assistant helm/learning-assistant \
+                --set image.tag=${{ github.sha }} \
+                --set environment=${{ env.ENVIRONMENT }} \
+                --set deployment.strategy=RollingUpdate \
+                --wait --timeout=600s
+              ;;
+            "blue-green")
+              # Blue-green deployment
+              helm upgrade --install learning-assistant-green helm/learning-assistant \
+                --set image.tag=${{ github.sha }} \
+                --set environment=${{ env.ENVIRONMENT }} \
+                --set deployment.suffix=green \
+                --wait --timeout=600s
+              
+              # Switch traffic after validation
+              kubectl patch service learning-assistant -p '{"spec":{"selector":{"version":"green"}}}'
+              ;;
+            "canary")
+              # Canary deployment
+              helm upgrade --install learning-assistant-canary helm/learning-assistant \
+                --set image.tag=${{ github.sha }} \
+                --set environment=${{ env.ENVIRONMENT }} \
+                --set deployment.suffix=canary \
+                --set deployment.replicas=1 \
+                --wait --timeout=600s
+              
+              # Update ingress for canary traffic
+              kubectl apply -f k8s/ingress-canary.yaml
+              ;;
+          esac
+      
+      - name: Post-deployment Verification
+        if: matrix.deployment.type == 'verification'
+        run: |
+          # Health check
+          kubectl get pods -l app=learning-assistant
+          kubectl get services learning-assistant
+          
+          # Wait for pods to be ready
+          kubectl wait --for=condition=ready pod -l app=learning-assistant --timeout=300s
+          
+          # Run smoke tests
+          kubectl run smoke-test-${{ github.run_number }} \
+            --image=${{ needs.build-container.outputs.image-tag }} \
+            --restart=Never \
+            --command -- npm run test:smoke
+          
+          # Wait for smoke tests to complete
+          kubectl wait --for=condition=complete pod/smoke-test-${{ github.run_number }} --timeout=180s
+          
+          # Check smoke test results
+          kubectl logs pod/smoke-test-${{ github.run_number }}
+          
+          # Cleanup
+          kubectl delete pod smoke-test-${{ github.run_number }}
+
+  # Rollback capability
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [pre-flight, deploy]
+    if: failure() && needs.pre-flight.outputs.should_deploy == 'true'
+    environment: ${{ needs.pre-flight.outputs.environment }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Rollback deployment
+        run: |
+          echo "🔄 Rolling back deployment due to failure"
+          
+          # Get previous revision
+          PREVIOUS_REVISION=$(helm history learning-assistant --max 2 -o json | jq -r '.[1].revision')
+          
+          # Rollback to previous revision
+          helm rollback learning-assistant $PREVIOUS_REVISION --wait --timeout=300s
+          
+          echo "✅ Rollback completed to revision $PREVIOUS_REVISION"
+      
+      - name: Verify rollback
+        run: |
+          # Check pod status
+          kubectl get pods -l app=learning-assistant
+          
+          # Wait for pods to be ready
+          kubectl wait --for=condition=ready pod -l app=learning-assistant --timeout=300s
+          
+          # Basic health check
+          kubectl get services learning-assistant
+          
+          echo "✅ Rollback verification completed"
+
+  # Notification and reporting
+  notification:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [pre-flight, deploy, rollback]
+    if: always() && needs.pre-flight.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Determine deployment status
+        id: status
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+            echo "message=Deployment successful" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.rollback.result }}" == "success" ]]; then
+            echo "status=rolled-back" >> $GITHUB_OUTPUT
+            echo "emoji=🔄" >> $GITHUB_OUTPUT
+            echo "message=Deployment failed, successfully rolled back" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+            echo "message=Deployment failed" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create deployment summary
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          # ${{ steps.status.outputs.emoji }} Deployment Summary
+          
+          ## Details
+          - **Environment**: ${{ needs.pre-flight.outputs.environment }}
+          - **Strategy**: ${{ env.DEPLOY_STRATEGY }}
+          - **Status**: ${{ steps.status.outputs.message }}
+          - **Commit**: ${{ github.sha }}
+          - **Actor**: ${{ github.actor }}
+          - **Workflow**: ${{ github.workflow }}
+          
+          ## Deployment Metrics
+          - **Build Time**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          - **Image**: ${{ needs.build-container.outputs.image-tag }}
+          - **Test Results**: ${{ needs.testing.result }}
+          - **Security Scan**: ${{ needs.build-container.result }}
+          
+          ## Links
+          - [Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Container Image](https://github.com/${{ github.repository }}/pkgs/container/learning-assistant)
+          - [Security Reports](https://github.com/${{ github.repository }}/security)
+          EOF
+      
+      - name: Slack notification
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ steps.status.outputs.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          custom_payload: |
+            {
+              "text": "${{ steps.status.outputs.emoji }} Deployment ${{ steps.status.outputs.message }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Learning Assistant Deployment*\n${{ steps.status.outputs.message }}"
+                  }
+                },
+                {
+                  "type": "fields",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\n${{ needs.pre-flight.outputs.environment }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Strategy:*\n${{ env.DEPLOY_STRATEGY }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n${{ github.sha }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Actor:*\n${{ github.actor }}"
+                    }
+                  ]
+                }
+              ]
+            }
+      
+      - name: Teams notification
+        uses: aliencube/microsoft-teams-actions@v0.8.0
+        if: always()
+        with:
+          webhook_uri: ${{ secrets.TEAMS_WEBHOOK }}
+          title: 'Learning Assistant Deployment'
+          summary: '${{ steps.status.outputs.message }}'
+          text: |
+            **Environment**: ${{ needs.pre-flight.outputs.environment }}
+            **Strategy**: ${{ env.DEPLOY_STRATEGY }}
+            **Status**: ${{ steps.status.outputs.message }}
+            **Commit**: ${{ github.sha }}
+            **Actor**: ${{ github.actor }}
+            
+            [View Workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          theme_color: ${{ steps.status.outputs.status == 'success' && 'good' || 'danger' }}

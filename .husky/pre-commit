@@ -1,4 +1,40 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
+echo "🔍 Running pre-commit quality checks..."
+
+# Run lint-staged for changed files
+echo "📝 Running lint-staged..."
 npx lint-staged
+
+# Run type checking
+echo "🔧 Running TypeScript type check..."
+npm run type-check:strict
+
+# Run tests for changed files
+echo "🧪 Running quick tests..."
+npm run test:quick
+
+# Check for console.log statements in staged files
+echo "🚫 Checking for console.log statements..."
+staged_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx)$' || true)
+if [ -n "$staged_files" ]; then
+  console_logs=$(echo "$staged_files" | xargs grep -l "console\.log" || true)
+  if [ -n "$console_logs" ]; then
+    echo "❌ Console.log statements found in:"
+    echo "$console_logs"
+    echo "Please remove console.log statements before committing."
+    exit 1
+  fi
+fi
+
+# Check for TODO/FIXME comments in new code
+echo "📝 Checking for unresolved TODO/FIXME comments..."
+todo_comments=$(git diff --cached | grep -E "^\+.*\b(TODO|FIXME|XXX|HACK)\b" || true)
+if [ -n "$todo_comments" ]; then
+  echo "⚠️ New TODO/FIXME comments found:"
+  echo "$todo_comments"
+  echo "Consider resolving these before committing or create issues for tracking."
+fi
+
+echo "✅ All quality checks passed! Ready to commit."

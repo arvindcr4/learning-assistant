@@ -1,0 +1,379 @@
+# Learning Assistant Backup Service Configuration
+# Production Environment - Comprehensive Backup and Disaster Recovery
+# Version: 2.0.0
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: backup
+    environment: production
+data:
+  # Database Configuration
+  database.yaml: |
+    host: postgresql.learning-assistant.svc.cluster.local
+    port: 5432
+    database: learning_assistant_db
+    username: learning_user
+    ssl_mode: require
+    connect_timeout: 30
+    statement_timeout: 300
+    idle_in_transaction_session_timeout: 600
+    
+  # Backup Schedule Configuration
+  schedule.yaml: |
+    # Primary backup schedule (cron format)
+    database_backup: "0 2 * * *"  # Daily at 2:00 AM UTC
+    app_data_backup: "30 2 * * *"  # Daily at 2:30 AM UTC
+    cross_region_replication: "0 3 * * *"  # Daily at 3:00 AM UTC
+    
+    # Verification and testing schedules
+    quick_verification: "0 4 * * *"  # Daily at 4:00 AM UTC
+    deep_verification: "0 5 * * 0"  # Weekly on Sundays at 5:00 AM UTC
+    disaster_recovery_test: "0 6 1 * *"  # Monthly on 1st at 6:00 AM UTC
+    
+    # Maintenance schedules
+    cleanup_old_backups: "0 1 * * *"  # Daily at 1:00 AM UTC
+    log_rotation: "30 23 * * *"  # Daily at 11:30 PM UTC
+    health_check: "*/15 * * * *"  # Every 15 minutes
+    metrics_collection: "*/5 * * * *"  # Every 5 minutes
+    
+    # Reporting schedules
+    weekly_report: "0 9 * * 1"  # Mondays at 9:00 AM UTC
+    monthly_report: "0 10 1 * *"  # 1st of month at 10:00 AM UTC
+    
+    # Security schedules
+    key_rotation: "0 7 1 1,4,7,10 *"  # Quarterly at 7:00 AM UTC
+    
+  # Retention Policy Configuration
+  retention.yaml: |
+    # Local backup retention
+    daily_backups:
+      retention_days: 30
+      cleanup_enabled: true
+      
+    weekly_backups:
+      retention_weeks: 12
+      cleanup_enabled: true
+      
+    monthly_backups:
+      retention_months: 12
+      cleanup_enabled: true
+      
+    # Cloud storage retention
+    cloud_storage:
+      standard_tier_days: 7
+      infrequent_access_days: 30
+      glacier_days: 90
+      deep_archive_days: 365
+      
+    # Log retention
+    logs:
+      application_logs_days: 30
+      error_logs_days: 90
+      verification_logs_days: 90
+      metrics_logs_days: 7
+      
+  # Encryption Configuration
+  encryption.yaml: |
+    enabled: true
+    algorithm: "AES-256-CBC"
+    key_rotation_interval: "90d"
+    key_derivation: "PBKDF2"
+    salt_length: 32
+    
+    # Encryption at rest
+    at_rest:
+      enabled: true
+      provider: "aws-kms"  # aws-kms, azure-keyvault, gcp-kms
+      
+    # Encryption in transit
+    in_transit:
+      enabled: true
+      tls_version: "1.3"
+      cipher_suites:
+        - "TLS_AES_256_GCM_SHA384"
+        - "TLS_CHACHA20_POLY1305_SHA256"
+        
+  # Compression Configuration
+  compression.yaml: |
+    enabled: true
+    algorithm: "gzip"
+    level: 6
+    parallel_compression: true
+    
+    # File type specific compression
+    file_types:
+      database:
+        algorithm: "pg_dump_custom"
+        compression_level: 9
+      application_data:
+        algorithm: "gzip"
+        compression_level: 6
+      logs:
+        algorithm: "bzip2"
+        compression_level: 9
+        
+  # Cloud Storage Configuration
+  cloud_storage.yaml: |
+    # AWS S3 Configuration
+    aws:
+      enabled: true
+      primary_region: "us-east-1"
+      backup_regions:
+        - "us-west-2"
+        - "eu-west-1"
+        - "ap-southeast-1"
+      buckets:
+        us-east-1: "learning-assistant-backups-primary"
+        us-west-2: "learning-assistant-backups-west"
+        eu-west-1: "learning-assistant-backups-eu"
+        ap-southeast-1: "learning-assistant-backups-asia"
+      storage_class: "STANDARD_IA"
+      server_side_encryption: "AES256"
+      versioning: true
+      
+    # Azure Blob Storage Configuration
+    azure:
+      enabled: false
+      storage_account: "learningassistantbackups"
+      containers:
+        - "learning-assistant-backups-east"
+        - "learning-assistant-backups-west"
+        - "learning-assistant-backups-eu"
+      access_tier: "Cool"
+      
+    # Google Cloud Storage Configuration
+    gcp:
+      enabled: false
+      project: "learning-assistant-prod"
+      buckets:
+        - "learning-assistant-backups-us"
+        - "learning-assistant-backups-eu"
+        - "learning-assistant-backups-asia"
+      storage_class: "NEARLINE"
+      
+  # Monitoring Configuration
+  monitoring.yaml: |
+    enabled: true
+    
+    # Health check configuration
+    health_checks:
+      interval: 300  # seconds
+      timeout: 30    # seconds
+      retries: 3
+      enabled_checks:
+        - "backup_age"
+        - "backup_size"
+        - "database_connectivity"
+        - "cloud_storage_sync"
+        - "disk_space"
+        - "service_status"
+        
+    # Metrics collection
+    metrics:
+      enabled: true
+      collection_interval: 60  # seconds
+      retention_days: 30
+      
+    # Performance monitoring
+    performance:
+      backup_duration_threshold: 7200  # seconds (2 hours)
+      transfer_rate_threshold: 10      # MB/s
+      compression_ratio_threshold: 0.3  # 30%
+      
+  # Alerting Configuration
+  alerting.yaml: |
+    enabled: true
+    
+    # Alert thresholds
+    thresholds:
+      backup_age_hours: 25
+      consecutive_failures: 3
+      disk_usage_percent: 90
+      error_rate_percent: 5
+      
+    # Notification channels
+    channels:
+      slack:
+        enabled: true
+        webhook_url_secret: "slack-webhook-secret"
+        channel: "#backup-alerts"
+        severity_filter: ["warning", "error", "critical"]
+        
+      discord:
+        enabled: false
+        webhook_url_secret: "discord-webhook-secret"
+        severity_filter: ["error", "critical"]
+        
+      email:
+        enabled: true
+        smtp_config_secret: "smtp-config-secret"
+        recipients:
+          - "ops-team@company.com"
+          - "sre-team@company.com"
+        severity_filter: ["critical"]
+        
+      pagerduty:
+        enabled: true
+        integration_key_secret: "pagerduty-integration-key"
+        severity_filter: ["critical"]
+        
+    # Alert rules
+    rules:
+      - name: "backup_failed"
+        description: "Backup operation failed"
+        condition: "backup_status == 'failed'"
+        severity: "error"
+        cooldown_minutes: 30
+        
+      - name: "backup_overdue"
+        description: "No successful backup in 25 hours"
+        condition: "hours_since_last_backup > 25"
+        severity: "critical"
+        cooldown_minutes: 60
+        
+      - name: "consecutive_failures"
+        description: "Multiple consecutive backup failures"
+        condition: "consecutive_failures >= 3"
+        severity: "critical"
+        cooldown_minutes: 120
+        
+      - name: "disk_space_low"
+        description: "Backup storage disk space low"
+        condition: "disk_usage_percent > 90"
+        severity: "warning"
+        cooldown_minutes: 60
+        
+      - name: "cloud_sync_failed"
+        description: "Cloud storage synchronization failed"
+        condition: "cloud_sync_failures > 2"
+        severity: "error"
+        cooldown_minutes: 45
+        
+  # Security Configuration
+  security.yaml: |
+    # Access control
+    access_control:
+      enabled: true
+      rbac_enabled: true
+      
+    # Audit logging
+    audit:
+      enabled: true
+      log_level: "info"
+      retention_days: 90
+      
+    # Network security
+    network:
+      tls_only: true
+      allowed_cidrs:
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+        
+    # Secret management
+    secrets:
+      provider: "kubernetes"  # kubernetes, vault, aws-secrets-manager
+      rotation_enabled: true
+      rotation_interval: "90d"
+      
+  # Performance Configuration
+  performance.yaml: |
+    # Backup performance
+    backup:
+      parallel_jobs: 4
+      timeout_seconds: 7200
+      max_retries: 3
+      
+    # Transfer performance
+    transfer:
+      parallel_transfers: 4
+      bandwidth_limit: "100M"
+      timeout_seconds: 3600
+      
+    # Resource limits
+    resources:
+      cpu_limit: "2000m"
+      memory_limit: "4Gi"
+      storage_limit: "100Gi"
+      
+  # Disaster Recovery Configuration
+  disaster_recovery.yaml: |
+    # Recovery objectives
+    objectives:
+      rto_hours: 4    # Recovery Time Objective
+      rpo_hours: 1    # Recovery Point Objective
+      
+    # Recovery scenarios
+    scenarios:
+      database_only:
+        enabled: true
+        priority: "high"
+        estimated_duration_minutes: 60
+        
+      application_data_only:
+        enabled: true
+        priority: "medium"
+        estimated_duration_minutes: 30
+        
+      full_system:
+        enabled: true
+        priority: "critical"
+        estimated_duration_minutes: 240
+        
+    # Testing schedule
+    testing:
+      enabled: true
+      schedule: "0 6 1 * *"  # Monthly on 1st at 6:00 AM
+      dry_run: true
+      notifications: true
+      
+    # Failover configuration
+    failover:
+      automatic: false
+      threshold_minutes: 15
+      rollback_enabled: true
+      
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-secrets
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: backup
+    environment: production
+type: Opaque
+stringData:
+  # Database credentials
+  db-password: "${DB_PASSWORD}"
+  
+  # Encryption keys
+  encryption-key: "${ENCRYPTION_KEY}"
+  
+  # Cloud storage credentials
+  aws-access-key-id: "${AWS_ACCESS_KEY_ID}"
+  aws-secret-access-key: "${AWS_SECRET_ACCESS_KEY}"
+  
+  # Azure credentials
+  azure-storage-account-key: "${AZURE_STORAGE_ACCOUNT_KEY}"
+  
+  # GCP service account key
+  gcp-service-account-key: |
+    ${GCP_SERVICE_ACCOUNT_KEY}
+  
+  # Notification webhooks
+  slack-webhook: "${SLACK_WEBHOOK_URL}"
+  discord-webhook: "${DISCORD_WEBHOOK_URL}"
+  pagerduty-integration-key: "${PAGERDUTY_INTEGRATION_KEY}"
+  
+  # SMTP configuration
+  smtp-host: "${SMTP_HOST}"
+  smtp-port: "${SMTP_PORT}"
+  smtp-username: "${SMTP_USERNAME}"
+  smtp-password: "${SMTP_PASSWORD}"

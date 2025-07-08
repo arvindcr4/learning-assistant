@@ -1,0 +1,332 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: learning-assistant-rollout
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: rollout
+    app.kubernetes.io/part-of: learning-assistant
+  annotations:
+    kubernetes.io/description: "Advanced deployment strategy for Learning Assistant"
+spec:
+  replicas: 3
+  strategy:
+    canary:
+      # Canary deployment strategy
+      canaryService: learning-assistant-canary-service
+      stableService: learning-assistant-stable-service
+      trafficRouting:
+        nginx:
+          stableIngress: learning-assistant-ingress
+          additionalIngressAnnotations:
+            canary-by-header: "X-Canary"
+            canary-by-header-value: "true"
+            canary-weight: "10"
+      steps:
+      - setWeight: 10
+      - pause:
+          duration: 2m
+      - setWeight: 25
+      - pause:
+          duration: 5m
+      - setWeight: 50
+      - pause:
+          duration: 10m
+      - setWeight: 75
+      - pause:
+          duration: 5m
+      - setWeight: 100
+      scaleDownDelaySeconds: 30
+      scaleDownDelayRevisionLimit: 2
+      analysis:
+        templates:
+        - templateName: success-rate
+        - templateName: latency
+        startingStep: 2
+        args:
+        - name: service-name
+          value: learning-assistant-canary-service
+        - name: prometheus-server
+          value: http://prometheus-server.monitoring:9090
+      antiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution: {}
+        preferredDuringSchedulingIgnoredDuringExecution:
+          weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: learning-assistant
+            topologyKey: kubernetes.io/hostname
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: learning-assistant
+      app.kubernetes.io/instance: learning-assistant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: learning-assistant
+        app.kubernetes.io/instance: learning-assistant
+        app.kubernetes.io/component: web
+        app.kubernetes.io/part-of: learning-assistant
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/api/metrics"
+    spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+      - name: learning-assistant
+        image: learning-assistant:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: DEPLOYMENT_STRATEGY
+          value: "canary"
+        - name: CANARY_ENABLED
+          value: "true"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - sleep 15  # Allow time for traffic to drain
+      terminationGracePeriodSeconds: 60
+      dnsPolicy: ClusterFirst
+---
+# Canary Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-assistant-canary-service
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: canary-service
+    app.kubernetes.io/part-of: learning-assistant
+spec:
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+---
+# Stable Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: learning-assistant-stable-service
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: stable-service
+    app.kubernetes.io/part-of: learning-assistant
+spec:
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+---
+# Analysis Template for Success Rate
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: analysis-template
+    app.kubernetes.io/part-of: learning-assistant
+spec:
+  args:
+  - name: service-name
+  - name: prometheus-server
+  metrics:
+  - name: success-rate
+    interval: 30s
+    count: 5
+    successCondition: result[0] >= 0.95
+    failureLimit: 3
+    provider:
+      prometheus:
+        address: "{{args.prometheus-server}}"
+        query: |
+          sum(rate(http_requests_total{service="{{args.service-name}}",code!~"5.."}[2m])) /
+          sum(rate(http_requests_total{service="{{args.service-name}}"}[2m]))
+---
+# Analysis Template for Latency
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: latency
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: analysis-template
+    app.kubernetes.io/part-of: learning-assistant
+spec:
+  args:
+  - name: service-name
+  - name: prometheus-server
+  metrics:
+  - name: latency
+    interval: 30s
+    count: 5
+    successCondition: result[0] <= 0.5
+    failureLimit: 3
+    provider:
+      prometheus:
+        address: "{{args.prometheus-server}}"
+        query: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}"}[2m])) by (le)
+          )
+---
+# Deployment Configuration for Blue-Green Strategy (Alternative)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deployment-config
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: deployment-config
+    app.kubernetes.io/part-of: learning-assistant
+data:
+  deployment-strategy.yaml: |
+    # Blue-Green Deployment Strategy
+    strategy:
+      type: BlueGreen
+      blueGreen:
+        activeService: learning-assistant-active-service
+        previewService: learning-assistant-preview-service
+        autoPromotionEnabled: false
+        scaleDownDelaySeconds: 30
+        prePromotionAnalysis:
+          templates:
+          - templateName: success-rate
+          - templateName: latency
+          args:
+          - name: service-name
+            value: learning-assistant-preview-service
+        postPromotionAnalysis:
+          templates:
+          - templateName: success-rate
+          - templateName: latency
+          args:
+          - name: service-name
+            value: learning-assistant-active-service
+        previewReplicaCount: 1
+        promotionPolicy:
+          timeoutSeconds: 300
+  
+  rollback-strategy.yaml: |
+    # Rollback Strategy
+    rollbackWindow:
+      revisions: 10
+    autoRollback:
+      enabled: true
+      conditions:
+      - type: ReplicaFailure
+        value: "3"
+      - type: ProgressDeadlineExceeded
+        value: "600"
+      - type: AvailableReplicas
+        value: "1"
+    
+    rollbackPolicy:
+      preserveScale: true
+      restartPolicy: Always
+      timeoutSeconds: 300
+  
+  health-checks.yaml: |
+    # Enhanced Health Checks
+    healthChecks:
+      liveness:
+        httpGet:
+          path: /api/health
+          port: 3000
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+        successThreshold: 1
+      
+      readiness:
+        httpGet:
+          path: /api/health/ready
+          port: 3000
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 3
+        successThreshold: 1
+      
+      startup:
+        httpGet:
+          path: /api/health/startup
+          port: 3000
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 30
+        successThreshold: 1

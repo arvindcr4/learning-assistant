@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   // Database
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required').optional(),
   
   // Supabase
   NEXT_PUBLIC_SUPABASE_URL: z.string().url('NEXT_PUBLIC_SUPABASE_URL must be a valid URL').optional(),
@@ -10,7 +10,7 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required for server-side Supabase operations').optional(),
   
   // Better Auth
-  BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters long'),
+  BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters long').optional(),
   BETTER_AUTH_URL: z.string().url('BETTER_AUTH_URL must be a valid URL').optional(),
   
   // JWT
@@ -28,6 +28,15 @@ const envSchema = z.object({
   // Security
   CSRF_SECRET: z.string().min(32, 'CSRF_SECRET must be at least 32 characters long').optional(),
   CORS_ORIGIN: z.string().optional(),
+  
+  // Third-party Services
+  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required for email functionality').optional(),
+  RESEND_FROM_NAME: z.string().default('Learning Assistant'),
+  RESEND_FROM_EMAIL: z.string().email('RESEND_FROM_EMAIL must be a valid email address').optional(),
+  RESEND_REPLY_TO: z.string().email('RESEND_REPLY_TO must be a valid email address').optional(),
+  TAMBO_API_KEY: z.string().min(1, 'TAMBO_API_KEY is required for AI audio features').optional(),
+  LINGO_DEV_API_KEY: z.string().min(1, 'LINGO_DEV_API_KEY is required for localization').optional(),
+  FIRECRAWL_API_KEY: z.string().min(1, 'FIRECRAWL_API_KEY is required for web scraping').optional(),
   
   // Rate Limiting
   RATE_LIMIT_MAX: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('100'),
@@ -60,6 +69,60 @@ const envSchema = z.object({
   CACHE_COMPRESSION_THRESHOLD: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1)).default('1024'),
   CACHE_WARMING_ENABLED: z.string().transform((val) => val === 'true').default('true'),
   CACHE_METRICS_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  
+  // CDN Configuration (optional)
+  CDN_DOMAIN: z.string().optional(),
+  CLOUDFLARE_ZONE_ID: z.string().optional(),
+  CLOUDFLARE_API_TOKEN: z.string().optional(),
+  CLOUDFLARE_DOMAIN: z.string().optional(),
+  CLOUDFRONT_DISTRIBUTION_ID: z.string().optional(),
+  CLOUDFRONT_DOMAIN: z.string().optional(),
+  AWS_REGION: z.string().default('us-east-1'),
+  
+  // Performance Configuration (optional)
+  ENABLE_CDN: z.string().transform((val) => val === 'true').default('false'),
+  ENABLE_IMAGE_OPTIMIZATION: z.string().transform((val) => val === 'true').default('true'),
+  ENABLE_PWA: z.string().transform((val) => val === 'true').default('true'),
+  ENABLE_PERFORMANCE_MONITORING: z.string().transform((val) => val === 'true').default('true'),
+  IMAGE_OPTIMIZATION_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  IMAGE_CDN_ENABLED: z.string().transform((val) => val === 'true').default('false'),
+  IMAGE_QUALITY_DEFAULT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1).max(100)).default('85'),
+  IMAGE_QUALITY_WEBP: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1).max(100)).default('80'),
+  IMAGE_QUALITY_AVIF: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1).max(100)).default('75'),
+  
+  // PWA Configuration (optional)
+  PWA_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  SW_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  OFFLINE_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  PUSH_NOTIFICATIONS_ENABLED: z.string().transform((val) => val === 'true').default('false'),
+  BACKGROUND_SYNC_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  
+  // Performance Monitoring (optional)
+  PERF_MONITORING_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  CORE_WEB_VITALS_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+  ANALYTICS_ENDPOINT: z.string().optional(),
+  PERF_SAMPLE_RATE: z.string().transform((val) => parseFloat(val)).pipe(z.number().min(0).max(1)).default('0.1'),
+  
+  // Sentry Configuration
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_ORG: z.string().optional(),
+  SENTRY_PROJECT: z.string().optional(),
+  SENTRY_AUTH_TOKEN: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_RELEASE: z.string().optional(),
+  SENTRY_TUNNEL: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.string().transform((val) => parseFloat(val)).pipe(z.number().min(0).max(1)).default('0.1'),
+  SENTRY_PROFILES_SAMPLE_RATE: z.string().transform((val) => parseFloat(val)).pipe(z.number().min(0).max(1)).default('0.1'),
+  SENTRY_REPLAY_SESSION_SAMPLE_RATE: z.string().transform((val) => parseFloat(val)).pipe(z.number().min(0).max(1)).default('0.1'),
+  SENTRY_REPLAY_ERROR_SAMPLE_RATE: z.string().transform((val) => parseFloat(val)).pipe(z.number().min(0).max(1)).default('1.0'),
+  SENTRY_DEBUG: z.string().transform((val) => val === 'true').default('false'),
+  SENTRY_IGNORE_ERRORS: z.string().optional(),
+  SENTRY_DENY_URLS: z.string().optional(),
+  SENTRY_ALLOW_URLS: z.string().optional(),
+  
+  // Application Version
+  NEXT_PUBLIC_APP_VERSION: z.string().optional(),
+  BUILD_TIME: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
@@ -80,8 +143,30 @@ function validateEnv(): EnvConfig {
 
 // Generate secure secrets if not provided in development
 function generateSecureSecret(): string {
-  const crypto = require('crypto');
-  return crypto.randomBytes(32).toString('hex');
+  // Check if we're in a Node.js environment (not Edge Runtime)
+  if (typeof process !== 'undefined' && typeof require !== 'undefined') {
+    try {
+      const crypto = require('crypto');
+      return crypto.randomBytes(32).toString('hex');
+    } catch (error) {
+      console.warn('❌ Failed to generate secure secret with Node.js crypto module');
+    }
+  }
+
+  // Browser environment - use Web Crypto API
+  try {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (error) {
+    console.warn('❌ Failed to generate secure secret with Web Crypto API');
+  }
+
+  // Fallback - less secure but functional for development
+  console.warn('⚠️  Using fallback secret generation method (less secure)');
+  return 'dev-' + Date.now().toString(36) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
 }
 
 export function getValidatedEnv(): EnvConfig {
@@ -91,23 +176,54 @@ export function getValidatedEnv(): EnvConfig {
     return process.env as any;
   }
 
+  // Also skip strict validation if we're skipping database connections (build time)
+  if (process.env.SKIP_DB_CONNECTION === 'true') {
+    console.warn('⚠️  Database connection skipped, using relaxed validation');
+    const result = envSchema.safeParse(process.env);
+    if (!result.success) {
+      // In build mode, just log warnings instead of throwing
+      console.warn('⚠️  Environment validation warnings (build mode):');
+      result.error.issues.forEach((issue) => {
+        console.warn(`  - ${issue.path.join('.')}: ${issue.message}`);
+      });
+    }
+    return process.env as any;
+  }
+
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isProduction = process.env.NODE_ENV === 'production';
+
   // In development, generate secure secrets if not provided
-  if (process.env.NODE_ENV === 'development') {
-    if (!process.env.BETTER_AUTH_SECRET) {
-      process.env.BETTER_AUTH_SECRET = generateSecureSecret();
-      console.warn('⚠️  Generated BETTER_AUTH_SECRET for development. Add to .env.local for persistence.');
-    }
-    if (!process.env.JWT_SECRET) {
-      process.env.JWT_SECRET = generateSecureSecret();
-      console.warn('⚠️  Generated JWT_SECRET for development. Add to .env.local for persistence.');
-    }
-    if (!process.env.JWT_REFRESH_SECRET) {
-      process.env.JWT_REFRESH_SECRET = generateSecureSecret();
-      console.warn('⚠️  Generated JWT_REFRESH_SECRET for development. Add to .env.local for persistence.');
-    }
-    if (!process.env.CSRF_SECRET) {
-      process.env.CSRF_SECRET = generateSecureSecret();
-      console.warn('⚠️  Generated CSRF_SECRET for development. Add to .env.local for persistence.');
+  if (isDevelopment) {
+    const secrets = [
+      { key: 'BETTER_AUTH_SECRET', description: 'Better Auth authentication' },
+      { key: 'JWT_SECRET', description: 'JWT token signing' },
+      { key: 'JWT_REFRESH_SECRET', description: 'JWT refresh token signing' },
+      { key: 'CSRF_SECRET', description: 'CSRF protection' }
+    ];
+    
+    secrets.forEach(({ key, description }) => {
+      if (!process.env[key]) {
+        process.env[key] = generateSecureSecret();
+        console.warn(`⚠️  Generated ${key} for ${description}. Add to .env.local for persistence.`);
+      }
+    });
+  }
+
+  // In production, validate required secrets are present (unless explicitly skipped)
+  if (isProduction && process.env.SKIP_DB_CONNECTION !== 'true') {
+    const requiredSecrets = [
+      'BETTER_AUTH_SECRET',
+      'JWT_SECRET',
+      'JWT_REFRESH_SECRET',
+      'CSRF_SECRET'
+    ];
+    
+    const missingSecrets = requiredSecrets.filter(key => !process.env[key]);
+    if (missingSecrets.length > 0) {
+      console.error('❌ Missing required secrets in production:');
+      missingSecrets.forEach(key => console.error(`  - ${key}`));
+      throw new Error(`Missing required secrets in production: ${missingSecrets.join(', ')}`);
     }
   }
   

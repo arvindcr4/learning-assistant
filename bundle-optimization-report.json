@@ -1,0 +1,131 @@
+{
+  "timestamp": "2025-07-08T03:30:04.004Z",
+  "optimizations": {
+    "dynamicImports": [],
+    "chunkSplitting": [
+      {
+        "config": {
+          "cacheGroups": {
+            "react": {
+              "test": {},
+              "name": "react",
+              "chunks": "all",
+              "priority": 30,
+              "enforce": true
+            },
+            "ui": {
+              "test": {},
+              "name": "ui",
+              "chunks": "all",
+              "priority": 25,
+              "enforce": true
+            },
+            "animation": {
+              "test": {},
+              "name": "animation",
+              "chunks": "all",
+              "priority": 20,
+              "enforce": true
+            },
+            "utils": {
+              "test": {},
+              "name": "utils",
+              "chunks": "all",
+              "priority": 15,
+              "enforce": true
+            },
+            "auth": {
+              "test": {},
+              "name": "auth",
+              "chunks": "all",
+              "priority": 10,
+              "enforce": true
+            },
+            "vendor": {
+              "test": {},
+              "name": "vendor",
+              "chunks": "all",
+              "priority": 5,
+              "minChunks": 2,
+              "reuseExistingChunk": true
+            },
+            "common": {
+              "name": "common",
+              "minChunks": 2,
+              "priority": 0,
+              "chunks": "all",
+              "reuseExistingChunk": true
+            }
+          },
+          "maxSize": 244000,
+          "minSize": 20000,
+          "maxAsyncRequests": 30,
+          "maxInitialRequests": 30,
+          "automaticNameDelimiter": "~",
+          "enforceSizeThreshold": 50000
+        },
+        "estimatedImprovement": "20-30% better caching"
+      }
+    ],
+    "treeshaking": [
+      {
+        "removedExports": 241,
+        "sideEffectFreePackages": 6,
+        "estimatedSavings": 241000
+      }
+    ],
+    "compression": [
+      {
+        "config": {
+          "gzip": {
+            "enabled": true,
+            "threshold": 1024,
+            "minRatio": 0.8,
+            "algorithm": "gzip"
+          },
+          "brotli": {
+            "enabled": true,
+            "threshold": 1024,
+            "minRatio": 0.8,
+            "algorithm": "brotliCompress"
+          }
+        },
+        "estimatedSavings": "30-50% smaller assets"
+      }
+    ],
+    "caching": [
+      {
+        "config": {
+          "staticAssets": {
+            "maxAge": 31536000,
+            "immutable": true
+          },
+          "dynamicContent": {
+            "maxAge": 300,
+            "staleWhileRevalidate": 86400
+          },
+          "apiRoutes": {
+            "maxAge": 60,
+            "staleWhileRevalidate": 300
+          }
+        },
+        "estimatedImprovement": "Faster subsequent loads"
+      }
+    ]
+  },
+  "summary": {
+    "totalOptimizations": 4,
+    "estimatedSavings": {
+      "bytes": 241000,
+      "percentage": 2.41
+    },
+    "recommendations": [
+      {
+        "type": "Dynamic Imports",
+        "priority": "High",
+        "description": "Consider implementing dynamic imports for heavy components",
+        "impact": "Faster initial page load"
+      }
+    ]
+  }
+}

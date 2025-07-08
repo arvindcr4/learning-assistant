@@ -1,0 +1,66 @@
+// Next.js Instrumentation Hook
+export async function register() {
+  // Only run on server side
+  if (typeof window !== 'undefined') {
+    return;
+  }
+
+  // Only register Sentry if properly configured
+  if (process.env.NODE_ENV === 'production' && 
+      process.env.SENTRY_DSN && 
+      process.env.SENTRY_AUTH_TOKEN) {
+    const Sentry = await import('@sentry/nextjs');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV,
+      
+      // Performance monitoring
+      tracesSampleRate: 0.1,
+      
+      // Error tracking
+      enabled: true,
+      
+      // Release tracking
+      release: process.env.SENTRY_RELEASE,
+      
+      // Additional configuration
+      integrations: [
+        new Sentry.Integrations.Http({ tracing: true }),
+      ],
+      
+      // Filter out sensitive data
+      beforeSend(event) {
+        // Remove sensitive information from error events
+        if (event.request?.headers) {
+          delete event.request.headers.authorization;
+          delete event.request.headers.cookie;
+        }
+        return event;
+      },
+    });
+  }
+
+  // Register OpenTelemetry instrumentation for observability
+  if (process.env.NODE_ENV === 'production' && process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    const { NodeSDK } = await import('@opentelemetry/sdk-node');
+    const { Resource } = await import('@opentelemetry/resources');
+    const { SemanticResourceAttributes } = await import('@opentelemetry/semantic-conventions');
+    const { SimpleSpanProcessor } = await import('@opentelemetry/sdk-trace-node');
+    const { OTLPTraceExporter } = await import('@opentelemetry/exporter-otlp-http');
+    
+    const sdk = new NodeSDK({
+      resource: new Resource({
+        [SemanticResourceAttributes.SERVICE_NAME]: 'learning-assistant',
+        [SemanticResourceAttributes.SERVICE_VERSION]: process.env.npm_package_version || '1.0.0',
+        [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV,
+      }),
+      spanProcessor: new SimpleSpanProcessor(
+        new OTLPTraceExporter({
+          url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+        })
+      ),
+    });
+
+    sdk.start();
+  }
+}

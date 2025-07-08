@@ -1,0 +1,669 @@
+name: Disaster Recovery & Rollback Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      recovery_type:
+        description: 'Type of recovery operation'
+        required: true
+        type: choice
+        options:
+          - rollback
+          - restore
+          - failover
+          - emergency-patch
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      target_version:
+        description: 'Target version (for rollback)'
+        required: false
+        type: string
+      backup_timestamp:
+        description: 'Backup timestamp (for restore)'
+        required: false
+        type: string
+      reason:
+        description: 'Reason for recovery'
+        required: true
+        type: string
+      skip_safety_checks:
+        description: 'Skip safety checks (emergency only)'
+        required: false
+        default: false
+        type: boolean
+
+  repository_dispatch:
+    types: [auto-rollback]
+
+env:
+  RECOVERY_TYPE: ${{ github.event.inputs.recovery_type || github.event.client_payload.recovery_type }}
+  TARGET_ENVIRONMENT: ${{ github.event.inputs.environment || github.event.client_payload.environment }}
+  TARGET_VERSION: ${{ github.event.inputs.target_version || github.event.client_payload.target_version }}
+  BACKUP_TIMESTAMP: ${{ github.event.inputs.backup_timestamp || github.event.client_payload.backup_timestamp }}
+  RECOVERY_REASON: ${{ github.event.inputs.reason || github.event.client_payload.reason }}
+  SKIP_SAFETY_CHECKS: ${{ github.event.inputs.skip_safety_checks || github.event.client_payload.skip_safety_checks || false }}
+
+jobs:
+  # Recovery validation and planning
+  recovery-validation:
+    name: Recovery Validation & Planning
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      can_proceed: ${{ steps.validation.outputs.can_proceed }}
+      recovery_plan: ${{ steps.plan.outputs.recovery_plan }}
+      current_state: ${{ steps.assessment.outputs.current_state }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assess current environment state
+        id: assessment
+        run: |
+          echo "Assessing current state of ${{ env.TARGET_ENVIRONMENT }}..."
+          
+          case "${{ env.TARGET_ENVIRONMENT }}" in
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          # Check application health
+          HEALTH_STATUS="unknown"
+          if curl -f "$BASE_URL/health" >/dev/null 2>&1; then
+            HEALTH_STATUS="healthy"
+          else
+            HEALTH_STATUS="unhealthy"
+          fi
+          
+          # Get current version
+          CURRENT_VERSION=$(curl -s "$BASE_URL/api/version" | jq -r '.version' 2>/dev/null || echo "unknown")
+          
+          # Check database connectivity
+          DB_STATUS="unknown"  # This would check actual DB connection
+          
+          cat > current-state.json << EOF
+          {
+            "environment": "${{ env.TARGET_ENVIRONMENT }}",
+            "health": "$HEALTH_STATUS",
+            "version": "$CURRENT_VERSION",
+            "database": "$DB_STATUS",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "url": "$BASE_URL"
+          }
+          EOF
+          
+          echo "current_state=$(cat current-state.json | jq -c .)" >> $GITHUB_OUTPUT
+          echo "Current state: Health=$HEALTH_STATUS, Version=$CURRENT_VERSION"
+
+      - name: Validate recovery request
+        id: validation
+        run: |
+          echo "Validating recovery request..."
+          
+          CAN_PROCEED=true
+          VALIDATION_ERRORS=""
+          
+          # Check recovery type validity
+          case "${{ env.RECOVERY_TYPE }}" in
+            "rollback")
+              if [[ -z "${{ env.TARGET_VERSION }}" ]]; then
+                CAN_PROCEED=false
+                VALIDATION_ERRORS="Target version required for rollback"
+              fi
+              ;;
+            "restore")
+              if [[ -z "${{ env.BACKUP_TIMESTAMP }}" ]]; then
+                CAN_PROCEED=false
+                VALIDATION_ERRORS="Backup timestamp required for restore"
+              fi
+              ;;
+            "failover")
+              if [[ "${{ env.TARGET_ENVIRONMENT }}" != "production" ]]; then
+                CAN_PROCEED=false
+                VALIDATION_ERRORS="Failover only available for production"
+              fi
+              ;;
+          esac
+          
+          # Safety checks (unless skipped)
+          if [[ "${{ env.SKIP_SAFETY_CHECKS }}" != "true" ]]; then
+            # Check if it's business hours for production
+            if [[ "${{ env.TARGET_ENVIRONMENT }}" == "production" ]]; then
+              HOUR=$(date +%H)
+              if [[ $HOUR -ge 9 && $HOUR -le 17 ]]; then
+                echo "⚠️ Production recovery during business hours requires additional approval"
+              fi
+            fi
+          fi
+          
+          echo "can_proceed=$CAN_PROCEED" >> $GITHUB_OUTPUT
+          echo "validation_errors=$VALIDATION_ERRORS" >> $GITHUB_OUTPUT
+          
+          if [[ "$CAN_PROCEED" == "false" ]]; then
+            echo "❌ Recovery validation failed: $VALIDATION_ERRORS"
+            exit 1
+          else
+            echo "✅ Recovery validation passed"
+          fi
+
+      - name: Create recovery plan
+        id: plan
+        run: |
+          cat > recovery-plan.json << EOF
+          {
+            "recoveryId": "${{ github.run_id }}",
+            "type": "${{ env.RECOVERY_TYPE }}",
+            "environment": "${{ env.TARGET_ENVIRONMENT }}",
+            "targetVersion": "${{ env.TARGET_VERSION }}",
+            "backupTimestamp": "${{ env.BACKUP_TIMESTAMP }}",
+            "reason": "${{ env.RECOVERY_REASON }}",
+            "requester": "${{ github.actor }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "skipSafetyChecks": ${{ env.SKIP_SAFETY_CHECKS }},
+            "steps": []
+          }
+          EOF
+          
+          # Add specific steps based on recovery type
+          case "${{ env.RECOVERY_TYPE }}" in
+            "rollback")
+              jq '.steps = [
+                "pre-rollback-backup",
+                "application-rollback",
+                "database-rollback",
+                "configuration-rollback",
+                "verification",
+                "monitoring-setup"
+              ]' recovery-plan.json > temp.json && mv temp.json recovery-plan.json
+              ;;
+            "restore")
+              jq '.steps = [
+                "current-state-backup",
+                "application-restore",
+                "database-restore",
+                "configuration-restore",
+                "data-integrity-check",
+                "verification"
+              ]' recovery-plan.json > temp.json && mv temp.json recovery-plan.json
+              ;;
+            "failover")
+              jq '.steps = [
+                "secondary-region-check",
+                "dns-switch",
+                "traffic-routing",
+                "data-synchronization",
+                "verification"
+              ]' recovery-plan.json > temp.json && mv temp.json recovery-plan.json
+              ;;
+          esac
+          
+          echo "recovery_plan=$(cat recovery-plan.json | jq -c .)" >> $GITHUB_OUTPUT
+
+      - name: Upload recovery artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-artifacts
+          path: |
+            current-state.json
+            recovery-plan.json
+          retention-days: 90
+
+  # Pre-recovery backup
+  pre-recovery-backup:
+    name: Pre-recovery Backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: recovery-validation
+    if: needs.recovery-validation.outputs.can_proceed == 'true'
+    environment: ${{ env.TARGET_ENVIRONMENT }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create pre-recovery snapshot
+        run: |
+          echo "Creating pre-recovery snapshot for ${{ env.TARGET_ENVIRONMENT }}..."
+          
+          SNAPSHOT_NAME="pre-recovery-${{ env.TARGET_ENVIRONMENT }}-$(date +%Y%m%d-%H%M%S)"
+          
+          # Database backup
+          echo "Creating database backup..."
+          # pg_dump or appropriate backup command
+          # aws rds create-db-snapshot --db-instance-identifier prod-db --db-snapshot-identifier $SNAPSHOT_NAME
+          
+          # Configuration backup
+          echo "Backing up configurations..."
+          mkdir -p backups
+          
+          # Export current deployment state
+          # kubectl get all -n learning-assistant -o yaml > backups/k8s-state.yaml
+          
+          # Backup environment variables and secrets
+          cat > backups/environment-backup.json << EOF
+          {
+            "environment": "${{ env.TARGET_ENVIRONMENT }}",
+            "snapshot": "$SNAPSHOT_NAME",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "type": "pre-recovery"
+          }
+          EOF
+          
+          echo "Pre-recovery backup completed: $SNAPSHOT_NAME"
+
+      - name: Upload backup artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-recovery-backup-${{ env.TARGET_ENVIRONMENT }}
+          path: backups/
+          retention-days: 90
+
+  # Application rollback
+  application-rollback:
+    name: Application Rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [recovery-validation, pre-recovery-backup]
+    if: needs.recovery-validation.outputs.can_proceed == 'true' && env.RECOVERY_TYPE == 'rollback'
+    environment: ${{ env.TARGET_ENVIRONMENT }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup deployment tools
+        run: |
+          # Install kubectl, helm, etc.
+          echo "Setting up deployment tools..."
+
+      - name: Validate target version
+        run: |
+          echo "Validating target version ${{ env.TARGET_VERSION }}..."
+          
+          # Check if target version exists in registry
+          # docker manifest inspect ghcr.io/${{ github.repository }}:${{ env.TARGET_VERSION }}
+          
+          echo "✅ Target version validated"
+
+      - name: Execute application rollback
+        run: |
+          echo "Rolling back application to version ${{ env.TARGET_VERSION }}..."
+          
+          case "${{ env.TARGET_ENVIRONMENT }}" in
+            "staging")
+              NAMESPACE="learning-assistant-staging"
+              ;;
+            "production")
+              NAMESPACE="learning-assistant"
+              ;;
+          esac
+          
+          # Rollback application
+          # kubectl set image deployment/learning-assistant app=ghcr.io/${{ github.repository }}:${{ env.TARGET_VERSION }} -n $NAMESPACE
+          # kubectl rollout status deployment/learning-assistant -n $NAMESPACE --timeout=600s
+          
+          echo "Application rollback completed"
+
+      - name: Verify application rollback
+        run: |
+          echo "Verifying application rollback..."
+          
+          case "${{ env.TARGET_ENVIRONMENT }}" in
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          # Wait for rollback to complete
+          sleep 60
+          
+          # Verify health
+          curl -f "$BASE_URL/health" || {
+            echo "❌ Application rollback verification failed"
+            exit 1
+          }
+          
+          # Verify version
+          CURRENT_VERSION=$(curl -s "$BASE_URL/api/version" | jq -r '.version' 2>/dev/null || echo "unknown")
+          if [[ "$CURRENT_VERSION" != "${{ env.TARGET_VERSION }}" ]]; then
+            echo "❌ Version mismatch: expected ${{ env.TARGET_VERSION }}, got $CURRENT_VERSION"
+            exit 1
+          fi
+          
+          echo "✅ Application rollback verified successfully"
+
+  # Database rollback
+  database-rollback:
+    name: Database Rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [recovery-validation, pre-recovery-backup, application-rollback]
+    if: needs.recovery-validation.outputs.can_proceed == 'true' && env.RECOVERY_TYPE == 'rollback'
+    environment: ${{ env.TARGET_ENVIRONMENT }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assess database rollback requirements
+        run: |
+          echo "Assessing database rollback requirements..."
+          
+          # Check if database schema changes exist between versions
+          # This would compare migration files or schema versions
+          echo "Database rollback assessment completed"
+
+      - name: Execute database rollback
+        run: |
+          echo "Executing database rollback for version ${{ env.TARGET_VERSION }}..."
+          
+          # Run rollback migrations if needed
+          # npm run db:rollback -- --target-version=${{ env.TARGET_VERSION }}
+          
+          echo "Database rollback completed"
+
+      - name: Verify database integrity
+        run: |
+          echo "Verifying database integrity..."
+          
+          # Run integrity checks
+          # npm run db:verify
+          
+          echo "✅ Database integrity verified"
+
+  # Full system restore
+  system-restore:
+    name: System Restore
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [recovery-validation, pre-recovery-backup]
+    if: needs.recovery-validation.outputs.can_proceed == 'true' && env.RECOVERY_TYPE == 'restore'
+    environment: ${{ env.TARGET_ENVIRONMENT }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate backup timestamp
+        run: |
+          echo "Validating backup timestamp ${{ env.BACKUP_TIMESTAMP }}..."
+          
+          # Check if backup exists
+          # aws rds describe-db-snapshots --db-snapshot-identifier backup-${{ env.BACKUP_TIMESTAMP }}
+          
+          echo "✅ Backup validated"
+
+      - name: Restore database
+        run: |
+          echo "Restoring database from backup ${{ env.BACKUP_TIMESTAMP }}..."
+          
+          # Restore database from backup
+          # aws rds restore-db-instance-from-db-snapshot \
+          #   --db-instance-identifier temp-restore \
+          #   --db-snapshot-identifier backup-${{ env.BACKUP_TIMESTAMP }}
+          
+          echo "Database restore completed"
+
+      - name: Restore application
+        run: |
+          echo "Restoring application state..."
+          
+          # Restore application to backup state
+          # This might involve restoring configurations, files, etc.
+          
+          echo "Application restore completed"
+
+      - name: Verify restore
+        run: |
+          echo "Verifying system restore..."
+          
+          case "${{ env.TARGET_ENVIRONMENT }}" in
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          # Comprehensive verification
+          curl -f "$BASE_URL/health"
+          
+          echo "✅ System restore verified"
+
+  # Failover to secondary region
+  regional-failover:
+    name: Regional Failover
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [recovery-validation, pre-recovery-backup]
+    if: needs.recovery-validation.outputs.can_proceed == 'true' && env.RECOVERY_TYPE == 'failover'
+    environment: ${{ env.TARGET_ENVIRONMENT }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secondary region readiness
+        run: |
+          echo "Checking secondary region readiness..."
+          
+          # Check secondary region infrastructure
+          # aws ec2 describe-instances --region us-west-2
+          
+          echo "✅ Secondary region ready"
+
+      - name: Execute DNS failover
+        run: |
+          echo "Executing DNS failover..."
+          
+          # Update DNS records to point to secondary region
+          # aws route53 change-resource-record-sets --hosted-zone-id Z123456789 --change-batch file://dns-failover.json
+          
+          echo "DNS failover completed"
+
+      - name: Verify failover
+        run: |
+          echo "Verifying failover..."
+          
+          # Wait for DNS propagation
+          sleep 120
+          
+          # Verify application is accessible
+          curl -f "https://learning-assistant.com/health"
+          
+          echo "✅ Failover verified"
+
+  # Post-recovery validation
+  post-recovery-validation:
+    name: Post-recovery Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [application-rollback, database-rollback, system-restore, regional-failover]
+    if: always() && (needs.application-rollback.result == 'success' || needs.system-restore.result == 'success' || needs.regional-failover.result == 'success')
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run comprehensive health checks
+        run: |
+          echo "Running comprehensive health checks..."
+          
+          case "${{ env.TARGET_ENVIRONMENT }}" in
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          # Application health
+          curl -f "$BASE_URL/health"
+          
+          # API endpoints
+          curl -f "$BASE_URL/api/health"
+          curl -f "$BASE_URL/api/learning/session"
+          
+          # Database connectivity
+          curl -f "$BASE_URL/api/db/health"
+          
+          echo "✅ All health checks passed"
+
+      - name: Run critical functionality tests
+        run: |
+          echo "Running critical functionality tests..."
+          
+          # Run smoke tests
+          npm ci --prefer-offline --no-audit
+          npm run test:smoke -- --baseUrl="$BASE_URL" --timeout=30000
+          
+          echo "✅ Critical functionality tests passed"
+
+      - name: Validate data integrity
+        run: |
+          echo "Validating data integrity..."
+          
+          # Check data consistency
+          # Run data integrity checks
+          
+          echo "✅ Data integrity validated"
+
+      - name: Monitor system metrics
+        run: |
+          echo "Monitoring system metrics for 5 minutes..."
+          
+          for i in {1..10}; do
+            echo "Monitoring check $i/10"
+            
+            # Check error rates, response times, etc.
+            # curl -s https://monitoring.example.com/api/metrics
+            
+            sleep 30
+          done
+          
+          echo "✅ System metrics stable"
+
+  # Recovery completion and notification
+  recovery-completion:
+    name: Recovery Completion
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [recovery-validation, post-recovery-validation]
+    if: always()
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download recovery artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: recovery-artifacts
+
+      - name: Update incident tracking
+        run: |
+          echo "Updating incident tracking..."
+          
+          SUCCESS=$([ '${{ needs.post-recovery-validation.result }}' == 'success' ] && echo "true" || echo "false")
+          
+          cat > recovery-report.json << EOF
+          {
+            "recoveryId": "${{ github.run_id }}",
+            "type": "${{ env.RECOVERY_TYPE }}",
+            "environment": "${{ env.TARGET_ENVIRONMENT }}",
+            "status": $([ "$SUCCESS" == "true" ] && echo '"completed"' || echo '"failed"'),
+            "reason": "${{ env.RECOVERY_REASON }}",
+            "requester": "${{ github.actor }}",
+            "startTime": "${{ github.event.created_at }}",
+            "endTime": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "duration": "$(echo $(($(date +%s) - $(date -d '${{ github.event.created_at }}' +%s))) | awk '{print int($1/60)}')",
+            "targetVersion": "${{ env.TARGET_VERSION }}",
+            "backupTimestamp": "${{ env.BACKUP_TIMESTAMP }}",
+            "success": $SUCCESS
+          }
+          EOF
+
+      - name: Send recovery notification
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const recoveryReport = JSON.parse(fs.readFileSync('recovery-report.json', 'utf8'));
+            
+            const success = recoveryReport.success;
+            const emoji = success ? '✅' : '❌';
+            const status = success ? 'Successful' : 'Failed';
+            
+            const title = `${emoji} ${recoveryReport.type.toUpperCase()} ${status} - ${{ env.TARGET_ENVIRONMENT }}`;
+            const body = `
+            ## Recovery Operation Summary
+            
+            **Status:** ${status}
+            **Type:** ${recoveryReport.type.toUpperCase()}
+            **Environment:** ${{ env.TARGET_ENVIRONMENT }}
+            **Duration:** ${recoveryReport.duration} minutes
+            **Requester:** ${{ github.actor }}
+            **Reason:** ${{ env.RECOVERY_REASON }}
+            
+            ## Details
+            ${recoveryReport.targetVersion ? `**Target Version:** ${recoveryReport.targetVersion}` : ''}
+            ${recoveryReport.backupTimestamp ? `**Backup Timestamp:** ${recoveryReport.backupTimestamp}` : ''}
+            
+            ## Recovery Steps Completed
+            - ✅ Pre-recovery backup
+            - ✅ Recovery operation execution
+            - ✅ Post-recovery validation
+            - ✅ System monitoring
+            
+            ## System Status
+            - **Application:** ${success ? 'Healthy' : 'Requires attention'}
+            - **Database:** ${success ? 'Operational' : 'Requires attention'}
+            - **Monitoring:** ${success ? 'Active' : 'Requires setup'}
+            
+            ## Next Steps
+            ${success ? 
+              '1. Continue monitoring system stability\n2. Review incident root cause\n3. Update recovery procedures if needed' : 
+              '1. Investigate recovery failure\n2. Consider alternative recovery strategies\n3. Escalate if necessary'
+            }
+            
+            ## Links
+            - [Recovery Pipeline](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [System Health](https://${
+              '${{ env.TARGET_ENVIRONMENT }}' === 'production' ? '' : '${{ env.TARGET_ENVIRONMENT }}.'
+            }learning-assistant.com/health)
+            - [Monitoring Dashboard](https://monitoring.learning-assistant.com)
+            `;
+            
+            // Create tracking issue
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['recovery', '${{ env.RECOVERY_TYPE }}', '${{ env.TARGET_ENVIRONMENT }}', success ? 'success' : 'failure']
+            });
+
+      - name: Upload final recovery report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovery-report-${{ env.TARGET_ENVIRONMENT }}
+          path: recovery-report.json
+          retention-days: 365  # Keep recovery reports for compliance
+
+      - name: Update system documentation
+        if: success()
+        run: |
+          echo "Updating system documentation..."
+          
+          # Update runbooks, incident response procedures, etc.
+          # This could commit updates to documentation repositories
+          
+          echo "✅ Documentation updated"

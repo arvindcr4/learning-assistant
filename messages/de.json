@@ -1,0 +1,347 @@
+{
+  "common": {
+    "welcome": "Willkommen",
+    "hello": "Hallo",
+    "goodbye": "Auf Wiedersehen",
+    "yes": "Ja",
+    "no": "Nein",
+    "ok": "OK",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "create": "Erstellen",
+    "search": "Suchen",
+    "loading": "Lädt...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "warning": "Warnung",
+    "info": "Information",
+    "next": "Weiter",
+    "previous": "Zurück",
+    "back": "Zurück",
+    "continue": "Fortfahren",
+    "submit": "Absenden",
+    "close": "Schließen",
+    "open": "Öffnen",
+    "settings": "Einstellungen",
+    "help": "Hilfe",
+    "about": "Über",
+    "contact": "Kontakt",
+    "privacy": "Datenschutz",
+    "terms": "Nutzungsbedingungen",
+    "language": "Sprache",
+    "theme": "Theme",
+    "profile": "Profil",
+    "account": "Konto",
+    "logout": "Abmelden",
+    "login": "Anmelden",
+    "register": "Registrieren",
+    "dashboard": "Dashboard",
+    "home": "Startseite",
+    "menu": "Menü"
+  },
+  "auth": {
+    "login": {
+      "title": "Bei Ihrem Konto anmelden",
+      "subtitle": "Willkommen zurück! Bitte geben Sie Ihre Anmeldedaten ein, um fortzufahren.",
+      "email": "E-Mail-Adresse",
+      "password": "Passwort",
+      "remember": "Angemeldet bleiben",
+      "forgot": "Passwort vergessen?",
+      "submit": "Anmelden",
+      "noAccount": "Haben Sie noch kein Konto?",
+      "createAccount": "Hier erstellen",
+      "socialLogin": "Oder fortfahren mit",
+      "error": {
+        "invalid": "Ungültige E-Mail oder Passwort",
+        "required": "Bitte füllen Sie alle erforderlichen Felder aus",
+        "network": "Netzwerkfehler. Bitte versuchen Sie es erneut."
+      }
+    },
+    "register": {
+      "title": "Ihr Konto erstellen",
+      "subtitle": "Schließen Sie sich uns an und beginnen Sie heute Ihre Lernreise!",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail-Adresse",
+      "password": "Passwort",
+      "confirmPassword": "Passwort bestätigen",
+      "terms": "Ich stimme den {termsLink} und der {privacyLink} zu",
+      "termsLink": "Nutzungsbedingungen",
+      "privacyLink": "Datenschutzrichtlinie",
+      "submit": "Konto erstellen",
+      "hasAccount": "Haben Sie bereits ein Konto?",
+      "signIn": "Hier anmelden",
+      "error": {
+        "exists": "Ein Konto mit dieser E-Mail existiert bereits",
+        "weak": "Das Passwort ist zu schwach",
+        "mismatch": "Die Passwörter stimmen nicht überein",
+        "terms": "Sie müssen den Bedingungen und der Datenschutzrichtlinie zustimmen"
+      }
+    },
+    "resetPassword": {
+      "title": "Ihr Passwort zurücksetzen",
+      "subtitle": "Geben Sie Ihre E-Mail ein und wir senden Ihnen einen Reset-Link.",
+      "email": "E-Mail-Adresse",
+      "submit": "Reset-Link senden",
+      "backToLogin": "Zurück zur Anmeldung",
+      "success": "Passwort-Reset-Link an Ihre E-Mail gesendet",
+      "error": {
+        "notFound": "Kein Konto mit dieser E-Mail-Adresse gefunden"
+      }
+    }
+  },
+  "navigation": {
+    "main": {
+      "dashboard": "Dashboard",
+      "learning": "Lernen",
+      "courses": "Kurse",
+      "progress": "Fortschritt",
+      "analytics": "Analytik",
+      "chat": "KI-Tutor",
+      "profile": "Profil",
+      "settings": "Einstellungen",
+      "help": "Hilfe-Center"
+    },
+    "breadcrumb": {
+      "home": "Startseite",
+      "separator": ">"
+    }
+  },
+  "dashboard": {
+    "title": "Ihr Lern-Dashboard",
+    "welcome": "Willkommen zurück, {name}!",
+    "stats": {
+      "totalHours": "Gesamte Lernstunden",
+      "completedCourses": "Abgeschlossene Kurse",
+      "currentStreak": "Aktuelle Serie",
+      "skillsLearned": "Erlernte Fähigkeiten"
+    },
+    "quickActions": {
+      "title": "Schnellaktionen",
+      "continueLearning": "Lernen fortsetzen",
+      "startNewCourse": "Neuen Kurs beginnen",
+      "reviewProgress": "Fortschritt überprüfen",
+      "practiceSkills": "Fähigkeiten üben"
+    },
+    "recentActivity": {
+      "title": "Letzte Aktivität",
+      "empty": "Keine letzte Aktivität zum Anzeigen",
+      "viewAll": "Alle Aktivitäten anzeigen"
+    },
+    "achievements": {
+      "title": "Neueste Erfolge",
+      "empty": "Noch keine Erfolge",
+      "viewAll": "Alle Erfolge anzeigen"
+    }
+  },
+  "learning": {
+    "session": {
+      "title": "Lernsitzung",
+      "start": "Lernen beginnen",
+      "pause": "Sitzung pausieren",
+      "resume": "Sitzung fortsetzen",
+      "complete": "Sitzung abschließen",
+      "duration": "Sitzungsdauer: {duration}",
+      "progress": "Fortschritt: {percentage}% abgeschlossen"
+    },
+    "content": {
+      "lesson": "Lektion",
+      "quiz": "Quiz",
+      "exercise": "Übung",
+      "project": "Projekt",
+      "difficulty": {
+        "beginner": "Anfänger",
+        "intermediate": "Fortgeschritten",
+        "advanced": "Erweitert",
+        "expert": "Experte"
+      },
+      "estimatedTime": "Geschätzte Zeit: {duration}",
+      "prerequisites": "Voraussetzungen",
+      "objectives": "Lernziele"
+    },
+    "quiz": {
+      "title": "Wissensüberprüfung",
+      "question": "Frage {current} von {total}",
+      "submit": "Antwort abgeben",
+      "next": "Nächste Frage",
+      "previous": "Vorherige Frage",
+      "results": "Quiz-Ergebnisse",
+      "score": "Ihre Punktzahl: {score}/{total}",
+      "passed": "Glückwunsch! Sie haben bestanden!",
+      "failed": "Lernen Sie weiter! Versuchen Sie es erneut, wenn Sie bereit sind.",
+      "retry": "Quiz wiederholen",
+      "continue": "Lernen fortsetzen"
+    },
+    "progress": {
+      "title": "Ihr Fortschritt",
+      "overall": "Gesamtfortschritt",
+      "course": "Kursfortschritt",
+      "skill": "Fähigkeitsbeherrschung",
+      "timeSpent": "Lernzeit",
+      "streak": "Lernserie",
+      "goals": "Lernziele",
+      "setGoal": "Lernziel setzen",
+      "updateGoal": "Ziel aktualisieren"
+    }
+  },
+  "chat": {
+    "title": "KI-Lernassistent",
+    "placeholder": "Fragen Sie mich alles über Ihr Lernen...",
+    "send": "Senden",
+    "clear": "Chat löschen",
+    "typing": "KI tippt...",
+    "error": "Entschuldigung, ich konnte Ihre Anfrage nicht verarbeiten. Bitte versuchen Sie es erneut.",
+    "suggestions": {
+      "title": "Schnellfragen",
+      "explain": "Dieses Konzept erklären",
+      "examples": "Beispiele geben",
+      "practice": "Übungsfragen erstellen",
+      "review": "Wichtige Punkte wiederholen"
+    },
+    "tutoring": {
+      "title": "Persönliche Nachhilfesitzung",
+      "start": "Nachhilfe beginnen",
+      "end": "Sitzung beenden",
+      "feedback": "Feedback erhalten",
+      "hint": "Hinweis erhalten"
+    }
+  },
+  "profile": {
+    "title": "Ihr Profil",
+    "personalInfo": {
+      "title": "Persönliche Informationen",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail-Adresse",
+      "bio": "Biographie",
+      "location": "Standort",
+      "timezone": "Zeitzone",
+      "update": "Profil aktualisieren"
+    },
+    "learningPreferences": {
+      "title": "Lernpräferenzen",
+      "style": "Lernstil",
+      "pace": "Lerntempo",
+      "difficulty": "Bevorzugte Schwierigkeit",
+      "language": "Benutzeroberflächen-Sprache",
+      "notifications": "Benachrichtigungen"
+    },
+    "achievements": {
+      "title": "Erfolge",
+      "badges": "Verdiente Abzeichen",
+      "certificates": "Zertifikate",
+      "milestones": "Erreichte Meilensteine"
+    }
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "general": {
+      "title": "Allgemein",
+      "language": "Sprache",
+      "theme": "Theme",
+      "timezone": "Zeitzone",
+      "dateFormat": "Datumsformat",
+      "numberFormat": "Zahlenformat"
+    },
+    "learning": {
+      "title": "Lernpräferenzen",
+      "style": "Lernstil",
+      "pace": "Lerntempo",
+      "reminders": "Lernerinnerungen",
+      "goals": "Lernziele"
+    },
+    "notifications": {
+      "title": "Benachrichtigungen",
+      "email": "E-Mail-Benachrichtigungen",
+      "push": "Push-Benachrichtigungen",
+      "achievement": "Erfolgs-Benachrichtigungen",
+      "reminder": "Lernerinnerungen"
+    },
+    "privacy": {
+      "title": "Datenschutz & Sicherheit",
+      "dataCollection": "Datenerfassung",
+      "analytics": "Nutzungsanalytik",
+      "cookies": "Cookie-Einstellungen",
+      "deleteAccount": "Konto löschen"
+    },
+    "accessibility": {
+      "title": "Barrierefreiheit",
+      "fontSize": "Schriftgröße",
+      "contrast": "Hoher Kontrast",
+      "animations": "Animationen reduzieren",
+      "screenReader": "Bildschirmleser-Unterstützung"
+    }
+  },
+  "forms": {
+    "validation": {
+      "required": "Dieses Feld ist erforderlich",
+      "email": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
+      "minLength": "Muss mindestens {min} Zeichen haben",
+      "maxLength": "Darf nicht mehr als {max} Zeichen haben",
+      "match": "Felder stimmen nicht überein",
+      "weak": "Passwort ist zu schwach",
+      "invalid": "Ungültige Eingabe"
+    },
+    "labels": {
+      "required": "Erforderlich",
+      "optional": "Optional"
+    }
+  },
+  "time": {
+    "units": {
+      "second": "Sekunde",
+      "seconds": "Sekunden",
+      "minute": "Minute",
+      "minutes": "Minuten",
+      "hour": "Stunde",
+      "hours": "Stunden",
+      "day": "Tag",
+      "days": "Tage",
+      "week": "Woche",
+      "weeks": "Wochen",
+      "month": "Monat",
+      "months": "Monate",
+      "year": "Jahr",
+      "years": "Jahre"
+    },
+    "relative": {
+      "now": "jetzt",
+      "today": "heute",
+      "yesterday": "gestern",
+      "tomorrow": "morgen",
+      "ago": "vor {time}",
+      "in": "in {time}"
+    }
+  },
+  "accessibility": {
+    "skipToContent": "Zum Hauptinhalt springen",
+    "openMenu": "Menü öffnen",
+    "closeMenu": "Menü schließen",
+    "toggleTheme": "Theme umschalten",
+    "loading": "Inhalt wird geladen",
+    "error": "Fehler beim Laden des Inhalts",
+    "expand": "Erweitern",
+    "collapse": "Reduzieren",
+    "sortBy": "Sortieren nach {field}",
+    "filterBy": "Filtern nach {field}"
+  },
+  "errors": {
+    "notFound": {
+      "title": "Seite nicht gefunden",
+      "message": "Die Seite, die Sie suchen, existiert nicht.",
+      "action": "Zum Dashboard gehen"
+    },
+    "serverError": {
+      "title": "Serverfehler",
+      "message": "Etwas ist auf unserer Seite schiefgegangen. Bitte versuchen Sie es später erneut.",
+      "action": "Seite aktualisieren"
+    },
+    "networkError": {
+      "title": "Netzwerkfehler",
+      "message": "Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
+      "action": "Wiederholen"
+    }
+  }
+}

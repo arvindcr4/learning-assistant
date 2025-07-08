@@ -1,0 +1,425 @@
+/* RTL (Right-to-Left) Language Support */
+
+/* Base RTL styles */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] body {
+  font-family: 'Cairo', 'Amiri', 'Noto Sans Arabic', 'Arial', sans-serif;
+}
+
+/* Layout and positioning adjustments */
+[dir="rtl"] .container {
+  direction: rtl;
+}
+
+[dir="rtl"] .flex {
+  direction: rtl;
+}
+
+[dir="rtl"] .grid {
+  direction: rtl;
+}
+
+/* Text alignment */
+[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+/* Margin and padding adjustments */
+[dir="rtl"] .ml-auto {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+[dir="rtl"] .mr-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+[dir="rtl"] .pl-4 {
+  padding-left: 0;
+  padding-right: 1rem;
+}
+
+[dir="rtl"] .pr-4 {
+  padding-right: 0;
+  padding-left: 1rem;
+}
+
+[dir="rtl"] .pl-6 {
+  padding-left: 0;
+  padding-right: 1.5rem;
+}
+
+[dir="rtl"] .pr-6 {
+  padding-right: 0;
+  padding-left: 1.5rem;
+}
+
+[dir="rtl"] .pl-8 {
+  padding-left: 0;
+  padding-right: 2rem;
+}
+
+[dir="rtl"] .pr-8 {
+  padding-right: 0;
+  padding-left: 2rem;
+}
+
+/* Border radius adjustments */
+[dir="rtl"] .rounded-l-lg {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+
+[dir="rtl"] .rounded-r-lg {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-top-left-radius: 0.5rem;
+  border-bottom-left-radius: 0.5rem;
+}
+
+[dir="rtl"] .rounded-tl-lg {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0.5rem;
+}
+
+[dir="rtl"] .rounded-tr-lg {
+  border-top-right-radius: 0;
+  border-top-left-radius: 0.5rem;
+}
+
+[dir="rtl"] .rounded-bl-lg {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0.5rem;
+}
+
+[dir="rtl"] .rounded-br-lg {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0.5rem;
+}
+
+/* Transform and positioning */
+[dir="rtl"] .transform {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .rotate-90 {
+  transform: rotate(-90deg);
+}
+
+[dir="rtl"] .rotate-180 {
+  transform: rotate(180deg);
+}
+
+/* Icons and directional elements */
+[dir="rtl"] .chevron-right {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .chevron-left {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .arrow-right {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .arrow-left {
+  transform: scaleX(-1);
+}
+
+/* Navigation adjustments */
+[dir="rtl"] .breadcrumb-separator {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .dropdown-menu {
+  right: 0;
+  left: auto;
+}
+
+[dir="rtl"] .tooltip {
+  right: 0;
+  left: auto;
+}
+
+/* Form elements */
+[dir="rtl"] input[type="text"],
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="password"],
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .form-label {
+  text-align: right;
+}
+
+[dir="rtl"] .form-help {
+  text-align: right;
+}
+
+/* Button adjustments */
+[dir="rtl"] .btn-icon-left {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .btn-icon-right {
+  flex-direction: row;
+}
+
+/* Table adjustments */
+[dir="rtl"] table {
+  direction: rtl;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
+[dir="rtl"] .table-sort-asc::after {
+  content: "▲";
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .table-sort-desc::after {
+  content: "▼";
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+/* Progress indicators */
+[dir="rtl"] .progress-bar {
+  direction: rtl;
+}
+
+[dir="rtl"] .progress-fill {
+  right: 0;
+  left: auto;
+}
+
+/* Sidebar and navigation */
+[dir="rtl"] .sidebar {
+  right: 0;
+  left: auto;
+}
+
+[dir="rtl"] .sidebar-toggle {
+  right: auto;
+  left: 1rem;
+}
+
+[dir="rtl"] .main-content {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+/* Chat and messaging */
+[dir="rtl"] .chat-message-user {
+  margin-left: 0;
+  margin-right: 2rem;
+  border-radius: 1rem 1rem 0.25rem 1rem;
+}
+
+[dir="rtl"] .chat-message-bot {
+  margin-right: 0;
+  margin-left: 2rem;
+  border-radius: 1rem 1rem 1rem 0.25rem;
+}
+
+[dir="rtl"] .chat-input {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Modal and dialog adjustments */
+[dir="rtl"] .modal-header {
+  direction: rtl;
+}
+
+[dir="rtl"] .modal-close {
+  right: auto;
+  left: 1rem;
+}
+
+/* Notification adjustments */
+[dir="rtl"] .notification {
+  right: auto;
+  left: 1rem;
+}
+
+[dir="rtl"] .notification-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+/* Learning content specific adjustments */
+[dir="rtl"] .lesson-content {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .quiz-options {
+  direction: rtl;
+}
+
+[dir="rtl"] .quiz-option {
+  text-align: right;
+}
+
+[dir="rtl"] .progress-indicator {
+  direction: ltr; /* Keep progress indicators LTR for consistency */
+}
+
+/* Dashboard and analytics */
+[dir="rtl"] .dashboard-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .stat-card {
+  direction: rtl;
+}
+
+[dir="rtl"] .chart-container {
+  direction: ltr; /* Keep charts LTR for better readability */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  [dir="rtl"] .mobile-menu {
+    right: 0;
+    left: auto;
+  }
+  
+  [dir="rtl"] .mobile-search {
+    direction: rtl;
+  }
+}
+
+/* Animation adjustments for RTL */
+[dir="rtl"] .slide-in-right {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+[dir="rtl"] .slide-in-left {
+  animation: slideInRight 0.3s ease-out;
+}
+
+[dir="rtl"] .slide-out-right {
+  animation: slideOutLeft 0.3s ease-in;
+}
+
+[dir="rtl"] .slide-out-left {
+  animation: slideOutRight 0.3s ease-in;
+}
+
+/* Custom keyframes for RTL animations */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutLeft {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Arabic font loading and optimization */
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  src: url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE80-FEFC;
+}
+
+@font-face {
+  font-family: 'Cairo';
+  src: url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap');
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE80-FEFC;
+}
+
+/* Ensure proper Arabic text rendering */
+[dir="rtl"] [lang="ar"] {
+  font-family: 'Cairo', 'Noto Sans Arabic', 'Arial', sans-serif;
+  font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Japanese font optimization */
+[dir="ltr"] [lang="ja"] {
+  font-family: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+  font-feature-settings: "palt" 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* High contrast mode support for RTL */
+@media (prefers-contrast: high) {
+  [dir="rtl"] {
+    border: 2px solid;
+  }
+  
+  [dir="rtl"] .focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+  }
+}
+
+/* Reduced motion for RTL animations */
+@media (prefers-reduced-motion: reduce) {
+  [dir="rtl"] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

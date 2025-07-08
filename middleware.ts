@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { securityMiddleware, secureResponse } from '@/middleware/security';
+import { enhancedSecurityMiddleware } from '@/middleware/enhanced-security';
 
 export async function middleware(request: NextRequest) {
   const startTime = performance.now();
@@ -12,7 +13,18 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
     
-    // Apply security middleware first
+    // Apply enhanced security middleware first
+    const enhancedSecurityResponse = await enhancedSecurityMiddleware(request);
+    if (enhancedSecurityResponse) {
+      // Enhanced security middleware blocked the request
+      const duration = performance.now() - startTime;
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`${request.method} ${request.nextUrl.pathname} - SECURITY_BLOCKED - ${duration}ms`);
+      }
+      return enhancedSecurityResponse;
+    }
+    
+    // Apply basic security middleware
     const securityResponse = securityMiddleware(request);
     if (securityResponse) {
       // Security middleware blocked the request

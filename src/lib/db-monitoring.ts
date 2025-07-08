@@ -713,3 +713,4 @@ export type {
   AlertConfig,
   PerformanceTrend,
 };
+export { DatabaseMonitor };

@@ -1,0 +1,710 @@
+name: 'Terraform GCP Infrastructure'
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'infrastructure/**'
+      - 'stacks/gcp/**'
+      - '.github/workflows/terraform-gcp.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'infrastructure/**'
+      - 'stacks/gcp/**'
+      - '.github/workflows/terraform-gcp.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      auto_approve:
+        description: 'Auto-approve apply/destroy'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  TF_VERSION: '1.5.0'
+  TF_IN_AUTOMATION: true
+  GOOGLE_REGION: 'us-central1'
+  TERRAFORM_CLOUD_TOKENS: ${{ secrets.TF_API_TOKEN }}
+
+jobs:
+  # Security and compliance checks
+  security-scan:
+    name: 'Security Scan'
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Terraform Security Scan with tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: './stacks/gcp'
+          github_token: ${{ github.token }}
+          soft_fail: false
+      
+      - name: Terraform Security Scan with Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: './stacks/gcp'
+          framework: terraform
+          output_format: sarif
+          output_file_path: reports/checkov.sarif
+      
+      - name: Upload Checkov results to GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: reports/checkov.sarif
+
+  # Policy validation with OPA
+  policy-validation:
+    name: 'Policy Validation'
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: always() && (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped')
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Setup OPA
+        run: |
+          curl -L -o opa https://openpolicyagent.org/downloads/v0.57.0/opa_linux_amd64_static
+          chmod +x opa
+          sudo mv opa /usr/local/bin/
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+      
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Determine environment
+        id: environment
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Terraform Init
+        working-directory: ./stacks/gcp
+        run: |
+          terraform init \
+            -backend-config="../../infrastructure/state-management/configs/backend-gcp-${{ steps.environment.outputs.environment }}.hcl"
+      
+      - name: Terraform Workspace
+        working-directory: ./stacks/gcp
+        run: |
+          terraform workspace select ${{ steps.environment.outputs.environment }} || \
+          terraform workspace new ${{ steps.environment.outputs.environment }}
+      
+      - name: Generate Terraform Plan
+        working-directory: ./stacks/gcp
+        run: |
+          terraform plan \
+            -var-file="../../terraform/environments/${{ steps.environment.outputs.environment }}.tfvars" \
+            -out=tfplan.out \
+            -json > tfplan.json
+      
+      - name: Validate with OPA Policies
+        working-directory: ./stacks/gcp
+        run: |
+          # Run OPA policy validation
+          opa eval \
+            --data ../../infrastructure/state-management/policies/opa/terraform-policy.rego \
+            --input tfplan.json \
+            --format pretty \
+            'data.terraform.policy.deny[x]' > policy-violations.txt
+          
+          # Check for policy violations
+          if [[ -s policy-violations.txt ]]; then
+            echo "Policy violations found:"
+            cat policy-violations.txt
+            exit 1
+          else
+            echo "No policy violations found"
+          fi
+
+  # Cost estimation
+  cost-estimation:
+    name: 'Cost Estimation'
+    runs-on: ubuntu-latest
+    needs: policy-validation
+    if: always() && needs.policy-validation.result == 'success'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v2
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+      
+      - name: Determine environment
+        id: environment
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Generate Infracost estimate
+        working-directory: ./stacks/gcp
+        run: |
+          terraform init \
+            -backend-config="../../infrastructure/state-management/configs/backend-gcp-${{ steps.environment.outputs.environment }}.hcl"
+          
+          terraform workspace select ${{ steps.environment.outputs.environment }} || \
+          terraform workspace new ${{ steps.environment.outputs.environment }}
+          
+          terraform plan \
+            -var-file="../../terraform/environments/${{ steps.environment.outputs.environment }}.tfvars" \
+            -out=tfplan.out
+          
+          infracost breakdown \
+            --path=tfplan.out \
+            --format=json \
+            --out-file=infracost.json
+          
+          infracost output \
+            --path=infracost.json \
+            --format=table
+      
+      - name: Post Infracost comment
+        if: github.event_name == 'pull_request'
+        run: |
+          infracost comment github \
+            --path=./stacks/gcp/infracost.json \
+            --repo=$GITHUB_REPOSITORY \
+            --github-token=${{ github.token }} \
+            --pull-request=${{ github.event.pull_request.number }} \
+            --behavior=update
+
+  # Environment-specific deployment jobs
+  deploy-dev:
+    name: 'Deploy to Development'
+    runs-on: ubuntu-latest
+    environment: development
+    needs: [security-scan, policy-validation, cost-estimation]
+    if: |
+      always() && 
+      (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped') &&
+      (needs.policy-validation.result == 'success') &&
+      (needs.cost-estimation.result == 'success' || needs.cost-estimation.result == 'skipped') &&
+      (github.ref == 'refs/heads/develop' || 
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev'))
+    
+    concurrency:
+      group: terraform-gcp-dev
+      cancel-in-progress: false
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY_DEV }}
+      
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Create state backup
+        working-directory: ./infrastructure/state-management/scripts
+        run: |
+          chmod +x state-backup.sh
+          ./state-backup.sh --environment dev --provider gcp
+      
+      - name: Terraform Init
+        working-directory: ./stacks/gcp
+        run: |
+          terraform init \
+            -backend-config="../../infrastructure/state-management/configs/backend-gcp-dev.hcl"
+      
+      - name: Terraform Workspace
+        working-directory: ./stacks/gcp
+        run: |
+          terraform workspace select dev || terraform workspace new dev
+      
+      - name: Terraform Validate
+        working-directory: ./stacks/gcp
+        run: terraform validate
+      
+      - name: Terraform Plan
+        id: plan
+        working-directory: ./stacks/gcp
+        run: |
+          terraform plan \
+            -var-file="../../terraform/environments/development.tfvars" \
+            -detailed-exitcode \
+            -out=tfplan.out
+        continue-on-error: true
+      
+      - name: Update Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Plan (GCP Development) 📖
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+            
+            </details>
+            
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+      
+      - name: Terraform Apply
+        if: |
+          steps.plan.outputs.exitcode == 2 && 
+          (github.ref == 'refs/heads/develop' || 
+           (github.event_name == 'workflow_dispatch' && 
+            github.event.inputs.environment == 'dev' && 
+            github.event.inputs.action == 'apply'))
+        working-directory: ./stacks/gcp
+        run: terraform apply -auto-approve tfplan.out
+      
+      - name: Drift Detection
+        if: always()
+        working-directory: ./infrastructure/state-management/scripts
+        run: |
+          chmod +x drift-detection.sh
+          ./drift-detection.sh --environment dev --provider gcp || true
+      
+      - name: Generate Outputs
+        if: always()
+        working-directory: ./stacks/gcp
+        run: |
+          terraform output -json > outputs.json
+          cat outputs.json
+      
+      - name: Upload Terraform Outputs
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: terraform-outputs-gcp-dev
+          path: ./stacks/gcp/outputs.json
+
+  deploy-staging:
+    name: 'Deploy to Staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    needs: [security-scan, policy-validation, cost-estimation]
+    if: |
+      always() && 
+      (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped') &&
+      (needs.policy-validation.result == 'success') &&
+      (needs.cost-estimation.result == 'success' || needs.cost-estimation.result == 'skipped') &&
+      (github.ref == 'refs/heads/main' || 
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'))
+    
+    concurrency:
+      group: terraform-gcp-staging
+      cancel-in-progress: false
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY_STAGING }}
+      
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Create state backup
+        working-directory: ./infrastructure/state-management/scripts
+        run: |
+          chmod +x state-backup.sh
+          ./state-backup.sh --environment staging --provider gcp
+      
+      - name: Terraform Init
+        working-directory: ./stacks/gcp
+        run: |
+          terraform init \
+            -backend-config="../../infrastructure/state-management/configs/backend-gcp-staging.hcl"
+      
+      - name: Terraform Workspace
+        working-directory: ./stacks/gcp
+        run: |
+          terraform workspace select staging || terraform workspace new staging
+      
+      - name: Terraform Plan
+        working-directory: ./stacks/gcp
+        run: |
+          terraform plan \
+            -var-file="../../terraform/environments/staging.tfvars" \
+            -out=tfplan.out
+      
+      - name: Manual Approval Required
+        if: github.event_name != 'workflow_dispatch' || !github.event.inputs.auto_approve
+        run: |
+          echo "Manual approval required for staging deployment"
+          echo "Please review the plan and approve the deployment"
+      
+      - name: Terraform Apply
+        if: |
+          github.event_name == 'workflow_dispatch' && 
+          github.event.inputs.environment == 'staging' && 
+          github.event.inputs.action == 'apply'
+        working-directory: ./stacks/gcp
+        run: |
+          if [[ "${{ github.event.inputs.auto_approve }}" == "true" ]]; then
+            terraform apply -auto-approve tfplan.out
+          else
+            echo "Manual approval required. Please run: terraform apply tfplan.out"
+            exit 1
+          fi
+
+  deploy-production:
+    name: 'Deploy to Production'
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [security-scan, policy-validation, cost-estimation, deploy-staging]
+    if: |
+      always() && 
+      (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped') &&
+      (needs.policy-validation.result == 'success') &&
+      (needs.cost-estimation.result == 'success' || needs.cost-estimation.result == 'skipped') &&
+      (needs.deploy-staging.result == 'success') &&
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    
+    concurrency:
+      group: terraform-gcp-production
+      cancel-in-progress: false
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY_PROD }}
+      
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Create state backup
+        working-directory: ./infrastructure/state-management/scripts
+        run: |
+          chmod +x state-backup.sh
+          ./state-backup.sh --environment prod --provider gcp
+      
+      - name: Terraform Init
+        working-directory: ./stacks/gcp
+        run: |
+          terraform init \
+            -backend-config="../../infrastructure/state-management/configs/backend-gcp-prod.hcl"
+      
+      - name: Terraform Workspace
+        working-directory: ./stacks/gcp
+        run: |
+          terraform workspace select prod || terraform workspace new prod
+      
+      - name: Terraform Plan
+        working-directory: ./stacks/gcp
+        run: |
+          terraform plan \
+            -var-file="../../terraform/environments/production.tfvars" \
+            -out=tfplan.out
+      
+      - name: Production Deployment Approval
+        if: github.event.inputs.action == 'apply'
+        run: |
+          echo "🚨 PRODUCTION DEPLOYMENT 🚨"
+          echo "This will deploy changes to the production environment"
+          echo "Please ensure you have:"
+          echo "1. Reviewed all changes thoroughly"
+          echo "2. Tested in staging environment"
+          echo "3. Have rollback plan ready"
+          echo "4. Coordinated with the team"
+      
+      - name: Terraform Apply
+        if: |
+          github.event.inputs.action == 'apply' && 
+          github.event.inputs.auto_approve == 'true'
+        working-directory: ./stacks/gcp
+        run: terraform apply -auto-approve tfplan.out
+      
+      - name: Post-deployment verification
+        if: github.event.inputs.action == 'apply'
+        working-directory: ./stacks/gcp
+        run: |
+          # Run health checks
+          terraform output -json > outputs.json
+          
+          # Verify critical resources
+          echo "Verifying deployment..."
+          
+          # Check if Cloud Storage buckets are accessible
+          if gcloud storage buckets list --project=$(terraform output -raw project_id) &>/dev/null; then
+            echo "✅ Storage buckets accessible"
+          else
+            echo "❌ Storage buckets not accessible"
+            exit 1
+          fi
+          
+          echo "✅ Production deployment completed successfully"
+
+  # Destroy workflow
+  destroy:
+    name: 'Destroy Infrastructure'
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      github.event.inputs.action == 'destroy'
+    
+    environment: ${{ github.event.inputs.environment }}
+    
+    concurrency:
+      group: terraform-gcp-${{ github.event.inputs.environment }}-destroy
+      cancel-in-progress: false
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+      
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Destruction Warning
+        run: |
+          echo "⚠️  DESTRUCTION WARNING ⚠️"
+          echo "This will DESTROY all infrastructure in ${{ github.event.inputs.environment }}"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Auto-approve: ${{ github.event.inputs.auto_approve }}"
+      
+      - name: Create state backup before destruction
+        working-directory: ./infrastructure/state-management/scripts
+        run: |
+          chmod +x state-backup.sh
+          ./state-backup.sh --environment ${{ github.event.inputs.environment }} --provider gcp
+      
+      - name: Terraform Init
+        working-directory: ./stacks/gcp
+        run: |
+          terraform init \
+            -backend-config="../../infrastructure/state-management/configs/backend-gcp-${{ github.event.inputs.environment }}.hcl"
+      
+      - name: Terraform Workspace
+        working-directory: ./stacks/gcp
+        run: |
+          terraform workspace select ${{ github.event.inputs.environment }}
+      
+      - name: Terraform Destroy Plan
+        working-directory: ./stacks/gcp
+        run: |
+          terraform plan \
+            -destroy \
+            -var-file="../../terraform/environments/${{ github.event.inputs.environment }}.tfvars" \
+            -out=destroy-plan.out
+      
+      - name: Terraform Destroy
+        if: github.event.inputs.auto_approve == 'true'
+        working-directory: ./stacks/gcp
+        run: terraform apply -auto-approve destroy-plan.out
+
+  # Notification job
+  notify:
+    name: 'Send Notifications'
+    runs-on: ubuntu-latest
+    needs: [deploy-dev, deploy-staging, deploy-production, destroy]
+    if: always()
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          # Determine overall status
+          if [[ "${{ needs.deploy-dev.result }}" == "success" || 
+                "${{ needs.deploy-staging.result }}" == "success" || 
+                "${{ needs.deploy-production.result }}" == "success" ]]; then
+            STATUS="success"
+            COLOR="good"
+            EMOJI="✅"
+          elif [[ "${{ needs.deploy-dev.result }}" == "failure" || 
+                  "${{ needs.deploy-staging.result }}" == "failure" || 
+                  "${{ needs.deploy-production.result }}" == "failure" || 
+                  "${{ needs.destroy.result }}" == "failure" ]]; then
+            STATUS="failure"
+            COLOR="danger"
+            EMOJI="❌"
+          else
+            STATUS="info"
+            COLOR="warning"
+            EMOJI="ℹ️"
+          fi
+          
+          # Send notification
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [
+                {
+                  \"color\": \"$COLOR\",
+                  \"title\": \"$EMOJI Terraform GCP Deployment - $STATUS\",
+                  \"fields\": [
+                    {
+                      \"title\": \"Repository\",
+                      \"value\": \"${{ github.repository }}\",
+                      \"short\": true
+                    },
+                    {
+                      \"title\": \"Branch\",
+                      \"value\": \"${{ github.ref_name }}\",
+                      \"short\": true
+                    },
+                    {
+                      \"title\": \"Actor\",
+                      \"value\": \"${{ github.actor }}\",
+                      \"short\": true
+                    },
+                    {
+                      \"title\": \"Workflow\",
+                      \"value\": \"${{ github.workflow }}\",
+                      \"short\": true
+                    }
+                  ],
+                  \"actions\": [
+                    {
+                      \"type\": \"button\",
+                      \"text\": \"View Workflow\",
+                      \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                    }
+                  ]
+                }
+              ]
+            }" \
+            "$SLACK_WEBHOOK_URL"
+      
+      - name: Send email notification
+        if: env.SENDGRID_API_KEY
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          TO_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
+        run: |
+          # Prepare email content
+          SUBJECT="Terraform GCP Deployment Notification"
+          BODY="Terraform GCP deployment workflow completed.\n\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nActor: ${{ github.actor }}\nStatus: $STATUS\n\nView workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          # Send email using SendGrid API
+          curl -X "POST" "https://api.sendgrid.com/v3/mail/send" \
+            -H "Authorization: Bearer $SENDGRID_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"personalizations\": [{
+                \"to\": [{\"email\": \"$TO_EMAIL\"}]
+              }],
+              \"from\": {\"email\": \"noreply@example.com\"},
+              \"subject\": \"$SUBJECT\",
+              \"content\": [{
+                \"type\": \"text/plain\",
+                \"value\": \"$BODY\"
+              }]
+            }"

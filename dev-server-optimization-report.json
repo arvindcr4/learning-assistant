@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-07-08T03:30:10.443Z",
+  "optimizations": {
+    "hotReloading": [],
+    "memoryUsage": [],
+    "compilationSpeed": [
+      {
+        "type": "Webpack Config",
+        "optimization": "Development-optimized webpack settings",
+        "impact": "Faster rebuilds"
+      },
+      {
+        "type": "Next.js Config",
+        "optimization": "Development-focused Next.js settings",
+        "impact": "Faster dev server"
+      },
+      {
+        "type": "Environment Variables",
+        "optimization": "Development-optimized environment",
+        "impact": "Overall performance boost"
+      },
+      {
+        "type": "TypeScript Config",
+        "optimization": "Relaxed type checking for development",
+        "impact": "Faster compilation"
+      }
+    ],
+    "caching": []
+  },
+  "summary": {
+    "totalOptimizations": 4,
+    "estimatedSpeedup": 80,
+    "memoryReduction": 0,
+    "recommendations": [
+      {
+        "type": "Hot Reloading",
+        "priority": "Medium",
+        "description": "Optimize hot reloading configuration for faster updates",
+        "impact": "Faster code change reflection"
+      },
+      {
+        "type": "Memory Usage",
+        "priority": "Medium",
+        "description": "Optimize memory usage to prevent out-of-memory errors",
+        "impact": "More stable development experience"
+      }
+    ]
+  },
+  "scripts": {
+    "dev:fast": "NODE_OPTIONS=\"--max-old-space-size=4096\" next dev --turbo",
+    "dev:debug": "NODE_OPTIONS=\"--inspect --max-old-space-size=4096\" next dev --turbo",
+    "dev:profile": "NODE_OPTIONS=\"--prof --max-old-space-size=4096\" next dev --turbo",
+    "dev:memory": "NODE_OPTIONS=\"--max-old-space-size=8192\" next dev --turbo",
+    "dev:clean": "rm -rf .next && npm run dev:fast",
+    "dev:analyze": "ANALYZE=true npm run dev:fast",
+    "type-check:dev": "tsc --noEmit --project tsconfig.dev.json",
+    "type-check:watch": "tsc --noEmit --project tsconfig.dev.json --watch"
+  }
+}

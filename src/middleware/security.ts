@@ -62,12 +62,14 @@ const securityConfig: SecurityConfig = {
     defaultSrc: ["'self'"],
     scriptSrc: [
       "'self'",
+      "'unsafe-inline'", // Only for development - remove in production
       'https://apis.google.com',
       'https://www.googletagmanager.com',
       'https://www.google-analytics.com',
     ],
     styleSrc: [
       "'self'",
+      "'unsafe-inline'", // Only for development - use nonces in production
       'https://fonts.googleapis.com',
     ],
     imgSrc: [
@@ -87,7 +89,10 @@ const securityConfig: SecurityConfig = {
       'https://fonts.gstatic.com',
     ],
     frameSrc: ["'none'"],
-    frameAncestors: ["'self'"],
+    frameAncestors: ["'none'"], // Changed from 'self' to 'none' for better security
+    objectSrc: ["'none'"], // Added to prevent object/embed attacks
+    baseUri: ["'self'"], // Added to prevent base tag injection
+    upgradeInsecureRequests: [], // Force HTTPS in production
   },
   headers: {
     hsts: true,
@@ -203,7 +208,14 @@ const addSecurityHeaders = (response: NextResponse): void => {
     `font-src ${securityConfig.csp.fontSrc.join(' ')}`,
     `frame-src ${securityConfig.csp.frameSrc.join(' ')}`,
     `frame-ancestors ${securityConfig.csp.frameAncestors.join(' ')}`,
+    `object-src ${securityConfig.csp.objectSrc?.join(' ') || "'none'"}`,
+    `base-uri ${securityConfig.csp.baseUri?.join(' ') || "'self'"}`,
   ];
+  
+  // Add upgrade-insecure-requests in production
+  if (process.env.NODE_ENV === 'production') {
+    cspDirectives.push('upgrade-insecure-requests');
+  }
   
   response.headers.set('Content-Security-Policy', cspDirectives.join('; '));
   

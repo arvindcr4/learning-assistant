@@ -1,0 +1,91 @@
+# Log rotation configuration for Learning Assistant Backup Service
+# Ensures log files don't consume excessive disk space
+
+/var/log/backup/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 644 backup backup
+    postrotate
+        # Send USR1 signal to processes that need to reopen log files
+        if [ -f /tmp/backup-monitor.pid ]; then
+            kill -USR1 $(cat /tmp/backup-monitor.pid) 2>/dev/null || true
+        fi
+        
+        # Restart supervisor programs if needed
+        if command -v supervisorctl >/dev/null 2>&1; then
+            supervisorctl -s unix:///tmp/supervisor.sock reread >/dev/null 2>&1 || true
+            supervisorctl -s unix:///tmp/supervisor.sock update >/dev/null 2>&1 || true
+        fi
+    endscript
+}
+
+# Separate configuration for critical logs
+/var/log/backup/error.log {
+    daily
+    missingok
+    rotate 90
+    compress
+    delaycompress
+    notifempty
+    create 644 backup backup
+    copytruncate
+}
+
+# Verification logs
+/var/log/backup/verification.log {
+    weekly
+    missingok
+    rotate 12
+    compress
+    delaycompress
+    notifempty
+    create 644 backup backup
+}
+
+# Disaster recovery test logs
+/var/log/backup/dr-test.log {
+    monthly
+    missingok
+    rotate 12
+    compress
+    delaycompress
+    notifempty
+    create 644 backup backup
+}
+
+# Replication logs
+/var/log/backup/replication.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 644 backup backup
+}
+
+# Metrics logs (high frequency)
+/var/log/backup/metrics.log {
+    hourly
+    missingok
+    rotate 168  # Keep 1 week of hourly logs
+    compress
+    delaycompress
+    notifempty
+    create 644 backup backup
+}
+
+# Health check logs
+/var/log/backup/healthcheck.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 644 backup backup
+}

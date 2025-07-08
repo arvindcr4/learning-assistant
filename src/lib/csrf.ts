@@ -14,7 +14,7 @@ export class CSRFProtection {
    */
   generateToken(sessionId?: string): string {
     const timestamp = Date.now();
-    const randomBytes = crypto.getRandomValues(new Uint8Array(16));
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32)); // Increased entropy
     const randomString = Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
     
     // Create token payload
@@ -24,18 +24,25 @@ export class CSRFProtection {
       random: randomString,
     });
 
-    // Simple encoding (in production, use proper HMAC signing)
-    const token = btoa(payload);
+    // Use HMAC for proper signing instead of simple base64
+    const hmac = crypto.createHmac('sha256', this.secret);
+    hmac.update(payload);
+    const signature = hmac.digest('hex');
+    
+    const signedToken = btoa(JSON.stringify({
+      payload: btoa(payload),
+      signature
+    }));
     
     // Cache the token
     if (sessionId) {
       this.tokenCache.set(sessionId, {
-        token,
+        token: signedToken,
         expires: timestamp + this.tokenExpiry,
       });
     }
 
-    return token;
+    return signedToken;
   }
 
   /**
@@ -43,8 +50,23 @@ export class CSRFProtection {
    */
   validateToken(token: string, sessionId?: string): boolean {
     try {
-      // Decode token
-      const payload = JSON.parse(atob(token));
+      // Decode the signed token
+      const signedData = JSON.parse(atob(token));
+      const { payload: encodedPayload, signature } = signedData;
+      
+      // Verify HMAC signature
+      const payloadData = atob(encodedPayload);
+      const hmac = crypto.createHmac('sha256', this.secret);
+      hmac.update(payloadData);
+      const expectedSignature = hmac.digest('hex');
+      
+      // Constant-time comparison to prevent timing attacks
+      if (!this.constantTimeCompare(signature, expectedSignature)) {
+        return false;
+      }
+      
+      // Parse the payload
+      const payload = JSON.parse(payloadData);
       const { sessionId: tokenSessionId, timestamp, random } = payload;
 
       // Check if token is expired
@@ -75,6 +97,22 @@ export class CSRFProtection {
     } catch (error) {
       return false;
     }
+  }
+
+  /**
+   * Constant-time string comparison to prevent timing attacks
+   */
+  private constantTimeCompare(a: string, b: string): boolean {
+    if (a.length !== b.length) {
+      return false;
+    }
+    
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+      result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    
+    return result === 0;
   }
 
   /**

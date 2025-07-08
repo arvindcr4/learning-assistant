@@ -1,0 +1,152 @@
+# Example Terraform Variables File for Learning Assistant Application
+# Copy this file to terraform.tfvars and customize the values
+
+# Project Configuration
+project_name = "learning-assistant"
+environment  = "prod"
+owner        = "DevOps Team"
+cost_center  = "Engineering"
+
+# AWS Region
+aws_region = "us-east-1"
+
+# VPC Configuration
+vpc_cidr                 = "10.0.0.0/16"
+public_subnet_cidrs      = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs     = ["10.0.10.0/24", "10.0.11.0/24"]
+database_subnet_cidrs    = ["10.0.20.0/24", "10.0.21.0/24"]
+enable_nat_gateway       = true
+single_nat_gateway       = false  # Set to true for cost savings in dev/staging
+
+# Security Configuration
+alb_allowed_cidrs = ["0.0.0.0/0"]  # Restrict this for production
+
+# Domain and SSL Configuration
+domain_name             = "learning-assistant.example.com"
+certificate_arn         = ""  # Add your ACM certificate ARN here
+enable_https_redirect   = true
+create_route53_zone     = false  # Set to true if you want Terraform to manage your DNS
+
+# ECS Configuration
+container_image     = "your-account.dkr.ecr.us-east-1.amazonaws.com/learning-assistant:latest"
+container_port      = 3000
+task_cpu           = 512
+task_memory        = 1024
+task_desired_count = 2
+
+# Auto Scaling Configuration
+enable_auto_scaling = true
+min_capacity       = 1
+max_capacity       = 10
+
+# Environment Variables for ECS
+environment_variables = {
+  NODE_ENV = "production"
+  PORT     = "3000"
+  # Add other non-sensitive environment variables here
+}
+
+# Secrets from Parameter Store (these should be created separately)
+secrets = {
+  DATABASE_URL = "/learning-assistant/prod/database-url"
+  REDIS_URL    = "/learning-assistant/prod/redis-url"
+  JWT_SECRET   = "/learning-assistant/prod/jwt-secret"
+  # Add other sensitive configuration here
+}
+
+# RDS Configuration
+db_name                     = "learning_assistant"
+db_username                 = "postgres"
+# db_password               = ""  # Will be auto-generated if not provided
+db_instance_class          = "db.t3.micro"     # Use db.r5.large or higher for production
+allocated_storage          = 20
+max_allocated_storage      = 100
+storage_type              = "gp2"              # Consider gp3 for better performance
+storage_encrypted         = true
+multi_az                  = true
+backup_retention_period   = 7
+backup_window             = "03:00-04:00"
+maintenance_window        = "sun:04:00-sun:05:00"
+create_read_replica       = false              # Set to true for production
+monitoring_interval       = 60
+performance_insights_enabled = true
+
+# ElastiCache Redis Configuration
+redis_node_type                    = "cache.t3.micro"  # Use cache.r5.large or higher for production
+redis_num_cache_nodes             = 1
+redis_parameter_group_name        = "default.redis6.x"
+redis_engine_version              = "6.2"
+redis_port                        = 6379
+redis_snapshot_retention_limit    = 5
+redis_snapshot_window             = "03:00-05:00"
+redis_auth_token_enabled          = true
+redis_transit_encryption_enabled  = true
+redis_at_rest_encryption_enabled  = true
+
+# Health Check Configuration
+enable_health_check = true
+health_check_path   = "/api/health"
+
+# Monitoring and Alerting
+sns_topic_arn         = ""  # Add your SNS topic ARN for alerts
+cpu_threshold_high    = 80
+memory_threshold_high = 80
+
+# Parameter Store Configuration
+parameter_store_parameters = [
+  "/learning-assistant/prod/database-url",
+  "/learning-assistant/prod/redis-url",
+  "/learning-assistant/prod/jwt-secret",
+  "/learning-assistant/prod/openai-api-key",
+  "/learning-assistant/prod/tambo-api-key"
+]
+
+# Parameter Store Secrets (these will be created by Terraform)
+parameter_store_secrets = {
+  # Add secrets that should be created by Terraform
+  # Note: Don't put actual secrets in this file - use terraform.tfvars instead
+}
+
+# S3 Configuration (if your application needs S3 access)
+s3_bucket_arns = [
+  # "arn:aws:s3:::your-app-bucket",
+  # "arn:aws:s3:::your-app-bucket/*"
+]
+
+# Example for different environments:
+
+# Development Environment
+# project_name           = "learning-assistant"
+# environment           = "dev"
+# db_instance_class     = "db.t3.micro"
+# redis_node_type       = "cache.t3.micro"
+# task_desired_count    = 1
+# min_capacity          = 1
+# max_capacity          = 3
+# single_nat_gateway    = true
+# multi_az              = false
+# create_read_replica   = false
+
+# Staging Environment
+# project_name           = "learning-assistant"
+# environment           = "staging"
+# db_instance_class     = "db.t3.small"
+# redis_node_type       = "cache.t3.small"
+# task_desired_count    = 2
+# min_capacity          = 1
+# max_capacity          = 5
+# single_nat_gateway    = false
+# multi_az              = true
+# create_read_replica   = false
+
+# Production Environment
+# project_name           = "learning-assistant"
+# environment           = "prod"
+# db_instance_class     = "db.r5.large"
+# redis_node_type       = "cache.r5.large"
+# task_desired_count    = 3
+# min_capacity          = 2
+# max_capacity          = 20
+# single_nat_gateway    = false
+# multi_az              = true
+# create_read_replica   = true

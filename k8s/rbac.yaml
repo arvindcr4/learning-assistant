@@ -1,0 +1,326 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: learning-assistant-sa
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: serviceaccount
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/learning-assistant-irsa-role
+    iam.gke.io/gcp-service-account: learning-assistant@project-id.iam.gserviceaccount.com
+automountServiceAccountToken: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres-sa
+  namespace: learning-assistant
+  labels:
+    app: postgres
+    component: serviceaccount
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redis-sa
+  namespace: learning-assistant
+  labels:
+    app: redis
+    component: serviceaccount
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: learning-assistant-vault-sa
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: vault-serviceaccount
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: learning-assistant
+  name: learning-assistant-role
+  labels:
+    app: learning-assistant
+    component: rbac
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: learning-assistant-rolebinding
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: rbac
+subjects:
+- kind: ServiceAccount
+  name: learning-assistant-sa
+  namespace: learning-assistant
+roleRef:
+  kind: Role
+  name: learning-assistant-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: learning-assistant-cluster-role
+  labels:
+    app: learning-assistant
+    component: rbac
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "nodes/metrics", "nodes/proxy"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: learning-assistant-cluster-rolebinding
+  labels:
+    app: learning-assistant
+    component: rbac
+subjects:
+- kind: ServiceAccount
+  name: learning-assistant-sa
+  namespace: learning-assistant
+roleRef:
+  kind: ClusterRole
+  name: learning-assistant-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: learning-assistant-authz
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: security
+spec:
+  selector:
+    matchLabels:
+      app: learning-assistant
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+    - source:
+        namespaces: ["monitoring"]
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        paths: ["/api/*"]
+    when:
+    - key: source.ip
+      notValues: ["10.0.0.0/8", "192.168.0.0/16"]
+  - from:
+    - source:
+        namespaces: ["monitoring"]
+    to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/api/metrics", "/api/health"]
+  - to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/health", "/api/health"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: learning-assistant-peer-auth
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: security
+spec:
+  selector:
+    matchLabels:
+      app: learning-assistant
+  mtls:
+    mode: STRICT
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-database
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: networking
+spec:
+  hosts:
+  - external-postgres.example.com
+  ports:
+  - number: 5432
+    name: postgres
+    protocol: TCP
+  location: MESH_EXTERNAL
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: learning-assistant-vs
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: networking
+spec:
+  hosts:
+  - learning-assistant.example.com
+  gateways:
+  - learning-assistant-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /api/
+    route:
+    - destination:
+        host: learning-assistant-service
+        port:
+          number: 3000
+    fault:
+      delay:
+        percentage:
+          value: 0.1
+        fixedDelay: 5s
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 60s
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: learning-assistant-service
+        port:
+          number: 80
+    timeout: 30s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: learning-assistant-gateway
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: networking
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - learning-assistant.example.com
+    tls:
+      httpsRedirect: true
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: learning-assistant-tls
+    hosts:
+    - learning-assistant.example.com
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vault-token
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: vault
+type: Opaque
+stringData:
+  vault-token: "REPLACE_WITH_ACTUAL_VAULT_TOKEN"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: learning-assistant
+  name: secret-reader
+  labels:
+    app: learning-assistant
+    component: vault-rbac
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-secret-reader
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: vault-rbac
+subjects:
+- kind: ServiceAccount
+  name: learning-assistant-vault-sa
+  namespace: learning-assistant
+roleRef:
+  kind: Role
+  name: secret-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: image-pull-secret
+  namespace: learning-assistant
+  labels:
+    app: learning-assistant
+    component: registry
+type: kubernetes.io/dockerconfigjson
+stringData:
+  .dockerconfigjson: |
+    {
+      "auths": {
+        "ghcr.io": {
+          "username": "github-username",
+          "password": "github-token",
+          "email": "user@example.com",
+          "auth": "BASE64_ENCODED_AUTH"
+        }
+      }
+    }

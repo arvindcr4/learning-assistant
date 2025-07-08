@@ -1,0 +1,197 @@
+# Example Terraform Variables Configuration for Azure Infrastructure
+# Copy this file to terraform.tfvars and customize the values for your deployment
+
+# Project Configuration
+project_name = "learning-assistant"
+environment  = "dev"  # Options: dev, staging, prod
+location     = "East US 2"
+
+# Network Configuration
+vnet_address_space = ["10.0.0.0/16"]
+enable_private_endpoints = true
+
+# AKS Configuration
+aks_kubernetes_version = "1.28"
+aks_enable_rbac        = true
+aks_enable_azure_ad    = true
+aks_enable_pod_identity = true
+
+# System node pool configuration
+aks_system_node_pool = {
+  node_count     = 3
+  vm_size        = "Standard_D2s_v3"
+  max_node_count = 5
+  min_node_count = 1
+}
+
+# User node pool configuration
+aks_user_node_pool = {
+  node_count     = 2
+  vm_size        = "Standard_D4s_v3"
+  max_node_count = 10
+  min_node_count = 1
+}
+
+# Database Configuration
+postgresql_version                  = "14"
+postgresql_sku_name                = "GP_Standard_D2s_v3"
+postgresql_storage_mb              = 32768
+postgresql_backup_retention_days   = 7
+postgresql_geo_redundant_backup    = false  # Set to true for production
+postgresql_enable_high_availability = false  # Set to true for production
+
+# Redis Configuration
+redis_capacity              = 2
+redis_family               = "C"
+redis_sku_name             = "Standard"  # Options: Basic, Standard, Premium
+redis_enable_non_ssl_port  = false
+redis_minimum_tls_version  = "1.2"
+
+# Application Gateway Configuration
+app_gateway_sku = {
+  name     = "WAF_v2"
+  tier     = "WAF_v2"
+  capacity = 2
+}
+app_gateway_enable_waf = true
+app_gateway_waf_mode   = "Prevention"  # Options: Detection, Prevention
+
+# DNS Configuration
+dns_zone_name   = ""     # Set to your domain name (e.g., "example.com")
+create_dns_zone = false  # Set to true if you want to create a new DNS zone
+
+# Monitoring Configuration
+log_analytics_retention_days = 30
+enable_container_insights    = true
+enable_security_center       = true
+enable_performance_monitoring = true
+enable_application_insights   = true
+
+# Backup Configuration
+backup_policy         = "daily"  # Options: daily, weekly, monthly
+backup_retention_days = 30
+
+# Security Configuration
+enable_network_security_groups = true
+enable_azure_defender          = false  # Set to true for production
+enable_compliance_monitoring   = false  # Set to true for production
+allowed_ip_ranges              = []     # Add your IP ranges if needed
+
+# Tagging Configuration
+owner                = "Platform Team"
+cost_center         = "Engineering"
+data_classification = "Internal"  # Options: Public, Internal, Confidential, Restricted
+
+# Auto-scaling Configuration
+enable_cluster_autoscaler         = true
+enable_horizontal_pod_autoscaler  = true
+enable_vertical_pod_autoscaler    = false
+
+# Cost Management Configuration
+enable_cost_management   = true
+monthly_budget_amount    = 1000  # USD
+budget_alert_thresholds  = [50, 75, 90, 100]  # Percentages
+
+# Disaster Recovery Configuration (Production Only)
+enable_disaster_recovery = false  # Set to true for production
+dr_region               = "West US 2"
+
+# Compliance Configuration
+compliance_standards = ["SOC2", "ISO27001"]
+
+# Feature Flags
+enable_bastion_host = false  # Set to true for production if needed
+
+# Example configurations for different environments:
+
+# Development Environment Example:
+# project_name = "learning-assistant"
+# environment  = "dev"
+# location     = "East US 2"
+# aks_system_node_pool = {
+#   node_count     = 1
+#   vm_size        = "Standard_B2s"
+#   max_node_count = 3
+#   min_node_count = 1
+# }
+# aks_user_node_pool = {
+#   node_count     = 1
+#   vm_size        = "Standard_B2s"
+#   max_node_count = 3
+#   min_node_count = 1
+# }
+# postgresql_sku_name = "B_Standard_B1ms"
+# redis_sku_name = "Basic"
+# redis_capacity = 1
+# app_gateway_enable_waf = false
+# enable_azure_defender = false
+# enable_compliance_monitoring = false
+# monthly_budget_amount = 200
+
+# Staging Environment Example:
+# project_name = "learning-assistant"
+# environment  = "staging"
+# location     = "East US 2"
+# aks_system_node_pool = {
+#   node_count     = 2
+#   vm_size        = "Standard_D2s_v3"
+#   max_node_count = 3
+#   min_node_count = 1
+# }
+# aks_user_node_pool = {
+#   node_count     = 1
+#   vm_size        = "Standard_D2s_v3"
+#   max_node_count = 5
+#   min_node_count = 1
+# }
+# postgresql_sku_name = "GP_Standard_D2s_v3"
+# postgresql_enable_high_availability = false
+# redis_sku_name = "Standard"
+# redis_capacity = 1
+# app_gateway_enable_waf = true
+# app_gateway_waf_mode = "Detection"
+# enable_azure_defender = false
+# enable_compliance_monitoring = true
+# monthly_budget_amount = 500
+
+# Production Environment Example:
+# project_name = "learning-assistant"
+# environment  = "prod"
+# location     = "East US 2"
+# aks_system_node_pool = {
+#   node_count     = 3
+#   vm_size        = "Standard_D4s_v3"
+#   max_node_count = 10
+#   min_node_count = 3
+# }
+# aks_user_node_pool = {
+#   node_count     = 3
+#   vm_size        = "Standard_D8s_v3"
+#   max_node_count = 20
+#   min_node_count = 3
+# }
+# postgresql_sku_name = "GP_Standard_D4s_v3"
+# postgresql_enable_high_availability = true
+# postgresql_geo_redundant_backup = true
+# postgresql_backup_retention_days = 30
+# redis_sku_name = "Premium"
+# redis_capacity = 3
+# app_gateway_enable_waf = true
+# app_gateway_waf_mode = "Prevention"
+# dns_zone_name = "yourdomain.com"
+# create_dns_zone = true
+# enable_azure_defender = true
+# enable_compliance_monitoring = true
+# enable_disaster_recovery = true
+# log_analytics_retention_days = 90
+# backup_retention_days = 90
+# monthly_budget_amount = 2000
+
+# Notes:
+# 1. Sensitive values like passwords are auto-generated and stored in Key Vault
+# 2. Replace "yourdomain.com" with your actual domain name
+# 3. Adjust VM sizes based on your workload requirements
+# 4. Enable production features (HA, geo-redundancy, etc.) for production deployments
+# 5. Review and adjust budget amounts based on your requirements
+# 6. Consider enabling Azure Defender and compliance monitoring for production
+# 7. Update allowed_ip_ranges if you need to restrict access to specific IP addresses

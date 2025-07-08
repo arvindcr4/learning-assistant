@@ -1,0 +1,327 @@
+{
+  "dashboard": {
+    "title": "Learning Assistant - Business Metrics Dashboard",
+    "description": "Key business metrics and KPIs for stakeholders and product teams",
+    "tags": ["learning-assistant", "business", "kpi"],
+    "refresh": "5m",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "title": "Total Active Users",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_active_users",
+            "legendFormat": "Active Users"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "title": "New Users Today",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "increase(learning_assistant_new_users_total[24h])",
+            "legendFormat": "New Users"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "title": "User Retention Rate",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_user_retention_rate",
+            "legendFormat": "Retention Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 70 },
+                { "color": "green", "value": 85 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Conversion Rate",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "learning_assistant_conversion_rate",
+            "legendFormat": "Conversion Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 10 },
+                { "color": "green", "value": 20 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "User Growth Trend",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "learning_assistant_total_users",
+            "legendFormat": "Total Users"
+          },
+          {
+            "expr": "learning_assistant_active_users",
+            "legendFormat": "Active Users"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "title": "Learning Session Completion",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "rate(learning_assistant_sessions_completed_total[5m])",
+            "legendFormat": "Completed Sessions"
+          },
+          {
+            "expr": "rate(learning_assistant_sessions_started_total[5m])",
+            "legendFormat": "Started Sessions"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "cps"
+          }
+        }
+      },
+      {
+        "title": "Content Performance",
+        "type": "heatmap",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "learning_assistant_content_engagement_score",
+            "legendFormat": "{{content_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "title": "Average Session Duration",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "expr": "learning_assistant_session_duration_seconds",
+            "legendFormat": "{{learning_style}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "title": "Learning Effectiveness by Style",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+        "targets": [
+          {
+            "expr": "learning_assistant_learning_effectiveness_score",
+            "legendFormat": "{{learning_style}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "displayMode": "basic"
+            }
+          }
+        }
+      },
+      {
+        "title": "Content Type Popularity",
+        "type": "barchart",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+        "targets": [
+          {
+            "expr": "sum by (content_type) (learning_assistant_content_views_total)",
+            "legendFormat": "{{content_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "orientation": "horizontal"
+            }
+          }
+        }
+      },
+      {
+        "title": "Quiz Performance Metrics",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+        "targets": [
+          {
+            "expr": "avg(learning_assistant_quiz_score)",
+            "legendFormat": "Average Score"
+          },
+          {
+            "expr": "rate(learning_assistant_quiz_attempts_total[5m])",
+            "legendFormat": "Quiz Attempts"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "title": "User Engagement Funnel",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+        "targets": [
+          {
+            "expr": "learning_assistant_user_registration_total",
+            "legendFormat": "Registrations"
+          },
+          {
+            "expr": "learning_assistant_user_onboarding_completed_total",
+            "legendFormat": "Onboarding Completed"
+          },
+          {
+            "expr": "learning_assistant_user_first_session_total",
+            "legendFormat": "First Session"
+          },
+          {
+            "expr": "learning_assistant_user_return_session_total",
+            "legendFormat": "Return Session"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "title": "Revenue Metrics",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+        "targets": [
+          {
+            "expr": "learning_assistant_revenue_total",
+            "legendFormat": "Total Revenue"
+          },
+          {
+            "expr": "learning_assistant_mrr",
+            "legendFormat": "Monthly Recurring Revenue"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        }
+      },
+      {
+        "title": "Churn Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+        "targets": [
+          {
+            "expr": "learning_assistant_churn_rate",
+            "legendFormat": "Churn Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 5 },
+                { "color": "red", "value": 10 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Top Performing Content",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 44 },
+        "targets": [
+          {
+            "expr": "topk(10, learning_assistant_content_engagement_score)",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "content_id": "Content ID",
+                "content_type": "Content Type",
+                "engagement_score": "Engagement Score",
+                "completion_rate": "Completion Rate"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

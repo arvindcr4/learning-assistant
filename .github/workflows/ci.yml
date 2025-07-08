@@ -200,6 +200,9 @@ jobs:
         # Example: npm run migrate
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # Secrets management configuration
+        VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+        VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
 
   performance-test:
     name: Performance Tests

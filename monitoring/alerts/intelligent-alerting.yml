@@ -1,0 +1,484 @@
+# Intelligent Alerting System with Machine Learning-based Thresholds
+# Advanced alerting rules with predictive analytics, anomaly detection, and adaptive thresholds
+
+# Global configuration
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@learningassistant.com'
+  smtp_auth_username: 'alerts@learningassistant.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  http_config:
+    follow_redirects: true
+  resolve_timeout: 5m
+
+# Route configuration with intelligent escalation
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+  routes:
+    # Critical alerts - immediate escalation
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 5m
+      routes:
+        - match:
+            category: security
+          receiver: 'security-team'
+        - match:
+            category: infrastructure
+          receiver: 'sre-team'
+        - match:
+            category: business
+          receiver: 'executive-team'
+    
+    # High priority alerts - escalate after 15 minutes
+    - match:
+        severity: high
+      receiver: 'high-priority-alerts'
+      group_wait: 30s
+      repeat_interval: 15m
+      continue: true
+    
+    # Warning alerts - standard handling
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 2m
+      repeat_interval: 1h
+    
+    # Learning system specific alerts
+    - match:
+        category: learning_system
+      receiver: 'learning-team'
+      group_wait: 1m
+      repeat_interval: 30m
+    
+    # External service alerts
+    - match:
+        category: external_services
+      receiver: 'integration-team'
+      group_wait: 2m
+      repeat_interval: 1h
+
+# Inhibition rules to prevent alert storms
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
+  
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match_re:
+      alertname: '.*'
+    equal: ['instance']
+
+# Receivers configuration
+receivers:
+  - name: 'web.hook'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/alerts'
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+        max_alerts: 0
+
+  - name: 'critical-alerts'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/critical-alerts'
+        send_resolved: true
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          **Alert:** {{ .Annotations.summary }}
+          **Description:** {{ .Annotations.description }}
+          **Severity:** {{ .Labels.severity }}
+          **Service:** {{ .Labels.service }}
+          **Runbook:** {{ .Annotations.runbook_url }}
+          **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+    email_configs:
+      - to: 'sre-oncall@learningassistant.com'
+        subject: '🚨 CRITICAL ALERT: {{ .GroupLabels.alertname }}'
+        body: |
+          Critical alert fired for Learning Assistant:
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Service: {{ .Labels.service }}
+          Instance: {{ .Labels.instance }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          Runbook: {{ .Annotations.runbook_url }}
+          {{ end }}
+
+  - name: 'security-team'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/security-alerts'
+        send_resolved: true
+        title: '🛡️ SECURITY ALERT: {{ .GroupLabels.alertname }}'
+    email_configs:
+      - to: 'security@learningassistant.com'
+        subject: '🛡️ SECURITY ALERT: {{ .GroupLabels.alertname }}'
+
+  - name: 'sre-team'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/sre-alerts'
+        send_resolved: true
+        title: '⚙️ INFRASTRUCTURE ALERT: {{ .GroupLabels.alertname }}'
+    email_configs:
+      - to: 'sre@learningassistant.com'
+        subject: '⚙️ INFRASTRUCTURE ALERT: {{ .GroupLabels.alertname }}'
+
+  - name: 'executive-team'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/executive-alerts'
+        send_resolved: true
+        title: '📊 BUSINESS CRITICAL: {{ .GroupLabels.alertname }}'
+    email_configs:
+      - to: 'executives@learningassistant.com'
+        subject: '📊 BUSINESS CRITICAL: {{ .GroupLabels.alertname }}'
+
+  - name: 'high-priority-alerts'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/high-priority-alerts'
+        send_resolved: true
+        title: '⚠️ HIGH PRIORITY: {{ .GroupLabels.alertname }}'
+
+  - name: 'warning-alerts'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/warning-alerts'
+        send_resolved: true
+        title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+
+  - name: 'learning-team'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/learning-alerts'
+        send_resolved: true
+        title: '🎓 LEARNING SYSTEM: {{ .GroupLabels.alertname }}'
+    email_configs:
+      - to: 'learning-team@learningassistant.com'
+        subject: '🎓 LEARNING SYSTEM ALERT: {{ .GroupLabels.alertname }}'
+
+  - name: 'integration-team'
+    webhook_configs:
+      - url: 'http://localhost:3000/api/webhooks/integration-alerts'
+        send_resolved: true
+        title: '🔗 INTEGRATION ISSUE: {{ .GroupLabels.alertname }}'
+
+# Prometheus alert rules with intelligent thresholds
+groups:
+  - name: intelligent-infrastructure-alerts
+    interval: 30s
+    rules:
+      # Dynamic error rate threshold based on historical data
+      - alert: DynamicHighErrorRate
+        expr: |
+          (
+            rate(learning_assistant_http_requests_total{status=~"5.."}[5m]) / 
+            rate(learning_assistant_http_requests_total[5m]) * 100
+          ) > (
+            quantile_over_time(0.95, 
+              rate(learning_assistant_http_requests_total{status=~"5.."}[5m]) / 
+              rate(learning_assistant_http_requests_total[5m]) * 100
+            [7d]) * 1.5
+          ) and (
+            rate(learning_assistant_http_requests_total{status=~"5.."}[5m]) / 
+            rate(learning_assistant_http_requests_total[5m]) * 100
+          ) > 1
+        for: 5m
+        labels:
+          severity: critical
+          category: infrastructure
+          service: learning-assistant
+          alert_type: dynamic
+        annotations:
+          summary: "Dynamic error rate threshold exceeded"
+          description: "Error rate {{ $value }}% is significantly higher than the 95th percentile over the last 7 days"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/dynamic-error-rate"
+          impact: "High error rates may indicate service degradation affecting user experience"
+
+      # Predictive memory usage alert
+      - alert: PredictiveMemoryExhaustion
+        expr: |
+          predict_linear(
+            process_resident_memory_bytes{job="learning-assistant"}[1h], 
+            3600 * 2
+          ) > (4 * 1024 * 1024 * 1024)
+        for: 10m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: learning-assistant
+          alert_type: predictive
+        annotations:
+          summary: "Memory exhaustion predicted in 2 hours"
+          description: "Current memory trend indicates exhaustion in approximately 2 hours"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/predictive-memory"
+          impact: "Proactive scaling may be required to prevent out-of-memory conditions"
+
+      # Anomaly detection for response time
+      - alert: ResponseTimeAnomaly
+        expr: |
+          (
+            histogram_quantile(0.95, 
+              rate(learning_assistant_http_request_duration_seconds_bucket[5m])
+            ) - 
+            quantile_over_time(0.50, 
+              histogram_quantile(0.95, 
+                rate(learning_assistant_http_request_duration_seconds_bucket[5m])
+              )[24h]
+            )
+          ) / quantile_over_time(0.50, 
+            histogram_quantile(0.95, 
+              rate(learning_assistant_http_request_duration_seconds_bucket[5m])
+            )[24h]
+          ) > 3
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+          service: learning-assistant
+          alert_type: anomaly
+        annotations:
+          summary: "Response time anomaly detected"
+          description: "Current P95 response time deviates significantly from 24h baseline"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/response-time-anomaly"
+          impact: "Unusual performance patterns may indicate underlying issues"
+
+  - name: intelligent-security-alerts
+    interval: 15s
+    rules:
+      # Adaptive brute force detection
+      - alert: AdaptiveBruteForceDetection
+        expr: |
+          (
+            rate(learning_assistant_failed_login_attempts_total[5m]) * 300
+          ) > on(source_ip) (
+            (
+              quantile_over_time(0.95, 
+                rate(learning_assistant_failed_login_attempts_total[5m]) * 300
+              [24h]) by (source_ip) * 2
+            ) + 10
+          )
+        for: 2m
+        labels:
+          severity: critical
+          category: security
+          service: learning-assistant
+          alert_type: adaptive
+        annotations:
+          summary: "Adaptive brute force attack detected"
+          description: "Failed login rate from {{ $labels.source_ip }} significantly exceeds historical patterns"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/adaptive-brute-force"
+          impact: "Potential account compromise attempt requires immediate investigation"
+
+      # ML-based threat score anomaly
+      - alert: ThreatScoreAnomaly
+        expr: |
+          learning_assistant_threat_score > on(source_ip) (
+            quantile_over_time(0.99, 
+              learning_assistant_threat_score[7d]
+            ) by (source_ip)
+          ) and learning_assistant_threat_score > 7
+        for: 1m
+        labels:
+          severity: high
+          category: security
+          service: learning-assistant
+          alert_type: ml_anomaly
+        annotations:
+          summary: "ML threat score anomaly detected"
+          description: "Threat score {{ $value }} from {{ $labels.source_ip }} exceeds 99th percentile baseline"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/threat-score-anomaly"
+          impact: "High-confidence threat detection requires security team attention"
+
+  - name: intelligent-business-alerts
+    interval: 5m
+    rules:
+      # Dynamic conversion rate threshold
+      - alert: DynamicConversionRateDrop
+        expr: |
+          learning_assistant_conversion_rate < (
+            quantile_over_time(0.10, 
+              learning_assistant_conversion_rate[30d]
+            ) * 0.8
+          ) and learning_assistant_conversion_rate < 5
+        for: 30m
+        labels:
+          severity: warning
+          category: business
+          service: learning-assistant
+          alert_type: dynamic
+        annotations:
+          summary: "Conversion rate dropped below dynamic threshold"
+          description: "Current conversion rate {{ $value }}% is significantly below 30-day 10th percentile"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/conversion-rate-drop"
+          impact: "Revenue impact requires business team investigation"
+
+      # Revenue trend anomaly
+      - alert: RevenueTrendAnomaly
+        expr: |
+          (
+            deriv(learning_assistant_revenue_daily[1h]) < 0
+          ) and (
+            predict_linear(learning_assistant_revenue_daily[24h], 86400) < 
+            learning_assistant_revenue_daily * 0.95
+          )
+        for: 2h
+        labels:
+          severity: high
+          category: business
+          service: learning-assistant
+          alert_type: predictive
+        annotations:
+          summary: "Revenue declining trend detected"
+          description: "Revenue trend indicates potential 5%+ daily decline"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/revenue-trend-anomaly"
+          impact: "Revenue decline trend requires immediate business analysis"
+
+  - name: intelligent-learning-alerts
+    interval: 2m
+    rules:
+      # Learning effectiveness anomaly
+      - alert: LearningEffectivenessAnomaly
+        expr: |
+          learning_assistant_learning_effectiveness_score < (
+            quantile_over_time(0.25, 
+              learning_assistant_learning_effectiveness_score[7d]
+            ) * 0.9
+          ) and learning_assistant_learning_effectiveness_score < 70
+        for: 15m
+        labels:
+          severity: warning
+          category: learning_system
+          service: learning-assistant
+          alert_type: anomaly
+        annotations:
+          summary: "Learning effectiveness below baseline"
+          description: "Current effectiveness score {{ $value }}% is below 7-day 25th percentile threshold"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/learning-effectiveness-anomaly"
+          impact: "Degraded learning outcomes may affect student satisfaction"
+
+      # AI model performance degradation
+      - alert: AIModelPerformanceDegradation
+        expr: |
+          learning_assistant_ai_model_accuracy < (
+            quantile_over_time(0.05, 
+              learning_assistant_ai_model_accuracy[7d]
+            )
+          ) and learning_assistant_ai_model_accuracy < 85
+        for: 10m
+        labels:
+          severity: high
+          category: learning_system
+          service: learning-assistant
+          alert_type: ml_performance
+        annotations:
+          summary: "AI model performance degradation detected"
+          description: "Model accuracy {{ $value }}% has dropped below 7-day 5th percentile"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/ai-model-degradation"
+          impact: "Degraded AI performance affects learning recommendations and user experience"
+
+  - name: intelligent-capacity-alerts
+    interval: 1m
+    rules:
+      # Predictive scaling alert
+      - alert: PredictiveScalingRequired
+        expr: |
+          (
+            predict_linear(learning_assistant_active_users[1h], 3600) > 
+            learning_assistant_capacity_limit * 0.8
+          ) and (
+            rate(learning_assistant_active_users[5m]) > 0
+          )
+        for: 5m
+        labels:
+          severity: warning
+          category: capacity
+          service: learning-assistant
+          alert_type: predictive
+        annotations:
+          summary: "Predictive scaling required within 1 hour"
+          description: "User growth trend indicates capacity limit approach in ~1 hour"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/predictive-scaling"
+          impact: "Proactive scaling needed to maintain performance under increased load"
+
+      # Resource saturation prediction
+      - alert: ResourceSaturationPrediction
+        expr: |
+          (
+            predict_linear(
+              rate(learning_assistant_http_requests_total[5m])[1h], 
+              1800
+            ) * 
+            avg_over_time(
+              histogram_quantile(0.95, 
+                rate(learning_assistant_http_request_duration_seconds_bucket[5m])
+              )[5m]
+            )
+          ) > learning_assistant_response_time_sla * 2
+        for: 10m
+        labels:
+          severity: warning
+          category: capacity
+          service: learning-assistant
+          alert_type: predictive
+        annotations:
+          summary: "Resource saturation predicted"
+          description: "Current trends predict SLA breach in 30 minutes due to resource constraints"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/resource-saturation"
+          impact: "Service degradation imminent without capacity intervention"
+
+  - name: intelligent-external-service-alerts
+    interval: 30s
+    rules:
+      # Dependency health prediction
+      - alert: DependencyHealthDegradation
+        expr: |
+          (
+            avg_over_time(learning_assistant_external_service_health[10m]) < 0.95
+          ) and (
+            deriv(learning_assistant_external_service_health[5m]) < 0
+          )
+        for: 2m
+        labels:
+          severity: warning
+          category: external_services
+          service: learning-assistant
+          alert_type: predictive
+        annotations:
+          summary: "External service health degradation trend"
+          description: "{{ $labels.service_name }} health declining: {{ $value }}"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/dependency-health-degradation"
+          impact: "External service issues may affect application functionality"
+
+# Templates for dynamic alert content
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Time intervals for alert processing
+time_intervals:
+  - name: weekdays-business-hours
+    time_intervals:
+      - times:
+          - start_time: '09:00'
+            end_time: '17:00'
+        weekdays: ['monday:friday']
+  
+  - name: weekends
+    time_intervals:
+      - weekdays: ['saturday', 'sunday']
+  
+  - name: nights
+    time_intervals:
+      - times:
+          - start_time: '22:00'
+            end_time: '08:00'

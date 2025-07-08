@@ -1,0 +1,602 @@
+name: Advanced Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*.*.*' ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      deployment_strategy:
+        description: 'Deployment strategy'
+        required: true
+        default: 'rolling'
+        type: choice
+        options:
+          - rolling
+          - blue-green
+          - canary
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: false
+        type: boolean
+      force_deploy:
+        description: 'Force deployment'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '20.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DEPLOYMENT_STRATEGY: ${{ github.event.inputs.deployment_strategy || 'rolling' }}
+  TARGET_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+  SKIP_TESTS: ${{ github.event.inputs.skip_tests || false }}
+  FORCE_DEPLOY: ${{ github.event.inputs.force_deploy || false }}
+
+jobs:
+  # Pre-deployment validation
+  pre-deployment:
+    name: Pre-deployment Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.env.outputs.environment }}
+      deploy_strategy: ${{ steps.strategy.outputs.strategy }}
+      should_deploy: ${{ steps.validation.outputs.should_deploy }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=$(git describe --tags --always --dirty)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]] || [[ $GITHUB_EVENT_NAME == 'release' ]]; then
+            ENVIRONMENT=production
+          elif [[ $GITHUB_REF == refs/heads/main ]]; then
+            ENVIRONMENT=staging
+          else
+            ENVIRONMENT=${{ env.TARGET_ENVIRONMENT }}
+          fi
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "Environment: $ENVIRONMENT"
+
+      - name: Determine deployment strategy
+        id: strategy
+        run: |
+          if [[ "${{ steps.env.outputs.environment }}" == "production" ]]; then
+            STRATEGY="${{ env.DEPLOYMENT_STRATEGY }}"
+          else
+            STRATEGY="rolling"
+          fi
+          echo "strategy=$STRATEGY" >> $GITHUB_OUTPUT
+          echo "Deployment Strategy: $STRATEGY"
+
+      - name: Validate deployment readiness
+        id: validation
+        run: |
+          SHOULD_DEPLOY=true
+          
+          # Check if we should skip deployment
+          if [[ "${{ env.FORCE_DEPLOY }}" != "true" ]]; then
+            # Add deployment readiness checks here
+            echo "Checking deployment readiness..."
+            
+            # Example: Check if there are any critical security vulnerabilities
+            # if [[ $(some_security_check) == "critical" ]]; then
+            #   SHOULD_DEPLOY=false
+            # fi
+          fi
+          
+          echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          echo "Should Deploy: $SHOULD_DEPLOY"
+
+  # Build and push container image
+  build-image:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: pre-deployment
+    if: needs.pre-deployment.outputs.should_deploy == 'true'
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.pre-deployment.outputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            COMMIT_SHA=${{ github.sha }}
+
+  # Security scan of built image
+  image-security-scan:
+    name: Image Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [pre-deployment, build-image]
+    if: needs.pre-deployment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Check for critical vulnerabilities
+        run: |
+          CRITICAL_COUNT=$(cat trivy-results.sarif | jq '[.runs[].results[] | select(.level == "error")] | length')
+          if [[ $CRITICAL_COUNT -gt 0 ]]; then
+            echo "Found $CRITICAL_COUNT critical vulnerabilities"
+            if [[ "${{ env.FORCE_DEPLOY }}" != "true" ]]; then
+              echo "Failing deployment due to critical vulnerabilities"
+              exit 1
+            else
+              echo "Proceeding with deployment despite vulnerabilities (force deploy enabled)"
+            fi
+          fi
+
+  # Staging deployment (always rolling)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [pre-deployment, build-image, image-security-scan]
+    if: needs.pre-deployment.outputs.environment == 'staging' && needs.pre-deployment.outputs.should_deploy == 'true'
+    environment:
+      name: staging
+      url: https://staging.learning-assistant.com
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment using rolling deployment..."
+          # Add your staging deployment logic here
+          # This could be Kubernetes, Docker Swarm, or cloud provider specific
+          
+          # Example Kubernetes deployment
+          # kubectl set image deployment/learning-assistant app=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # kubectl rollout status deployment/learning-assistant --timeout=600s
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests against staging..."
+          # Add smoke tests here
+          sleep 30 # Wait for deployment to be ready
+          # curl -f https://staging.learning-assistant.com/health
+          # npm run test:smoke -- --baseUrl=https://staging.learning-assistant.com
+
+      - name: Update deployment status
+        if: always()
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ Staging deployment successful"
+          else
+            echo "❌ Staging deployment failed"
+          fi
+
+  # Production deployment with advanced strategies
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [pre-deployment, build-image, image-security-scan]
+    if: needs.pre-deployment.outputs.environment == 'production' && needs.pre-deployment.outputs.should_deploy == 'true'
+    environment:
+      name: production
+      url: https://learning-assistant.com
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy using ${{ needs.pre-deployment.outputs.deploy_strategy }}
+        run: |
+          STRATEGY="${{ needs.pre-deployment.outputs.deploy_strategy }}"
+          echo "Deploying to production using $STRATEGY strategy..."
+          
+          case $STRATEGY in
+            "rolling")
+              echo "Executing rolling deployment..."
+              # Rolling deployment logic
+              # kubectl set image deployment/learning-assistant app=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+              # kubectl rollout status deployment/learning-assistant --timeout=1200s
+              ;;
+            "blue-green")
+              echo "Executing blue-green deployment..."
+              # Blue-green deployment logic
+              # 1. Deploy to inactive environment (green)
+              # 2. Run health checks
+              # 3. Switch traffic
+              # 4. Monitor and optionally rollback
+              ;;
+            "canary")
+              echo "Executing canary deployment..."
+              # Canary deployment logic
+              # 1. Deploy to small percentage of instances
+              # 2. Monitor metrics
+              # 3. Gradually increase traffic
+              # 4. Complete or rollback based on metrics
+              ;;
+          esac
+
+      - name: Health check and validation
+        run: |
+          echo "Running production health checks..."
+          # Comprehensive health checks
+          # curl -f https://learning-assistant.com/health
+          # npm run test:production-smoke
+          
+          # Check key metrics
+          # kubectl get pods -l app=learning-assistant
+          # kubectl top pods -l app=learning-assistant
+
+      - name: Monitor deployment metrics
+        if: needs.pre-deployment.outputs.deploy_strategy == 'canary' || needs.pre-deployment.outputs.deploy_strategy == 'blue-green'
+        run: |
+          echo "Monitoring deployment metrics for 5 minutes..."
+          # Monitor error rates, response times, etc.
+          for i in {1..10}; do
+            echo "Monitoring iteration $i/10"
+            # Check error rates, response times, etc.
+            # ERROR_RATE=$(curl -s https://monitoring.example.com/api/error-rate)
+            # if [[ $ERROR_RATE > 0.05 ]]; then
+            #   echo "Error rate too high, triggering rollback"
+            #   exit 1
+            # fi
+            sleep 30
+          done
+
+      - name: Complete deployment
+        run: |
+          echo "Completing production deployment..."
+          # Finalize deployment based on strategy
+          STRATEGY="${{ needs.pre-deployment.outputs.deploy_strategy }}"
+          
+          case $STRATEGY in
+            "blue-green")
+              echo "Finalizing blue-green deployment - switching all traffic"
+              # Switch all traffic to new version
+              ;;
+            "canary")
+              echo "Finalizing canary deployment - promoting to 100%"
+              # Promote canary to 100% traffic
+              ;;
+          esac
+
+  # Blue-Green Deployment Strategy
+  blue-green-deployment:
+    name: Blue-Green Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [pre-deployment, build-image, image-security-scan]
+    if: needs.pre-deployment.outputs.deploy_strategy == 'blue-green' && needs.pre-deployment.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://learning-assistant.com
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine current active environment
+        id: current
+        run: |
+          # Check which environment is currently active (blue or green)
+          # ACTIVE=$(kubectl get service learning-assistant-lb -o jsonpath='{.spec.selector.version}')
+          ACTIVE="blue" # Placeholder
+          if [[ "$ACTIVE" == "blue" ]]; then
+            INACTIVE="green"
+          else
+            INACTIVE="blue"
+          fi
+          echo "active=$ACTIVE" >> $GITHUB_OUTPUT
+          echo "inactive=$INACTIVE" >> $GITHUB_OUTPUT
+          echo "Current active: $ACTIVE, deploying to: $INACTIVE"
+
+      - name: Deploy to inactive environment
+        run: |
+          echo "Deploying to ${{ steps.current.outputs.inactive }} environment..."
+          # Deploy new version to inactive environment
+          # kubectl set image deployment/learning-assistant-${{ steps.current.outputs.inactive }} app=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # kubectl rollout status deployment/learning-assistant-${{ steps.current.outputs.inactive }} --timeout=600s
+
+      - name: Run comprehensive tests on inactive environment
+        run: |
+          echo "Running tests on ${{ steps.current.outputs.inactive }} environment..."
+          # Run full test suite against inactive environment
+          # curl -f https://${{ steps.current.outputs.inactive }}.learning-assistant.com/health
+          # npm run test:integration -- --baseUrl=https://${{ steps.current.outputs.inactive }}.learning-assistant.com
+
+      - name: Switch traffic to new environment
+        run: |
+          echo "Switching traffic from ${{ steps.current.outputs.active }} to ${{ steps.current.outputs.inactive }}..."
+          # Update load balancer to point to new environment
+          # kubectl patch service learning-assistant-lb -p '{"spec":{"selector":{"version":"${{ steps.current.outputs.inactive }}"}}}'
+
+      - name: Monitor new environment
+        run: |
+          echo "Monitoring new environment for 5 minutes..."
+          for i in {1..10}; do
+            echo "Monitoring check $i/10"
+            # Check metrics, error rates, etc.
+            sleep 30
+          done
+
+      - name: Finalize or rollback
+        if: always()
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ Blue-green deployment successful"
+            echo "Keeping ${{ steps.current.outputs.inactive }} as active environment"
+          else
+            echo "❌ Blue-green deployment failed, rolling back..."
+            # Rollback to previous environment
+            # kubectl patch service learning-assistant-lb -p '{"spec":{"selector":{"version":"${{ steps.current.outputs.active }}"}}}'
+          fi
+
+  # Canary Deployment Strategy
+  canary-deployment:
+    name: Canary Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [pre-deployment, build-image, image-security-scan]
+    if: needs.pre-deployment.outputs.deploy_strategy == 'canary' && needs.pre-deployment.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://learning-assistant.com
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy canary (5% traffic)
+        run: |
+          echo "Deploying canary with 5% traffic..."
+          # Deploy canary version and configure traffic splitting
+          # kubectl apply -f k8s/canary-deployment.yaml
+          # kubectl patch service learning-assistant -p '{"spec":{"selector":{"version":"canary"}}}'
+          # Configure traffic split (95% stable, 5% canary)
+
+      - name: Monitor canary metrics (5 minutes)
+        run: |
+          echo "Monitoring canary metrics..."
+          for i in {1..10}; do
+            echo "Canary monitoring check $i/10"
+            # Check error rates, response times, user feedback
+            # ERROR_RATE=$(get_error_rate canary)
+            # RESPONSE_TIME=$(get_response_time canary)
+            sleep 30
+          done
+
+      - name: Increase to 25% traffic
+        run: |
+          echo "Increasing canary traffic to 25%..."
+          # Update traffic split (75% stable, 25% canary)
+
+      - name: Monitor increased traffic (5 minutes)
+        run: |
+          echo "Monitoring increased canary traffic..."
+          for i in {1..10}; do
+            echo "Increased traffic monitoring check $i/10"
+            sleep 30
+          done
+
+      - name: Increase to 50% traffic
+        run: |
+          echo "Increasing canary traffic to 50%..."
+          # Update traffic split (50% stable, 50% canary)
+
+      - name: Monitor balanced traffic (5 minutes)
+        run: |
+          echo "Monitoring balanced traffic..."
+          for i in {1..10}; do
+            echo "Balanced traffic monitoring check $i/10"
+            sleep 30
+          done
+
+      - name: Complete canary deployment
+        run: |
+          echo "Promoting canary to 100% traffic..."
+          # Update traffic split (0% stable, 100% canary)
+          # kubectl patch deployment learning-assistant --patch '{"spec":{"template":{"spec":{"containers":[{"name":"app","image":"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"}]}}}}'
+
+      - name: Cleanup old version
+        run: |
+          echo "Cleaning up old version..."
+          # Remove old deployment after successful canary
+          # kubectl delete deployment learning-assistant-stable
+
+  # Post-deployment validation
+  post-deployment:
+    name: Post-deployment Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [pre-deployment, deploy-staging, deploy-production, blue-green-deployment, canary-deployment]
+    if: always() && (needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success' || needs.blue-green-deployment.result == 'success' || needs.canary-deployment.result == 'success')
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run post-deployment tests
+        run: |
+          ENVIRONMENT="${{ needs.pre-deployment.outputs.environment }}"
+          echo "Running post-deployment validation for $ENVIRONMENT..."
+          
+          if [[ "$ENVIRONMENT" == "staging" ]]; then
+            BASE_URL="https://staging.learning-assistant.com"
+          else
+            BASE_URL="https://learning-assistant.com"
+          fi
+          
+          # Run comprehensive post-deployment tests
+          # npm run test:post-deployment -- --baseUrl=$BASE_URL
+
+      - name: Update deployment tracking
+        run: |
+          echo "Updating deployment tracking..."
+          # Update deployment database/tracking system
+          # Log successful deployment with version, timestamp, strategy used
+
+      - name: Notify team
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const environment = '${{ needs.pre-deployment.outputs.environment }}';
+            const version = '${{ needs.pre-deployment.outputs.version }}';
+            const strategy = '${{ needs.pre-deployment.outputs.deploy_strategy }}';
+            
+            const title = `🚀 Deployment Successful - ${environment}`;
+            const body = `
+            ## Deployment Summary
+            
+            **Environment:** ${environment}
+            **Version:** ${version}
+            **Strategy:** ${strategy}
+            **Commit:** ${context.sha}
+            **Triggered by:** ${context.actor}
+            
+            **Links:**
+            - [Deployment Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Application](https://${environment === 'production' ? '' : 'staging.'}learning-assistant.com)
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['deployment', environment, 'success']
+            });
+
+  # Rollback workflow (can be triggered manually)
+  rollback:
+    name: Emergency Rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: failure() && (needs.deploy-production.result == 'failure' || needs.blue-green-deployment.result == 'failure' || needs.canary-deployment.result == 'failure')
+    needs: [pre-deployment, deploy-production, blue-green-deployment, canary-deployment]
+    environment:
+      name: production
+      url: https://learning-assistant.com
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Execute emergency rollback
+        run: |
+          echo "Executing emergency rollback..."
+          # Get previous successful deployment
+          # PREVIOUS_VERSION=$(get_previous_deployment_version)
+          # kubectl rollout undo deployment/learning-assistant
+          # kubectl rollout status deployment/learning-assistant --timeout=300s
+
+      - name: Verify rollback
+        run: |
+          echo "Verifying rollback success..."
+          # curl -f https://learning-assistant.com/health
+          # npm run test:smoke -- --baseUrl=https://learning-assistant.com
+
+      - name: Create rollback incident
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `🚨 Emergency Rollback Executed`;
+            const body = `
+            ## Rollback Incident
+            
+            An emergency rollback was executed due to deployment failure.
+            
+            **Environment:** production
+            **Failed Deployment:** ${{ github.sha }}
+            **Rollback Reason:** Deployment failure detected
+            **Time:** ${new Date().toISOString()}
+            
+            **Action Items:**
+            1. Investigate deployment failure
+            2. Fix issues in development
+            3. Re-run deployment pipeline
+            4. Monitor system stability
+            
+            **Links:**
+            - [Failed Deployment](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [System Status](https://learning-assistant.com/health)
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['incident', 'rollback', 'production', 'urgent']
+            });

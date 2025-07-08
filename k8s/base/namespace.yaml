@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: learning-assistant
+  labels:
+    name: learning-assistant
+    environment: production
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: namespace
+    app.kubernetes.io/part-of: learning-assistant
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    kubernetes.io/description: "Learning Assistant application namespace"
+    kubernetes.io/created-by: "learning-assistant-team"

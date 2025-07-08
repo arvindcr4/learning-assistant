@@ -1,0 +1,346 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: learning-assistant-quota
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: resource-quota
+    app.kubernetes.io/part-of: learning-assistant
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "4"
+    requests.memory: "8Gi"
+    limits.cpu: "8"
+    limits.memory: "16Gi"
+    
+    # Storage resources
+    requests.storage: "50Gi"
+    persistentvolumeclaims: "10"
+    
+    # Object counts
+    count/pods: "50"
+    count/deployments.apps: "10"
+    count/services: "10"
+    count/secrets: "10"
+    count/configmaps: "10"
+    count/persistentvolumeclaims: "10"
+    count/horizontalpodautoscalers.autoscaling: "5"
+    count/ingresses.networking.k8s.io: "5"
+    
+    # Network resources
+    count/services.loadbalancers: "2"
+    count/services.nodeports: "0"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: learning-assistant-limits
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: limit-range
+    app.kubernetes.io/part-of: learning-assistant
+spec:
+  limits:
+  # Container limits
+  - type: Container
+    default:
+      cpu: "500m"
+      memory: "512Mi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "128Mi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+    max:
+      cpu: "2"
+      memory: "4Gi"
+    maxLimitRequestRatio:
+      cpu: "4"
+      memory: "8"
+  
+  # Pod limits
+  - type: Pod
+    max:
+      cpu: "4"
+      memory: "8Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+  
+  # PVC limits
+  - type: PersistentVolumeClaim
+    max:
+      storage: "20Gi"
+    min:
+      storage: "1Gi"
+---
+# Priority Classes for Quality of Service
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: learning-assistant-critical
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: priority-class
+    app.kubernetes.io/part-of: learning-assistant
+value: 1000
+globalDefault: false
+description: "Critical priority class for Learning Assistant core components"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: learning-assistant-high
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: priority-class
+    app.kubernetes.io/part-of: learning-assistant
+value: 800
+globalDefault: false
+description: "High priority class for Learning Assistant application"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: learning-assistant-medium
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: priority-class
+    app.kubernetes.io/part-of: learning-assistant
+value: 600
+globalDefault: false
+description: "Medium priority class for Learning Assistant supporting services"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: learning-assistant-low
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: priority-class
+    app.kubernetes.io/part-of: learning-assistant
+value: 400
+globalDefault: false
+description: "Low priority class for Learning Assistant batch jobs"
+---
+# Service Account with RBAC
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: learning-assistant-sa
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: service-account
+    app.kubernetes.io/part-of: learning-assistant
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: learning-assistant-role
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: role
+    app.kubernetes.io/part-of: learning-assistant
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: learning-assistant-rolebinding
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: role-binding
+    app.kubernetes.io/part-of: learning-assistant
+subjects:
+- kind: ServiceAccount
+  name: learning-assistant-sa
+  namespace: learning-assistant
+roleRef:
+  kind: Role
+  name: learning-assistant-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Pod Security Policy
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: learning-assistant-psp
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: pod-security-policy
+    app.kubernetes.io/part-of: learning-assistant
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+  - ALL
+  volumes:
+  - 'configMap'
+  - 'emptyDir'
+  - 'projected'
+  - 'secret'
+  - 'downwardAPI'
+  - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+    - min: 1
+      max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+    - min: 1
+      max: 65535
+  seLinux:
+    rule: 'RunAsAny'
+---
+# Quality of Service Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qos-config
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: learning-assistant
+    app.kubernetes.io/instance: learning-assistant
+    app.kubernetes.io/component: qos-config
+    app.kubernetes.io/part-of: learning-assistant
+data:
+  qos-classes.yaml: |
+    # Quality of Service Classes
+    qosClasses:
+      guaranteed:
+        description: "Guaranteed QoS for critical components"
+        requirements:
+          - requests.cpu == limits.cpu
+          - requests.memory == limits.memory
+        components:
+          - postgres
+          - redis
+        priorityClass: learning-assistant-critical
+      
+      burstable:
+        description: "Burstable QoS for application components"
+        requirements:
+          - requests.cpu < limits.cpu OR requests.memory < limits.memory
+        components:
+          - learning-assistant
+          - monitoring
+        priorityClass: learning-assistant-high
+      
+      besteffort:
+        description: "Best effort QoS for non-critical components"
+        requirements:
+          - no requests or limits specified
+        components:
+          - batch-jobs
+          - log-aggregator
+        priorityClass: learning-assistant-low
+  
+  resource-profiles.yaml: |
+    # Resource Profiles
+    profiles:
+      micro:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
+      
+      small:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "200m"
+          memory: "256Mi"
+      
+      medium:
+        requests:
+          cpu: "250m"
+          memory: "256Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+      
+      large:
+        requests:
+          cpu: "500m"
+          memory: "512Mi"
+        limits:
+          cpu: "1000m"
+          memory: "1Gi"
+      
+      xlarge:
+        requests:
+          cpu: "1000m"
+          memory: "1Gi"
+        limits:
+          cpu: "2000m"
+          memory: "2Gi"
+  
+  node-affinity.yaml: |
+    # Node Affinity Rules
+    nodeAffinity:
+      compute-optimized:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: node-type
+              operator: In
+              values: ["compute-optimized"]
+      
+      memory-optimized:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: node-type
+              operator: In
+              values: ["memory-optimized"]
+      
+      storage-optimized:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: node-type
+              operator: In
+              values: ["storage-optimized"]

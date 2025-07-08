@@ -1,0 +1,331 @@
+# Alert rules for Learning Assistant monitoring
+# Supports Prometheus AlertManager, Datadog, and New Relic
+
+groups:
+  - name: learning-assistant.infrastructure
+    rules:
+      - alert: HighErrorRate
+        expr: rate(learning_assistant_http_requests_total{status=~"5.."}[5m]) / rate(learning_assistant_http_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          category: infrastructure
+          service: learning-assistant
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}% for the last 5 minutes"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-error-rate"
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(learning_assistant_http_request_duration_seconds_bucket[5m])) > 2
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+          service: learning-assistant
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-response-time"
+
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes{job="learning-assistant"} / 1024 / 1024 / 1024) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: learning-assistant
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}GB"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-memory-usage"
+
+      - alert: CriticalMemoryUsage
+        expr: (process_resident_memory_bytes{job="learning-assistant"} / 1024 / 1024 / 1024) > 3.5
+        for: 2m
+        labels:
+          severity: critical
+          category: infrastructure
+          service: learning-assistant
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is {{ $value }}GB - approaching limits"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/critical-memory-usage"
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="learning-assistant"}[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: learning-assistant
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}%"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-cpu-usage"
+
+      - alert: ServiceDown
+        expr: up{job="learning-assistant"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: infrastructure
+          service: learning-assistant
+        annotations:
+          summary: "Learning Assistant service is down"
+          description: "Service has been down for more than 1 minute"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/service-down"
+
+  - name: learning-assistant.database
+    rules:
+      - alert: DatabaseConnectionFailure
+        expr: increase(learning_assistant_db_connection_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+          service: learning-assistant
+        annotations:
+          summary: "Database connection failures detected"
+          description: "{{ $value }} database connection failures in the last 5 minutes"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/db-connection-failure"
+
+      - alert: SlowDatabaseQueries
+        expr: rate(learning_assistant_db_query_duration_seconds_sum[5m]) / rate(learning_assistant_db_query_duration_seconds_count[5m]) > 1
+        for: 10m
+        labels:
+          severity: warning
+          category: database
+          service: learning-assistant
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time is {{ $value }}s"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/slow-db-queries"
+
+      - alert: HighDatabaseConnections
+        expr: learning_assistant_db_connections_active > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          service: learning-assistant
+        annotations:
+          summary: "High number of database connections"
+          description: "{{ $value }} active database connections"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-db-connections"
+
+  - name: learning-assistant.security
+    rules:
+      - alert: HighFailedLogins
+        expr: rate(learning_assistant_failed_login_attempts_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          category: security
+          service: learning-assistant
+        annotations:
+          summary: "High number of failed login attempts"
+          description: "{{ $value }} failed login attempts per second"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-failed-logins"
+
+      - alert: SuspiciousActivity
+        expr: rate(learning_assistant_security_events_total{severity="high"}[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+          service: learning-assistant
+        annotations:
+          summary: "Suspicious security activity detected"
+          description: "{{ $value }} high-severity security events per second"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/suspicious-activity"
+
+      - alert: RateLimitExceeded
+        expr: rate(learning_assistant_rate_limit_exceeded_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+          service: learning-assistant
+        annotations:
+          summary: "High rate limit violations"
+          description: "{{ $value }} rate limit violations per second"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/rate-limit-exceeded"
+
+  - name: learning-assistant.business
+    rules:
+      - alert: LowConversionRate
+        expr: learning_assistant_conversion_rate < 10
+        for: 30m
+        labels:
+          severity: warning
+          category: business
+          service: learning-assistant
+        annotations:
+          summary: "Conversion rate below threshold"
+          description: "Conversion rate is {{ $value }}%"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/low-conversion-rate"
+
+      - alert: HighChurnRate
+        expr: learning_assistant_churn_rate > 15
+        for: 60m
+        labels:
+          severity: warning
+          category: business
+          service: learning-assistant
+        annotations:
+          summary: "High churn rate detected"
+          description: "Churn rate is {{ $value }}%"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-churn-rate"
+
+      - alert: UserEngagementDrop
+        expr: avg_over_time(learning_assistant_user_engagement_score[6h]) < 60
+        for: 30m
+        labels:
+          severity: warning
+          category: business
+          service: learning-assistant
+        annotations:
+          summary: "User engagement below threshold"
+          description: "Average engagement score is {{ $value }}"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/low-engagement"
+
+  - name: learning-assistant.learning-system
+    rules:
+      - alert: LearningAlgorithmFailure
+        expr: rate(learning_assistant_learning_algorithm_errors_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: error
+          category: learning_system
+          service: learning-assistant
+        annotations:
+          summary: "Learning algorithm failures detected"
+          description: "{{ $value }} learning algorithm errors per second"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/learning-algorithm-failure"
+
+      - alert: LowRecommendationAccuracy
+        expr: learning_assistant_recommendation_accuracy < 75
+        for: 15m
+        labels:
+          severity: warning
+          category: learning_system
+          service: learning-assistant
+        annotations:
+          summary: "Low recommendation accuracy"
+          description: "Recommendation accuracy is {{ $value }}%"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/low-recommendation-accuracy"
+
+      - alert: HighAIModelLatency
+        expr: learning_assistant_ai_model_latency > 1000
+        for: 10m
+        labels:
+          severity: warning
+          category: learning_system
+          service: learning-assistant
+        annotations:
+          summary: "High AI model latency"
+          description: "AI model latency is {{ $value }}ms"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-ai-latency"
+
+      - alert: LearningProgressStagnation
+        expr: avg_over_time(learning_assistant_user_progress_score[24h]) < 70
+        for: 2h
+        labels:
+          severity: warning
+          category: learning_system
+          service: learning-assistant
+        annotations:
+          summary: "Learning progress below expectations"
+          description: "Average learning progress is {{ $value }}%"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/learning-progress-stagnation"
+
+  - name: learning-assistant.external-services
+    rules:
+      - alert: SupabaseConnectionFailure
+        expr: learning_assistant_supabase_connection_errors > 0
+        for: 2m
+        labels:
+          severity: critical
+          category: external_services
+          service: learning-assistant
+        annotations:
+          summary: "Supabase connection failure"
+          description: "Cannot connect to Supabase service"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/supabase-failure"
+
+      - alert: TamboAPIFailure
+        expr: learning_assistant_tambo_api_errors > 0
+        for: 5m
+        labels:
+          severity: error
+          category: external_services
+          service: learning-assistant
+        annotations:
+          summary: "Tambo API failure"
+          description: "Tambo API is experiencing issues"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/tambo-api-failure"
+
+      - alert: ResendAPIFailure
+        expr: learning_assistant_resend_api_errors > 0
+        for: 5m
+        labels:
+          severity: warning
+          category: external_services
+          service: learning-assistant
+        annotations:
+          summary: "Resend API failure"
+          description: "Email service is experiencing issues"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/resend-api-failure"
+
+  - name: learning-assistant.synthetic-monitoring
+    rules:
+      - alert: SyntheticCheckFailure
+        expr: learning_assistant_synthetic_check_success == 0
+        for: 3m
+        labels:
+          severity: critical
+          category: synthetic_monitoring
+          service: learning-assistant
+        annotations:
+          summary: "Synthetic check failure"
+          description: "Synthetic monitoring check failed for {{ $labels.url }}"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/synthetic-check-failure"
+
+      - alert: HighSyntheticCheckLatency
+        expr: learning_assistant_synthetic_check_duration > 5000
+        for: 5m
+        labels:
+          severity: warning
+          category: synthetic_monitoring
+          service: learning-assistant
+        annotations:
+          summary: "High synthetic check latency"
+          description: "Synthetic check latency is {{ $value }}ms for {{ $labels.url }}"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-synthetic-latency"
+
+  - name: learning-assistant.cost-monitoring
+    rules:
+      - alert: HighInfrastructureCost
+        expr: learning_assistant_infrastructure_cost_daily > 100
+        for: 10m
+        labels:
+          severity: warning
+          category: cost
+          service: learning-assistant
+        annotations:
+          summary: "High infrastructure cost"
+          description: "Daily infrastructure cost is ${{ $value }}"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-infrastructure-cost"
+
+      - alert: HighAPIUsageCost
+        expr: learning_assistant_api_usage_cost_daily > 50
+        for: 10m
+        labels:
+          severity: warning
+          category: cost
+          service: learning-assistant
+        annotations:
+          summary: "High API usage cost"
+          description: "Daily API usage cost is ${{ $value }}"
+          runbook_url: "https://docs.learning-assistant.com/runbooks/high-api-cost"

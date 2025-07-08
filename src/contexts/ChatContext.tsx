@@ -151,7 +151,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (state.context) {
       getSuggestions();
     }
-  }, [state.context]);
+  }, [state.context, getSuggestions]);
 
   const sendMessage = useCallback(async (content: string) => {
     const userMessage: ChatMessage = {

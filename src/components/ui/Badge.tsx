@@ -13,10 +13,10 @@ const badgeVariants = cva(
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
         // Learning specific variants
-        visual: "border-transparent bg-visual text-white hover:bg-visual/80",
-        auditory: "border-transparent bg-auditory text-white hover:bg-auditory/80",
-        reading: "border-transparent bg-reading text-white hover:bg-reading/80",
-        kinesthetic: "border-transparent bg-kinesthetic text-white hover:bg-kinesthetic/80",
+        visual: "border-transparent bg-visual text-white hover:opacity-80",
+        auditory: "border-transparent bg-auditory text-white hover:opacity-80",
+        reading: "border-transparent bg-reading text-white hover:opacity-80",
+        kinesthetic: "border-transparent bg-kinesthetic text-white hover:opacity-80",
         // Difficulty levels
         beginner: "border-transparent bg-beginner text-white hover:bg-beginner/80",
         intermediate: "border-transparent bg-intermediate text-white hover:bg-intermediate/80",

@@ -516,5 +516,6 @@ export async function transaction<T>(callback: (client: any) => Promise<T>): Pro
   return integration.transaction(callback);
 }
 
-// Export types
+// Export types and classes
 export type { DatabaseIntegrationConfig, DatabaseMetrics };
+export { DatabaseIntegration };

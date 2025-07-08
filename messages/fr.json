@@ -1,0 +1,347 @@
+{
+  "common": {
+    "welcome": "Bienvenue",
+    "hello": "Bonjour",
+    "goodbye": "Au revoir",
+    "yes": "Oui",
+    "no": "Non",
+    "ok": "OK",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "search": "Rechercher",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "warning": "Avertissement",
+    "info": "Information",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "back": "Retour",
+    "continue": "Continuer",
+    "submit": "Soumettre",
+    "close": "Fermer",
+    "open": "Ouvrir",
+    "settings": "Paramètres",
+    "help": "Aide",
+    "about": "À propos",
+    "contact": "Contact",
+    "privacy": "Confidentialité",
+    "terms": "Conditions d'utilisation",
+    "language": "Langue",
+    "theme": "Thème",
+    "profile": "Profil",
+    "account": "Compte",
+    "logout": "Se déconnecter",
+    "login": "Se connecter",
+    "register": "S'inscrire",
+    "dashboard": "Tableau de bord",
+    "home": "Accueil",
+    "menu": "Menu"
+  },
+  "auth": {
+    "login": {
+      "title": "Connectez-vous à votre compte",
+      "subtitle": "Bon retour ! Veuillez saisir vos identifiants pour continuer.",
+      "email": "Adresse e-mail",
+      "password": "Mot de passe",
+      "remember": "Se souvenir de moi",
+      "forgot": "Mot de passe oublié ?",
+      "submit": "Se connecter",
+      "noAccount": "Vous n'avez pas de compte ?",
+      "createAccount": "Créez-en un ici",
+      "socialLogin": "Ou continuez avec",
+      "error": {
+        "invalid": "E-mail ou mot de passe invalide",
+        "required": "Veuillez remplir tous les champs requis",
+        "network": "Erreur réseau. Veuillez réessayer."
+      }
+    },
+    "register": {
+      "title": "Créez votre compte",
+      "subtitle": "Rejoignez-nous et commencez votre parcours d'apprentissage aujourd'hui !",
+      "firstName": "Prénom",
+      "lastName": "Nom de famille",
+      "email": "Adresse e-mail",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "terms": "J'accepte les {termsLink} et la {privacyLink}",
+      "termsLink": "Conditions d'utilisation",
+      "privacyLink": "Politique de confidentialité",
+      "submit": "Créer un compte",
+      "hasAccount": "Vous avez déjà un compte ?",
+      "signIn": "Connectez-vous ici",
+      "error": {
+        "exists": "Un compte avec cet e-mail existe déjà",
+        "weak": "Le mot de passe est trop faible",
+        "mismatch": "Les mots de passe ne correspondent pas",
+        "terms": "Vous devez accepter les conditions et la politique de confidentialité"
+      }
+    },
+    "resetPassword": {
+      "title": "Réinitialisez votre mot de passe",
+      "subtitle": "Saisissez votre e-mail et nous vous enverrons un lien de réinitialisation.",
+      "email": "Adresse e-mail",
+      "submit": "Envoyer le lien",
+      "backToLogin": "Retour à la connexion",
+      "success": "Lien de réinitialisation envoyé à votre e-mail",
+      "error": {
+        "notFound": "Aucun compte trouvé avec cette adresse e-mail"
+      }
+    }
+  },
+  "navigation": {
+    "main": {
+      "dashboard": "Tableau de bord",
+      "learning": "Apprentissage",
+      "courses": "Cours",
+      "progress": "Progrès",
+      "analytics": "Analytique",
+      "chat": "Tuteur IA",
+      "profile": "Profil",
+      "settings": "Paramètres",
+      "help": "Centre d'aide"
+    },
+    "breadcrumb": {
+      "home": "Accueil",
+      "separator": ">"
+    }
+  },
+  "dashboard": {
+    "title": "Votre tableau de bord d'apprentissage",
+    "welcome": "Bon retour, {name} !",
+    "stats": {
+      "totalHours": "Heures d'étude totales",
+      "completedCourses": "Cours terminés",
+      "currentStreak": "Série actuelle",
+      "skillsLearned": "Compétences apprises"
+    },
+    "quickActions": {
+      "title": "Actions rapides",
+      "continueLearning": "Continuer l'apprentissage",
+      "startNewCourse": "Commencer un nouveau cours",
+      "reviewProgress": "Examiner les progrès",
+      "practiceSkills": "Pratiquer les compétences"
+    },
+    "recentActivity": {
+      "title": "Activité récente",
+      "empty": "Aucune activité récente à afficher",
+      "viewAll": "Voir toute l'activité"
+    },
+    "achievements": {
+      "title": "Réalisations récentes",
+      "empty": "Aucune réalisation pour le moment",
+      "viewAll": "Voir toutes les réalisations"
+    }
+  },
+  "learning": {
+    "session": {
+      "title": "Session d'apprentissage",
+      "start": "Commencer l'apprentissage",
+      "pause": "Mettre en pause",
+      "resume": "Reprendre",
+      "complete": "Terminer la session",
+      "duration": "Durée de la session : {duration}",
+      "progress": "Progrès : {percentage}% terminé"
+    },
+    "content": {
+      "lesson": "Leçon",
+      "quiz": "Quiz",
+      "exercise": "Exercice",
+      "project": "Projet",
+      "difficulty": {
+        "beginner": "Débutant",
+        "intermediate": "Intermédiaire",
+        "advanced": "Avancé",
+        "expert": "Expert"
+      },
+      "estimatedTime": "Temps estimé : {duration}",
+      "prerequisites": "Prérequis",
+      "objectives": "Objectifs d'apprentissage"
+    },
+    "quiz": {
+      "title": "Vérification des connaissances",
+      "question": "Question {current} sur {total}",
+      "submit": "Soumettre la réponse",
+      "next": "Question suivante",
+      "previous": "Question précédente",
+      "results": "Résultats du quiz",
+      "score": "Votre score : {score}/{total}",
+      "passed": "Félicitations ! Vous avez réussi !",
+      "failed": "Continuez à apprendre ! Réessayez quand vous êtes prêt.",
+      "retry": "Recommencer le quiz",
+      "continue": "Continuer l'apprentissage"
+    },
+    "progress": {
+      "title": "Vos progrès",
+      "overall": "Progrès général",
+      "course": "Progrès du cours",
+      "skill": "Maîtrise des compétences",
+      "timeSpent": "Temps consacré à l'apprentissage",
+      "streak": "Série d'apprentissage",
+      "goals": "Objectifs d'apprentissage",
+      "setGoal": "Définir un objectif",
+      "updateGoal": "Mettre à jour l'objectif"
+    }
+  },
+  "chat": {
+    "title": "Assistant d'apprentissage IA",
+    "placeholder": "Demandez-moi tout sur votre apprentissage...",
+    "send": "Envoyer",
+    "clear": "Effacer le chat",
+    "typing": "L'IA tape...",
+    "error": "Désolé, je n'ai pas pu traiter votre demande. Veuillez réessayer.",
+    "suggestions": {
+      "title": "Questions rapides",
+      "explain": "Expliquer ce concept",
+      "examples": "Donner des exemples",
+      "practice": "Créer des questions de pratique",
+      "review": "Réviser les points clés"
+    },
+    "tutoring": {
+      "title": "Session de tutorat personnel",
+      "start": "Commencer le tutorat",
+      "end": "Terminer la session",
+      "feedback": "Obtenir des commentaires",
+      "hint": "Obtenir un indice"
+    }
+  },
+  "profile": {
+    "title": "Votre profil",
+    "personalInfo": {
+      "title": "Informations personnelles",
+      "firstName": "Prénom",
+      "lastName": "Nom de famille",
+      "email": "Adresse e-mail",
+      "bio": "Biographie",
+      "location": "Localisation",
+      "timezone": "Fuseau horaire",
+      "update": "Mettre à jour le profil"
+    },
+    "learningPreferences": {
+      "title": "Préférences d'apprentissage",
+      "style": "Style d'apprentissage",
+      "pace": "Rythme d'apprentissage",
+      "difficulty": "Difficulté préférée",
+      "language": "Langue de l'interface",
+      "notifications": "Notifications"
+    },
+    "achievements": {
+      "title": "Réalisations",
+      "badges": "Badges gagnés",
+      "certificates": "Certificats",
+      "milestones": "Jalons atteints"
+    }
+  },
+  "settings": {
+    "title": "Paramètres",
+    "general": {
+      "title": "Général",
+      "language": "Langue",
+      "theme": "Thème",
+      "timezone": "Fuseau horaire",
+      "dateFormat": "Format de date",
+      "numberFormat": "Format de nombre"
+    },
+    "learning": {
+      "title": "Préférences d'apprentissage",
+      "style": "Style d'apprentissage",
+      "pace": "Rythme d'apprentissage",
+      "reminders": "Rappels d'étude",
+      "goals": "Objectifs d'apprentissage"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "email": "Notifications par e-mail",
+      "push": "Notifications push",
+      "achievement": "Notifications de réalisation",
+      "reminder": "Rappels d'étude"
+    },
+    "privacy": {
+      "title": "Confidentialité et sécurité",
+      "dataCollection": "Collecte de données",
+      "analytics": "Analytiques d'utilisation",
+      "cookies": "Préférences de cookies",
+      "deleteAccount": "Supprimer le compte"
+    },
+    "accessibility": {
+      "title": "Accessibilité",
+      "fontSize": "Taille de police",
+      "contrast": "Contraste élevé",
+      "animations": "Réduire les animations",
+      "screenReader": "Support de lecteur d'écran"
+    }
+  },
+  "forms": {
+    "validation": {
+      "required": "Ce champ est requis",
+      "email": "Veuillez saisir une adresse e-mail valide",
+      "minLength": "Doit contenir au moins {min} caractères",
+      "maxLength": "Ne doit pas dépasser {max} caractères",
+      "match": "Les champs ne correspondent pas",
+      "weak": "Le mot de passe est trop faible",
+      "invalid": "Saisie invalide"
+    },
+    "labels": {
+      "required": "Requis",
+      "optional": "Optionnel"
+    }
+  },
+  "time": {
+    "units": {
+      "second": "seconde",
+      "seconds": "secondes",
+      "minute": "minute",
+      "minutes": "minutes",
+      "hour": "heure",
+      "hours": "heures",
+      "day": "jour",
+      "days": "jours",
+      "week": "semaine",
+      "weeks": "semaines",
+      "month": "mois",
+      "months": "mois",
+      "year": "année",
+      "years": "années"
+    },
+    "relative": {
+      "now": "maintenant",
+      "today": "aujourd'hui",
+      "yesterday": "hier",
+      "tomorrow": "demain",
+      "ago": "il y a {time}",
+      "in": "dans {time}"
+    }
+  },
+  "accessibility": {
+    "skipToContent": "Aller au contenu principal",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu",
+    "toggleTheme": "Basculer le thème",
+    "loading": "Chargement du contenu",
+    "error": "Erreur de chargement du contenu",
+    "expand": "Développer",
+    "collapse": "Réduire",
+    "sortBy": "Trier par {field}",
+    "filterBy": "Filtrer par {field}"
+  },
+  "errors": {
+    "notFound": {
+      "title": "Page non trouvée",
+      "message": "La page que vous recherchez n'existe pas.",
+      "action": "Aller au tableau de bord"
+    },
+    "serverError": {
+      "title": "Erreur serveur",
+      "message": "Quelque chose s'est mal passé de notre côté. Veuillez réessayer plus tard.",
+      "action": "Actualiser la page"
+    },
+    "networkError": {
+      "title": "Erreur réseau",
+      "message": "Veuillez vérifier votre connexion internet et réessayer.",
+      "action": "Réessayer"
+    }
+  }
+}

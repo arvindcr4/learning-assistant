@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
+import * as Sentry from '@sentry/nextjs';
+
+// Re-export Sentry utilities
+export * from './sentry-utils';
+export * from './performance-monitoring';
 
 // ====================
 // ERROR TYPES AND INTERFACES
@@ -503,14 +508,40 @@ export class ErrorHandler {
    * Notifies external monitoring services
    */
   private notifyExternalServices(error: AppError): void {
-    // In a real application, you'd integrate with services like:
-    // - Sentry
-    // - DataDog
-    // - New Relic
-    // - Custom webhook endpoints
+    // Report to Sentry with enhanced context
+    Sentry.withScope((scope) => {
+      scope.setTag('error_handler', 'global');
+      scope.setTag('error_code', error.code);
+      scope.setTag('status_code', error.statusCode.toString());
+      
+      if (error.requestId) {
+        scope.setTag('request_id', error.requestId);
+      }
+      
+      if (error.userId) {
+        scope.setUser({ id: error.userId });
+      }
+      
+      scope.setContext('error_details', {
+        code: error.code,
+        statusCode: error.statusCode,
+        timestamp: error.timestamp,
+        path: error.path,
+        method: error.method,
+        userAgent: error.userAgent,
+        ip: error.ip,
+        details: error.details,
+      });
+      
+      const sentryError = new Error(error.message);
+      sentryError.name = error.code;
+      sentryError.stack = error.stack;
+      
+      Sentry.captureException(sentryError);
+    });
     
     console.log('[EXTERNAL_NOTIFICATION]', {
-      service: 'monitoring',
+      service: 'sentry',
       error: {
         code: error.code,
         message: error.message,

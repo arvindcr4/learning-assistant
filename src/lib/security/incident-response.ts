@@ -1,5 +1,6 @@
-import { securityMonitoringService, SecurityEvent, SecurityAlert } from './security-monitoring';
-import { encryptionService } from './encryption';
+import { securityMonitor, SecurityEvent, SecurityAlert, SecurityEventType, SecurityEventSeverity } from './security-monitor';
+import { realTimeThreatDetection } from './threat-detection';
+import { intrusionDetectionSystem } from './intrusion-detection';
 
 /**
  * Comprehensive incident response and management system
@@ -91,10 +92,83 @@ export interface IncidentPlaybook {
   roles: string[];
 }
 
+export interface AutomationRule {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  triggers: AutomationTrigger[];
+  conditions: AutomationCondition[];
+  actions: AutomationAction[];
+  priority: number;
+  cooldownPeriod: number; // minutes
+  lastExecuted?: Date;
+  executionCount: number;
+  successRate: number;
+}
+
+export interface AutomationTrigger {
+  type: 'incident_created' | 'incident_updated' | 'threshold_exceeded' | 'time_based' | 'external_event';
+  criteria: Record<string, any>;
+  weight: number;
+}
+
+export interface AutomationCondition {
+  field: string;
+  operator: 'equals' | 'greater_than' | 'less_than' | 'contains' | 'matches_pattern';
+  value: any;
+  required: boolean;
+}
+
+export interface AutomationAction {
+  type: 'escalate' | 'assign' | 'notify' | 'execute_script' | 'create_ticket' | 'block_entity' | 'isolate_system';
+  parameters: Record<string, any>;
+  timeout: number; // seconds
+  retryCount: number;
+  rollbackAction?: AutomationAction;
+}
+
+export interface EscalationMatrix {
+  id: string;
+  name: string;
+  rules: EscalationRule[];
+  defaultEscalationPath: string[];
+  emergencyContacts: string[];
+  businessHoursOnly: boolean;
+  regions: string[];
+}
+
+export interface EscalationRule {
+  id: string;
+  condition: string;
+  severity: SecurityIncident['severity'];
+  timeThreshold: number; // minutes
+  escalateTo: string[];
+  notificationChannels: string[];
+  requiresApproval: boolean;
+  autoApprove: boolean;
+}
+
+export interface IncidentMetrics {
+  mttr: number; // Mean Time To Resolve
+  mtta: number; // Mean Time To Acknowledge
+  mttc: number; // Mean Time To Contain
+  totalIncidents: number;
+  incidentsByCategory: Record<string, number>;
+  incidentsBySeverity: Record<string, number>;
+  escalationRate: number;
+  automationRate: number;
+  customerImpact: number;
+  costOfIncidents: number;
+}
+
 export class IncidentResponseService {
   private incidents: Map<string, SecurityIncident> = new Map();
   private playbooks: Map<string, IncidentPlaybook> = new Map();
   private templates: Map<string, any> = new Map();
+  private automationRules: Map<string, AutomationRule> = new Map();
+  private escalationMatrix: Map<string, EscalationMatrix> = new Map();
+  private activeAutomations: Map<string, any> = new Map();
   
   private readonly escalationRules = {
     autoEscalateAfterMinutes: {
@@ -114,14 +188,17 @@ export class IncidentResponseService {
   constructor() {
     this.setupDefaultPlaybooks();
     this.setupNotificationTemplates();
+    this.setupAutomationRules();
+    this.setupEscalationMatrix();
     this.startBackgroundProcessing();
+    this.initializeIntegrations();
   }
 
   /**
    * Create a new security incident
    */
   createIncident(incident: Omit<SecurityIncident, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'timeline' | 'actions' | 'communicationLog'>): string {
-    const incidentId = encryptionService.generateSecureUUID();
+    const incidentId = this.generateIncidentId();
     
     const newIncident: SecurityIncident = {
       id: incidentId,
@@ -156,20 +233,23 @@ export class IncidentResponseService {
     // Send initial notifications
     this.sendIncidentNotification(newIncident, 'created');
 
+    // Execute automation rules
+    this.executeAutomationRules('incident_created', newIncident);
+
     // Log security event
-    securityMonitoringService.logEvent({
-      type: 'unauthorized_access',
-      severity: incident.severity,
-      source: 'incident_response',
-      ipAddress: 'system',
-      details: {
+    securityMonitor.logEvent(
+      SecurityEventType.SECURITY_CONFIGURATION_CHANGE,
+      this.mapSeverityToEventSeverity(incident.severity),
+      {
+        source: 'incident_response',
+        ipAddress: 'system',
+        endpoint: 'incident_management',
+        method: 'CREATE',
         incidentId,
         category: incident.category,
         title: incident.title,
-      },
-      threat: 'security_incident',
-      action: 'flagged',
-    });
+      }
+    );
 
     return incidentId;
   }
@@ -223,7 +303,7 @@ export class IncidentResponseService {
     if (!incident) return false;
 
     const timelineEntry: IncidentTimelineEntry = {
-      id: encryptionService.generateSecureUUID(),
+      id: this.generateTimelineId(),
       timestamp: new Date(),
       ...entry,
     };
@@ -243,7 +323,7 @@ export class IncidentResponseService {
     if (!incident) return false;
 
     const incidentAction: IncidentAction = {
-      id: encryptionService.generateSecureUUID(),
+      id: this.generateActionId(),
       status: 'pending',
       ...action,
     };
@@ -297,7 +377,7 @@ export class IncidentResponseService {
     if (!incident) return false;
 
     const commEntry: CommunicationEntry = {
-      id: encryptionService.generateSecureUUID(),
+      id: this.generateCommunicationId(),
       timestamp: new Date(),
       ...communication,
     };
@@ -757,7 +837,7 @@ Immediate attention required.
       recommendations.push('Conduct thorough forensic analysis to determine root cause');
     }
 
-    if (incident.affectedUsersCount > 100) {
+    if (incident.affectedUsers.length > 100) {
       recommendations.push('Implement additional user notification procedures for large-scale incidents');
     }
 
@@ -826,6 +906,413 @@ Immediate attention required.
       console.log(`Periodic update: ${openIncidents.length} open, ${investigatingIncidents.length} investigating incidents`);
       // In a real implementation, send summary to stakeholders
     }
+  }
+
+  /**
+   * Enhanced automation and escalation methods
+   */
+
+  /**
+   * Execute automation rules based on trigger
+   */
+  private async executeAutomationRules(triggerType: string, incident: SecurityIncident): Promise<void> {
+    const applicableRules = Array.from(this.automationRules.values())
+      .filter(rule => 
+        rule.enabled && 
+        rule.triggers.some(trigger => trigger.type === triggerType) &&
+        this.isRuleCooldownExpired(rule)
+      )
+      .sort((a, b) => b.priority - a.priority);
+
+    for (const rule of applicableRules) {
+      try {
+        const shouldExecute = await this.evaluateAutomationConditions(rule, incident);
+        
+        if (shouldExecute) {
+          await this.executeAutomationActions(rule, incident);
+          
+          // Update rule execution statistics
+          rule.lastExecuted = new Date();
+          rule.executionCount++;
+          this.automationRules.set(rule.id, rule);
+          
+          console.log(`Executed automation rule: ${rule.name} for incident ${incident.id}`);
+        }
+      } catch (error) {
+        console.error(`Failed to execute automation rule ${rule.name}:`, error);
+        
+        // Update success rate
+        rule.successRate = Math.max(rule.successRate - 0.1, 0);
+        this.automationRules.set(rule.id, rule);
+      }
+    }
+  }
+
+  /**
+   * Add automation rule
+   */
+  public addAutomationRule(rule: Omit<AutomationRule, 'id' | 'executionCount' | 'successRate'>): string {
+    const ruleId = this.generateAutomationRuleId();
+    
+    const newRule: AutomationRule = {
+      id: ruleId,
+      executionCount: 0,
+      successRate: 1.0,
+      ...rule,
+    };
+
+    this.automationRules.set(ruleId, newRule);
+    
+    console.log(`Added automation rule: ${rule.name}`);
+    
+    return ruleId;
+  }
+
+  /**
+   * Advanced escalation with matrix-based rules
+   */
+  public async escalateIncidentAdvanced(incidentId: string, reason: string): Promise<boolean> {
+    const incident = this.incidents.get(incidentId);
+    if (!incident) return false;
+
+    const matrix = this.findApplicableEscalationMatrix(incident);
+    if (!matrix) {
+      console.warn(`No escalation matrix found for incident ${incidentId}`);
+      return false;
+    }
+
+    const applicableRules = matrix.rules.filter(rule => 
+      this.isEscalationRuleApplicable(rule, incident)
+    );
+
+    if (applicableRules.length === 0) {
+      console.warn(`No applicable escalation rules for incident ${incidentId}`);
+      return false;
+    }
+
+    // Sort by time threshold (most urgent first)
+    applicableRules.sort((a, b) => a.timeThreshold - b.timeThreshold);
+    
+    for (const rule of applicableRules) {
+      await this.executeEscalationRule(rule, incident, reason);
+    }
+
+    return true;
+  }
+
+  /**
+   * Get enhanced incident metrics
+   */
+  public getAdvancedIncidentMetrics(): IncidentMetrics {
+    const allIncidents = Array.from(this.incidents.values());
+    const resolvedIncidents = allIncidents.filter(i => i.resolvedAt);
+    
+    // Calculate MTTR (Mean Time To Resolve)
+    const resolutionTimes = resolvedIncidents.map(i => 
+      i.resolvedAt!.getTime() - i.createdAt.getTime()
+    );
+    const mttr = resolutionTimes.length > 0 ? 
+      resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length / 60000 : 0; // minutes
+
+    // Calculate MTTA (Mean Time To Acknowledge)
+    const acknowledgeTimes = allIncidents
+      .filter(i => i.assignedTo)
+      .map(i => {
+        const assignmentTime = i.timeline.find(t => t.type === 'escalation')?.timestamp || i.createdAt;
+        return assignmentTime.getTime() - i.createdAt.getTime();
+      });
+    const mtta = acknowledgeTimes.length > 0 ?
+      acknowledgeTimes.reduce((a, b) => a + b, 0) / acknowledgeTimes.length / 60000 : 0; // minutes
+
+    // Calculate MTTC (Mean Time To Contain)
+    const containmentTimes = allIncidents
+      .filter(i => i.containedAt)
+      .map(i => i.containedAt!.getTime() - i.createdAt.getTime());
+    const mttc = containmentTimes.length > 0 ?
+      containmentTimes.reduce((a, b) => a + b, 0) / containmentTimes.length / 60000 : 0; // minutes
+
+    // Count by category and severity
+    const incidentsByCategory: Record<string, number> = {};
+    const incidentsBySeverity: Record<string, number> = {};
+    
+    for (const incident of allIncidents) {
+      incidentsByCategory[incident.category] = (incidentsByCategory[incident.category] || 0) + 1;
+      incidentsBySeverity[incident.severity] = (incidentsBySeverity[incident.severity] || 0) + 1;
+    }
+
+    // Calculate escalation rate
+    const escalatedIncidents = allIncidents.filter(i => 
+      i.timeline.some(t => t.type === 'escalation')
+    );
+    const escalationRate = allIncidents.length > 0 ? 
+      escalatedIncidents.length / allIncidents.length : 0;
+
+    // Calculate automation rate
+    const automatedActions = allIncidents.reduce((total, incident) => 
+      total + incident.timeline.filter(t => t.automated).length, 0
+    );
+    const totalActions = allIncidents.reduce((total, incident) => 
+      total + incident.timeline.length, 0
+    );
+    const automationRate = totalActions > 0 ? automatedActions / totalActions : 0;
+
+    return {
+      mttr,
+      mtta,
+      mttc,
+      totalIncidents: allIncidents.length,
+      incidentsByCategory,
+      incidentsBySeverity,
+      escalationRate,
+      automationRate,
+      customerImpact: this.calculateCustomerImpact(allIncidents),
+      costOfIncidents: this.calculateIncidentCosts(allIncidents),
+    };
+  }
+
+  // Private automation helper methods
+
+  private setupAutomationRules(): void {
+    // Critical incident auto-escalation
+    this.addAutomationRule({
+      name: 'Critical Incident Auto-Escalation',
+      description: 'Automatically escalate critical incidents to senior staff',
+      enabled: true,
+      triggers: [
+        {
+          type: 'incident_created',
+          criteria: { severity: 'critical' },
+          weight: 1.0,
+        },
+      ],
+      conditions: [
+        {
+          field: 'severity',
+          operator: 'equals',
+          value: 'critical',
+          required: true,
+        },
+      ],
+      actions: [
+        {
+          type: 'escalate',
+          parameters: { escalationLevel: 'senior_management' },
+          timeout: 300,
+          retryCount: 3,
+        },
+        {
+          type: 'notify',
+          parameters: { 
+            channels: ['sms', 'phone', 'email'],
+            urgency: 'critical',
+          },
+          timeout: 60,
+          retryCount: 2,
+        },
+      ],
+      priority: 10,
+      cooldownPeriod: 5,
+    });
+
+    console.log(`Initialized ${this.automationRules.size} automation rules`);
+  }
+
+  private setupEscalationMatrix(): void {
+    this.escalationMatrix.set('default', {
+      id: 'default',
+      name: 'Default Escalation Matrix',
+      rules: [
+        {
+          id: 'critical_immediate',
+          condition: 'severity >= critical',
+          severity: 'critical',
+          timeThreshold: 0,
+          escalateTo: ['security_lead', 'ciso', 'ceo'],
+          notificationChannels: ['sms', 'phone', 'email'],
+          requiresApproval: false,
+          autoApprove: true,
+        },
+        {
+          id: 'high_15min',
+          condition: 'severity >= high',
+          severity: 'high',
+          timeThreshold: 15,
+          escalateTo: ['security_lead', 'manager'],
+          notificationChannels: ['email', 'slack'],
+          requiresApproval: false,
+          autoApprove: true,
+        },
+      ],
+      defaultEscalationPath: ['analyst', 'senior_analyst', 'team_lead', 'manager', 'director'],
+      emergencyContacts: ['security_hotline', 'emergency_response'],
+      businessHoursOnly: false,
+      regions: ['global'],
+    });
+  }
+
+  private initializeIntegrations(): void {
+    console.log('Initializing external integrations...');
+  }
+
+  private isRuleCooldownExpired(rule: AutomationRule): boolean {
+    if (!rule.lastExecuted) return true;
+    
+    const cooldownMs = rule.cooldownPeriod * 60 * 1000;
+    return Date.now() - rule.lastExecuted.getTime() > cooldownMs;
+  }
+
+  private async evaluateAutomationConditions(rule: AutomationRule, incident: SecurityIncident): Promise<boolean> {
+    for (const condition of rule.conditions) {
+      const fieldValue = this.getIncidentFieldValue(condition.field, incident);
+      const conditionMet = this.evaluateCondition(condition, fieldValue);
+      
+      if (condition.required && !conditionMet) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  private async executeAutomationActions(rule: AutomationRule, incident: SecurityIncident): Promise<void> {
+    for (const action of rule.actions) {
+      try {
+        await this.executeAutomationAction(action, incident);
+      } catch (error) {
+        console.error(`Failed to execute automation action ${action.type}:`, error);
+      }
+    }
+  }
+
+  private async executeAutomationAction(action: AutomationAction, incident: SecurityIncident): Promise<void> {
+    switch (action.type) {
+      case 'escalate':
+        await this.escalateIncidentAdvanced(incident.id, 'Automated escalation');
+        break;
+        
+      case 'assign':
+        incident.assignedTo = action.parameters.assignee;
+        this.incidents.set(incident.id, incident);
+        break;
+        
+      case 'notify':
+        await this.sendAutomatedNotification(action.parameters, incident);
+        break;
+    }
+  }
+
+  private findApplicableEscalationMatrix(incident: SecurityIncident): EscalationMatrix | null {
+    return this.escalationMatrix.get('default') || null;
+  }
+
+  private isEscalationRuleApplicable(rule: EscalationRule, incident: SecurityIncident): boolean {
+    if (rule.severity !== incident.severity) return false;
+    
+    const minutesSinceCreation = (Date.now() - incident.createdAt.getTime()) / (1000 * 60);
+    if (minutesSinceCreation < rule.timeThreshold) return false;
+    
+    return true;
+  }
+
+  private async executeEscalationRule(rule: EscalationRule, incident: SecurityIncident, reason: string): Promise<void> {
+    if (rule.escalateTo.length > 0) {
+      incident.assignedTo = rule.escalateTo[0];
+    }
+    
+    this.addTimelineEntry(incident.id, {
+      type: 'escalation',
+      description: `Escalated via rule ${rule.id}: ${reason}`,
+      user: 'system',
+      automated: true,
+    });
+    
+    console.log(`Executed escalation rule ${rule.id} for incident ${incident.id}`);
+  }
+
+  private getIncidentFieldValue(field: string, incident: SecurityIncident): any {
+    const fieldMap: Record<string, any> = {
+      'severity': incident.severity,
+      'category': incident.category,
+      'status': incident.status,
+      'priority': incident.priority,
+      'assignedTo': incident.assignedTo,
+      'tags': incident.tags,
+    };
+    
+    return fieldMap[field];
+  }
+
+  private evaluateCondition(condition: AutomationCondition, fieldValue: any): boolean {
+    switch (condition.operator) {
+      case 'equals':
+        return fieldValue === condition.value;
+      case 'contains':
+        if (Array.isArray(fieldValue)) {
+          return fieldValue.includes(condition.value);
+        }
+        return typeof fieldValue === 'string' && fieldValue.includes(condition.value);
+      default:
+        return false;
+    }
+  }
+
+  private calculateCustomerImpact(incidents: SecurityIncident[]): number {
+    const impactfulIncidents = incidents.filter(i => 
+      i.category === 'data_breach' || 
+      i.category === 'ddos' ||
+      i.severity === 'critical'
+    );
+    
+    return impactfulIncidents.length;
+  }
+
+  private calculateIncidentCosts(incidents: SecurityIncident[]): number {
+    const costMap = {
+      'critical': 100000,
+      'high': 50000,
+      'medium': 10000,
+      'low': 1000,
+    };
+    
+    return incidents.reduce((total, incident) => {
+      return total + costMap[incident.severity];
+    }, 0);
+  }
+
+  private async sendAutomatedNotification(parameters: any, incident: SecurityIncident): Promise<void> {
+    console.log(`Sending automated notification for incident ${incident.id}`);
+  }
+
+  private mapSeverityToEventSeverity(severity: SecurityIncident['severity']): SecurityEventSeverity {
+    const mapping = {
+      'critical': SecurityEventSeverity.CRITICAL,
+      'high': SecurityEventSeverity.HIGH,
+      'medium': SecurityEventSeverity.MEDIUM,
+      'low': SecurityEventSeverity.LOW,
+    };
+    
+    return mapping[severity];
+  }
+
+  // Helper ID generation methods
+  private generateIncidentId(): string {
+    return `incident_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateTimelineId(): string {
+    return `timeline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateActionId(): string {
+    return `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateCommunicationId(): string {
+    return `comm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateAutomationRuleId(): string {
+    return `auto_rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 }
 

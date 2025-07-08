@@ -71,17 +71,29 @@ const config: EmailConfig = {
   environment: (process.env.NODE_ENV as any) || 'development',
 };
 
-// Validate configuration
-let validatedConfig: EmailConfig;
-try {
-  validatedConfig = emailConfigSchema.parse(config);
-} catch (error) {
-  logger.error('Invalid email configuration:', error);
-  throw new Error('Email service configuration is invalid');
+// Lazy validation - only validate when actually using the service
+let validatedConfig: EmailConfig | null = null;
+let resend: Resend | null = null;
+
+function getValidatedConfig(): EmailConfig {
+  if (!validatedConfig) {
+    try {
+      validatedConfig = emailConfigSchema.parse(config);
+    } catch (error) {
+      logger.error('Invalid email configuration:', error);
+      throw new Error('Email service configuration is invalid');
+    }
+  }
+  return validatedConfig;
 }
 
-// Initialize Resend client
-const resend = new Resend(validatedConfig.apiKey);
+function getResendClient(): Resend {
+  if (!resend) {
+    const config = getValidatedConfig();
+    resend = new Resend(config.apiKey);
+  }
+  return resend;
+}
 
 // Rate limiting for email sending
 const rateLimiter = new Map<string, { count: number; resetTime: number }>();
@@ -150,19 +162,20 @@ export async function sendEmail(template: EmailTemplate): Promise<EmailSendResul
     }
 
     // Prepare email data
+    const config = getValidatedConfig();
     const emailData = {
-      from: validatedTemplate.from || `${validatedConfig.fromName} <${validatedConfig.fromEmail}>`,
+      from: validatedTemplate.from || `${config.fromName} <${config.fromEmail}>`,
       to: validatedTemplate.to,
       subject: validatedTemplate.subject,
       html: validatedTemplate.html,
       text: validatedTemplate.text,
-      replyTo: validatedTemplate.replyTo || validatedConfig.replyTo,
+      replyTo: validatedTemplate.replyTo || config.replyTo,
       tags: validatedTemplate.tags,
       headers: validatedTemplate.headers,
     };
 
     // Send email
-    const result = await resend.emails.send(emailData);
+    const result = await getResendClient().emails.send(emailData);
 
     if (result.error) {
       logger.error('Failed to send email:', result.error);
@@ -611,6 +624,7 @@ export function validateEmailTemplate(template: EmailTemplate): { valid: boolean
  */
 export async function testEmailConfiguration(): Promise<EmailSendResult> {
   const testEmail = process.env.TEST_EMAIL || 'test@example.com';
+  const config = getValidatedConfig();
   
   const template: EmailTemplate = {
     to: testEmail,
@@ -632,8 +646,8 @@ export async function testEmailConfiguration(): Promise<EmailSendResult> {
           <div style="background: #f8f9fa; padding: 20px; border-radius: 6px; margin: 20px 0;">
             <h3 style="color: #333; margin-top: 0;">Configuration Details:</h3>
             <ul style="color: #666; line-height: 1.6; margin: 0; padding-left: 20px;">
-              <li>Environment: ${validatedConfig.environment}</li>
-              <li>From: ${validatedConfig.fromName} &lt;${validatedConfig.fromEmail}&gt;</li>
+              <li>Environment: ${config.environment}</li>
+              <li>From: ${config.fromName} &lt;${config.fromEmail}&gt;</li>
               <li>Service: Resend</li>
               <li>Timestamp: ${new Date().toISOString()}</li>
             </ul>
@@ -647,13 +661,13 @@ This is a test email from the Learning Assistant email service.
 If you're seeing this, the email configuration is working correctly.
 
 Configuration Details:
-- Environment: ${validatedConfig.environment}
-- From: ${validatedConfig.fromName} <${validatedConfig.fromEmail}>
+- Environment: ${config.environment}
+- From: ${config.fromName} <${config.fromEmail}>
 - Service: Resend
 - Timestamp: ${new Date().toISOString()}`,
     tags: [
       { name: 'type', value: 'test' },
-      { name: 'environment', value: validatedConfig.environment },
+      { name: 'environment', value: config.environment },
     ],
   };
 

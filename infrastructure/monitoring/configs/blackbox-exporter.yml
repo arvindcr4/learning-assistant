@@ -1,0 +1,180 @@
+# ==============================================================================
+# BLACKBOX EXPORTER CONFIGURATION
+# Synthetic Monitoring Configuration
+# ==============================================================================
+
+modules:
+  # HTTP 2xx probe
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 201, 202, 204, 301, 302]
+      method: GET
+      headers:
+        Host: ${domain_name}
+        Accept-Language: en-US
+        User-Agent: "BlackboxExporter/${environment}"
+      no_follow_redirects: false
+      fail_if_ssl: false
+      fail_if_not_ssl: true
+      fail_if_body_matches_regexp:
+        - "(?i)(error|exception|fail|timeout)"
+      fail_if_body_not_matches_regexp: []
+      fail_if_header_matches:
+        - header: Content-Type
+          regexp: "text/plain"
+      fail_if_header_not_matches: []
+      tls_config:
+        insecure_skip_verify: false
+        ca_file: ""
+        cert_file: ""
+        key_file: ""
+        server_name: ""
+      preferred_ip_protocol: "ip4"
+      ip_protocol_fallback: true
+
+  # HTTP POST probe
+  http_post_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      method: POST
+      headers:
+        Content-Type: application/json
+      body: '{"health": "check"}'
+      valid_status_codes: [200, 201, 202]
+
+  # TCP connect probe
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      query_response: []
+      tls: false
+
+  # ICMP ping probe
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip4"
+      source_ip_address: ""
+
+  # DNS probe
+  dns_udp:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: "${domain_name}"
+      query_type: "A"
+      valid_rcodes:
+        - NOERROR
+      validate_answer_rrs:
+        fail_if_matches_regexp: []
+        fail_if_not_matches_regexp: []
+      validate_authority_rrs:
+        fail_if_matches_regexp: []
+        fail_if_not_matches_regexp: []
+      validate_additional_rrs:
+        fail_if_matches_regexp: []
+        fail_if_not_matches_regexp: []
+      preferred_ip_protocol: "ip4"
+      source_ip_address: ""
+      transport_protocol: "udp"
+
+  # HTTPS probe with specific SSL requirements
+  https_ssl:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      fail_if_ssl: false
+      fail_if_not_ssl: true
+      tls_config:
+        insecure_skip_verify: false
+      preferred_ip_protocol: "ip4"
+
+  # API health check probe
+  api_health:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      headers:
+        Accept: "application/json"
+      fail_if_body_not_matches_regexp:
+        - '"status":\s*"healthy"'
+      no_follow_redirects: true
+
+  # Learning Assistant specific probe
+  learning_assistant_api:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200, 401] # 401 is expected for unauthenticated requests
+      headers:
+        Accept: "application/json"
+        User-Agent: "MonitoringProbe/${environment}"
+      fail_if_ssl: false
+      fail_if_not_ssl: true
+      preferred_ip_protocol: "ip4"
+
+  # Database connection probe
+  postgres_tcp:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      query_response:
+        - expect: "^\\x00"
+        - send: "\\x00\\x00\\x00\\x17\\x00\\x03\\x00\\x00user\\x00postgres\\x00\\x00"
+        - expect: "^R"
+
+  # Redis connection probe
+  redis_tcp:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      query_response:
+        - send: "PING"
+        - expect: "PONG"
+
+  # Grafana probe
+  grafana_http:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200, 302]
+      headers:
+        Accept: "text/html"
+      fail_if_body_not_matches_regexp:
+        - "(?i)grafana"
+
+  # Prometheus probe
+  prometheus_http:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      headers:
+        Accept: "text/html"
+      fail_if_body_not_matches_regexp:
+        - "(?i)prometheus"
+
+  # Jaeger probe
+  jaeger_http:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      headers:
+        Accept: "text/html"
+      fail_if_body_not_matches_regexp:
+        - "(?i)jaeger"

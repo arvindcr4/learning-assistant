@@ -102,6 +102,7 @@ export class AIService {
   private requestQueue: Array<{ resolve: Function; reject: Function; request: any }> = [];
   private isProcessingQueue = false;
   private tamboClient: TamboAI;
+  private rateLimitIntervalId: NodeJS.Timeout | null = null;
 
   constructor() {
     this.config = this.loadConfig();
@@ -134,7 +135,7 @@ export class AIService {
   }
 
   private startRateLimitReset(): void {
-    setInterval(() => {
+    this.rateLimitIntervalId = setInterval(() => {
       const now = Date.now();
       for (const [key, limit] of this.rateLimits.entries()) {
         if (now >= limit.resetTime) {
@@ -142,6 +143,16 @@ export class AIService {
         }
       }
     }, 10000); // Check every 10 seconds
+  }
+
+  // Method to cleanup resources
+  public cleanup(): void {
+    if (this.rateLimitIntervalId) {
+      clearInterval(this.rateLimitIntervalId);
+      this.rateLimitIntervalId = null;
+    }
+    this.rateLimits.clear();
+    this.requestQueue = [];
   }
 
   private initializeTamboClient(): TamboAI {
@@ -218,8 +229,15 @@ export class AIService {
         throw new Error('Token budget exceeded');
       }
 
-      const systemPrompt = this.buildSystemPrompt(persona || this.defaultPersona, context);
-      const userPrompt = this.buildUserPrompt(sanitizedMessage, context);
+      // Enhanced NLP processing
+      const nlpInsights = await this.processNLP(sanitizedMessage, language || context.language || 'en');
+      
+      // Adaptive persona selection based on context and insights
+      const adaptivePersona = this.selectAdaptivePersona(persona || this.defaultPersona, context, nlpInsights);
+      
+      // Build culturally adapted prompts
+      const systemPrompt = this.buildMultilingualSystemPrompt(adaptivePersona, context, language || 'en', nlpInsights);
+      const userPrompt = this.buildAdaptiveUserPrompt(sanitizedMessage, context, nlpInsights);
       
       const response = await this.callTamboAPI(systemPrompt, userPrompt, conversationHistory);
       
@@ -264,8 +282,15 @@ export class AIService {
         throw new Error('Token budget exceeded');
       }
 
-      const systemPrompt = this.buildSystemPrompt(persona || this.defaultPersona, context);
-      const userPrompt = this.buildUserPrompt(sanitizedMessage, context);
+      // Enhanced NLP processing for streaming
+      const nlpInsights = await this.processNLP(sanitizedMessage, language || context.language || 'en');
+      
+      // Adaptive persona selection based on context and insights
+      const adaptivePersona = this.selectAdaptivePersona(persona || this.defaultPersona, context, nlpInsights);
+      
+      // Build culturally adapted prompts
+      const systemPrompt = this.buildMultilingualSystemPrompt(adaptivePersona, context, language || 'en', nlpInsights);
+      const userPrompt = this.buildAdaptiveUserPrompt(sanitizedMessage, context, nlpInsights);
       
       const response = await this.callTamboStreamingAPI(
         systemPrompt, 
@@ -492,9 +517,21 @@ If the request is inappropriate or outside educational scope:
         throw new Error('No message to send');
       }
 
-      const response = await this.tamboClient.beta.threads.advance({
+      // Add timeout to prevent hanging requests
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('API request timeout')), 30000)
+      );
+
+      const apiCall = this.tamboClient.beta.threads.advance({
         messageToAppend: lastMessage
       });
+
+      const response = await Promise.race([apiCall, timeout]);
+
+      // Validate response before processing
+      if (!response) {
+        throw new Error('No response received from API');
+      }
 
       // Transform Tambo response to match expected format
       return {
@@ -510,6 +547,18 @@ If the request is inappropriate or outside educational scope:
       };
     } catch (error) {
       console.error('Tambo API Error:', error);
+      // Enhanced error handling with specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('timeout')) {
+          throw new Error('API request timed out. Please try again.');
+        }
+        if (error.message.includes('rate limit')) {
+          throw new Error('Rate limit exceeded. Please wait before trying again.');
+        }
+        if (error.message.includes('unauthorized')) {
+          throw new Error('Authentication failed. Please check your API credentials.');
+        }
+      }
       throw new Error(`Tambo API call failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

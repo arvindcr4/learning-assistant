@@ -202,10 +202,10 @@ const RegisterForm = React.forwardRef<HTMLDivElement, RegisterFormProps>(
                             "h-1 w-full rounded",
                             passwordStrength && index < passwordStrength.score
                               ? passwordStrength.score <= 2
-                                ? "bg-red-500"
+                                ? "bg-destructive"
                                 : passwordStrength.score <= 3
-                                ? "bg-yellow-500"
-                                : "bg-green-500"
+                                ? "bg-learning-warning"
+                                : "bg-learning-secondary"
                               : "bg-muted"
                           )}
                         />
@@ -213,7 +213,7 @@ const RegisterForm = React.forwardRef<HTMLDivElement, RegisterFormProps>(
                     </div>
                     <div className="grid grid-cols-2 gap-1 text-xs">
                       {passwordStrength && Object.entries(passwordStrength.checks).map(([key, met]) => (
-                        <div key={key} className={cn("flex items-center gap-1", met ? "text-green-600" : "text-muted-foreground")}>
+                        <div key={key} className={cn("flex items-center gap-1", met ? "text-learning-secondary" : "text-muted-foreground")}>
                           {met ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-current" />}
                           <span>
                             {key === 'length' && '8+ chars'}
@@ -269,7 +269,7 @@ const RegisterForm = React.forwardRef<HTMLDivElement, RegisterFormProps>(
                   <input
                     {...register('termsAccepted')}
                     type="checkbox"
-                    className="mt-1 rounded border-input bg-background focus:ring-2 focus:ring-learning-primary focus:ring-offset-2"
+                    className="mt-1 h-4 w-4 rounded border-input bg-background text-learning-primary focus:ring-2 focus:ring-learning-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={isLoading}
                     aria-describedby={hasFieldError('termsAccepted') ? 'terms-error' : undefined}
                   />
@@ -297,7 +297,7 @@ const RegisterForm = React.forwardRef<HTMLDivElement, RegisterFormProps>(
                   <input
                     {...register('marketing')}
                     type="checkbox"
-                    className="rounded border-input bg-background focus:ring-2 focus:ring-learning-primary focus:ring-offset-2"
+                    className="h-4 w-4 rounded border-input bg-background text-learning-primary focus:ring-2 focus:ring-learning-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={isLoading}
                   />
                   <label className="text-sm text-muted-foreground">

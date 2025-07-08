@@ -1,0 +1,598 @@
+version: '3.8'
+
+name: learning-assistant-prod
+
+services:
+  # Main Application - Multiple replicas for high availability
+  app-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.railway
+      target: runner
+      args:
+        BUILD_DATE: ${BUILD_DATE:-}
+        BUILD_VERSION: ${BUILD_VERSION:-1.0.0}
+        BUILD_REVISION: ${BUILD_REVISION:-}
+    container_name: learning-assistant-app-1
+    hostname: app-1
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://learning_user:${POSTGRES_PASSWORD}@postgres:5432/learning_assistant_db
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - NEXT_TELEMETRY_DISABLED=1
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - INSTANCE_ID=app-1
+      - CLUSTER_NODE=1
+      # Security
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      # External APIs
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - TAMBO_API_KEY=${TAMBO_API_KEY}
+      # Performance
+      - NODE_OPTIONS=--max-old-space-size=1024
+      # Health checks
+      - HEALTH_CHECK_ENABLED=true
+      - METRICS_ENABLED=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - learning-network
+    volumes:
+      - app-logs:/app/logs
+      - uploads:/app/uploads
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app-1.rule=Host(`learning-assistant.local`)"
+      - "traefik.http.services.app-1.loadbalancer.server.port=3000"
+      - "traefik.http.routers.app-1.tls=true"
+
+  app-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.railway
+      target: runner
+      args:
+        BUILD_DATE: ${BUILD_DATE:-}
+        BUILD_VERSION: ${BUILD_VERSION:-1.0.0}
+        BUILD_REVISION: ${BUILD_REVISION:-}
+    container_name: learning-assistant-app-2
+    hostname: app-2
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://learning_user:${POSTGRES_PASSWORD}@postgres:5432/learning_assistant_db
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - NEXT_TELEMETRY_DISABLED=1
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - INSTANCE_ID=app-2
+      - CLUSTER_NODE=2
+      # Security
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      # External APIs
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - TAMBO_API_KEY=${TAMBO_API_KEY}
+      # Performance
+      - NODE_OPTIONS=--max-old-space-size=1024
+      # Health checks
+      - HEALTH_CHECK_ENABLED=true
+      - METRICS_ENABLED=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - learning-network
+    volumes:
+      - app-logs:/app/logs
+      - uploads:/app/uploads
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app-2.rule=Host(`learning-assistant.local`)"
+      - "traefik.http.services.app-2.loadbalancer.server.port=3000"
+
+  app-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.railway
+      target: runner
+      args:
+        BUILD_DATE: ${BUILD_DATE:-}
+        BUILD_VERSION: ${BUILD_VERSION:-1.0.0}
+        BUILD_REVISION: ${BUILD_REVISION:-}
+    container_name: learning-assistant-app-3
+    hostname: app-3
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://learning_user:${POSTGRES_PASSWORD}@postgres:5432/learning_assistant_db
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - NEXT_TELEMETRY_DISABLED=1
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - INSTANCE_ID=app-3
+      - CLUSTER_NODE=3
+      # Security
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      # External APIs
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - TAMBO_API_KEY=${TAMBO_API_KEY}
+      # Performance
+      - NODE_OPTIONS=--max-old-space-size=1024
+      # Health checks
+      - HEALTH_CHECK_ENABLED=true
+      - METRICS_ENABLED=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - learning-network
+    volumes:
+      - app-logs:/app/logs
+      - uploads:/app/uploads
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app-3.rule=Host(`learning-assistant.local`)"
+      - "traefik.http.services.app-3.loadbalancer.server.port=3000"
+
+  # PostgreSQL Database with optimized configuration
+  postgres:
+    image: postgres:15-alpine
+    container_name: learning-assistant-postgres
+    hostname: postgres
+    environment:
+      - POSTGRES_DB=learning_assistant_db
+      - POSTGRES_USER=learning_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      # Performance tuning
+      - POSTGRES_SHARED_BUFFERS=256MB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=1GB
+      - POSTGRES_MAINTENANCE_WORK_MEM=64MB
+      - POSTGRES_CHECKPOINT_COMPLETION_TARGET=0.9
+      - POSTGRES_WAL_BUFFERS=16MB
+      - POSTGRES_DEFAULT_STATISTICS_TARGET=100
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./DATABASE_SCHEMA.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./k8s/base/init-scripts.yaml:/docker-entrypoint-initdb.d/02-init.sql:ro
+      - postgres_logs:/var/log/postgresql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U learning_user -d learning_assistant_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    networks:
+      - learning-network
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=1GB
+        -c maintenance_work_mem=64MB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c default_statistics_target=100
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c work_mem=4MB
+        -c min_wal_size=1GB
+        -c max_wal_size=4GB
+        -c max_worker_processes=8
+        -c max_parallel_workers_per_gather=4
+        -c max_parallel_workers=8
+        -c max_parallel_maintenance_workers=4
+        -c logging_collector=on
+        -c log_directory=/var/log/postgresql
+        -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log
+        -c log_min_duration_statement=1000
+        -c log_checkpoints=on
+        -c log_connections=on
+        -c log_disconnections=on
+        -c log_lock_waits=on
+
+  # Redis Cache with persistence and clustering
+  redis:
+    image: redis:7-alpine
+    container_name: learning-assistant-redis
+    hostname: redis
+    command: >
+      redis-server
+        --requirepass ${REDIS_PASSWORD}
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --tcp-keepalive 300
+        --timeout 0
+        --tcp-backlog 511
+        --databases 16
+        --save 900 1
+        --save 300 10
+        --save 60 10000
+        --rdbcompression yes
+        --rdbchecksum yes
+        --stop-writes-on-bgsave-error yes
+        --dir /data
+        --logfile /var/log/redis/redis.log
+        --loglevel notice
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - redis_logs:/var/log/redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - learning-network
+
+  # Load Balancer with Traefik
+  traefik:
+    image: traefik:v3.0
+    container_name: learning-assistant-traefik
+    hostname: traefik
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    environment:
+      - TRAEFIK_API_DASHBOARD=true
+      - TRAEFIK_API_INSECURE=true
+      - TRAEFIK_PROVIDERS_DOCKER=true
+      - TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT=false
+      - TRAEFIK_ENTRYPOINTS_WEB_ADDRESS=:80
+      - TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS=:443
+      - TRAEFIK_CERTIFICATESRESOLVERS_MYRESOLVER_ACME_TLSCHALLENGE=true
+      - TRAEFIK_CERTIFICATESRESOLVERS_MYRESOLVER_ACME_EMAIL=admin@yourdomain.com
+      - TRAEFIK_CERTIFICATESRESOLVERS_MYRESOLVER_ACME_STORAGE=/letsencrypt/acme.json
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_data:/letsencrypt
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    networks:
+      - learning-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.learning-assistant.local`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: learning-assistant-prometheus
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - learning-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.learning-assistant.local`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: learning-assistant-grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-kubernetes-app,grafana-clock-panel
+      - GF_FEATURE_TOGGLES_ENABLE=publicDashboards
+      - GF_SERVER_ROOT_URL=https://grafana.learning-assistant.local
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - learning-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.learning-assistant.local`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # Node Exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:v1.6.0
+    container_name: learning-assistant-node-exporter
+    hostname: node-exporter
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host/root'
+      - '--collector.filesystem.ignored-mount-points=^/(dev|proc|sys|var/lib/docker/.+)($|/)'
+      - '--collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|cgroup|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|sysfs|tracefs)$'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    networks:
+      - learning-network
+
+  # Log aggregator
+  fluentd:
+    image: fluent/fluentd:v1.16-debian-1
+    container_name: learning-assistant-fluentd
+    hostname: fluentd
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    volumes:
+      - ./logging/fluentd.conf:/fluentd/etc/fluent.conf:ro
+      - app-logs:/var/log/app
+      - postgres_logs:/var/log/postgres
+      - redis_logs:/var/log/redis
+      - fluentd_data:/var/log/fluentd
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    networks:
+      - learning-network
+
+  # Backup service
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: learning-assistant-backup
+    hostname: backup
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=learning_assistant_db
+      - POSTGRES_USER=learning_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-7}
+      - S3_BUCKET=${S3_BACKUP_BUCKET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - backup_data:/backups
+      - postgres_data:/data/postgres:ro
+      - redis_data:/data/redis:ro
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    networks:
+      - learning-network
+
+networks:
+  learning-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    labels:
+      - "com.docker.compose.project=learning-assistant"
+      - "environment=production"
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/data/postgres
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/data/redis
+  prometheus_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/data/prometheus
+  grafana_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/data/grafana
+  traefik_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/data/traefik
+  backup_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/backups
+  app-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/logs/app
+  postgres_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/logs/postgres
+  redis_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/logs/redis
+  fluentd_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/logs/fluentd
+  uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/learning-assistant/data/uploads

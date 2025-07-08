@@ -1,0 +1,300 @@
+# Sentinel Policy for Terraform Infrastructure
+# This policy enforces security, compliance, and operational standards
+
+import "tfplan/v2" as tfplan
+import "tfstate/v2" as tfstate
+import "tfconfig/v2" as tfconfig
+import "tfrun"
+import "strings"
+import "json"
+
+# Policy Configuration
+policy_config = {
+    "security": {
+        "require_encryption": true,
+        "require_vpc": true,
+        "require_private_subnets": true,
+        "require_ssl_certificates": true,
+        "require_backup_enabled": true,
+        "require_monitoring": true,
+        "require_tags": true
+    },
+    "compliance": {
+        "require_cost_tags": true,
+        "require_environment_tags": true,
+        "require_owner_tags": true,
+        "max_cost_per_resource": 1000,
+        "allowed_regions": ["us-west-2", "us-east-1", "eu-west-1"],
+        "prohibited_resources": ["aws_instance"]
+    },
+    "operational": {
+        "require_versioning": true,
+        "require_lifecycle_rules": true,
+        "require_access_logging": true,
+        "require_cross_region_backup": true,
+        "max_retention_days": 2555  # 7 years
+    }
+}
+
+# Required Tags
+required_tags = [
+    "Environment",
+    "Project",
+    "Owner",
+    "CostCenter",
+    "ManagedBy"
+]
+
+# Cost Tags
+cost_tags = [
+    "CostCenter",
+    "Project",
+    "Environment"
+]
+
+# Security Policies
+
+# Policy: Require encryption for all storage resources
+require_encryption = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.type not in ["aws_s3_bucket", "aws_ebs_volume", "aws_rds_instance", "azurerm_storage_account", "google_storage_bucket"] or
+            (rc.type == "aws_s3_bucket" and rc.change.after.server_side_encryption_configuration != null) or
+            (rc.type == "aws_ebs_volume" and rc.change.after.encrypted == true) or
+            (rc.type == "aws_rds_instance" and rc.change.after.storage_encrypted == true) or
+            (rc.type == "azurerm_storage_account" and rc.change.after.enable_https_traffic_only == true) or
+            (rc.type == "google_storage_bucket" and rc.change.after.encryption != null)
+        }
+    }
+}
+
+# Policy: Require VPC for compute resources
+require_vpc = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.type not in ["aws_instance", "aws_ecs_service", "aws_lambda_function"] or
+            (rc.type == "aws_instance" and rc.change.after.vpc_security_group_ids != null) or
+            (rc.type == "aws_ecs_service" and rc.change.after.network_configuration != null) or
+            (rc.type == "aws_lambda_function" and rc.change.after.vpc_config != null)
+        }
+    }
+}
+
+# Policy: Require backup configuration
+require_backup_enabled = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.type not in ["aws_s3_bucket", "aws_rds_instance", "azurerm_storage_account"] or
+            (rc.type == "aws_s3_bucket" and rc.change.after.versioning != null) or
+            (rc.type == "aws_rds_instance" and rc.change.after.backup_retention_period > 0) or
+            (rc.type == "azurerm_storage_account" and rc.change.after.blob_properties != null)
+        }
+    }
+}
+
+# Policy: Require monitoring and logging
+require_monitoring = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.type not in ["aws_s3_bucket", "aws_rds_instance", "azurerm_storage_account", "google_storage_bucket"] or
+            (rc.type == "aws_s3_bucket" and rc.change.after.logging != null) or
+            (rc.type == "aws_rds_instance" and rc.change.after.monitoring_interval != null) or
+            (rc.type == "azurerm_storage_account" and rc.change.after.enable_https_traffic_only == true) or
+            (rc.type == "google_storage_bucket" and rc.change.after.logging != null)
+        }
+    }
+}
+
+# Compliance Policies
+
+# Policy: Require mandatory tags
+require_mandatory_tags = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.change.after.tags != null and
+            all required_tags as tag {
+                tag in keys(rc.change.after.tags)
+            }
+        }
+    }
+}
+
+# Policy: Require cost center tags
+require_cost_tags = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.change.after.tags != null and
+            all cost_tags as tag {
+                tag in keys(rc.change.after.tags)
+            }
+        }
+    }
+}
+
+# Policy: Restrict allowed regions
+restrict_regions = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.change.after.region else "" in policy_config.compliance.allowed_regions or
+            rc.change.after.location else "" in policy_config.compliance.allowed_regions or
+            rc.provider_name not in ["aws", "azurerm", "google"]
+        }
+    }
+}
+
+# Policy: Prohibit certain resource types
+prohibit_resources = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.type not in policy_config.compliance.prohibited_resources
+        }
+    }
+}
+
+# Operational Policies
+
+# Policy: Require versioning for storage
+require_versioning = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.type not in ["aws_s3_bucket", "azurerm_storage_account", "google_storage_bucket"] or
+            (rc.type == "aws_s3_bucket" and rc.change.after.versioning != null and rc.change.after.versioning[0].enabled == true) or
+            (rc.type == "azurerm_storage_account" and rc.change.after.blob_properties != null and rc.change.after.blob_properties[0].versioning_enabled == true) or
+            (rc.type == "google_storage_bucket" and rc.change.after.versioning != null and rc.change.after.versioning[0].enabled == true)
+        }
+    }
+}
+
+# Policy: Require lifecycle rules
+require_lifecycle_rules = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.type not in ["aws_s3_bucket", "google_storage_bucket"] or
+            (rc.type == "aws_s3_bucket" and rc.change.after.lifecycle_rule != null) or
+            (rc.type == "google_storage_bucket" and rc.change.after.lifecycle_rule != null)
+        }
+    }
+}
+
+# Policy: Require access logging
+require_access_logging = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.type not in ["aws_s3_bucket", "aws_cloudfront_distribution", "google_storage_bucket"] or
+            (rc.type == "aws_s3_bucket" and rc.change.after.logging != null) or
+            (rc.type == "aws_cloudfront_distribution" and rc.change.after.logging_config != null) or
+            (rc.type == "google_storage_bucket" and rc.change.after.logging != null)
+        }
+    }
+}
+
+# Cost Control Policies
+
+# Policy: Limit resource costs
+limit_resource_costs = rule {
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            rc.change.after.cost_estimate else 0 <= policy_config.compliance.max_cost_per_resource
+        }
+    }
+}
+
+# Environment-specific Policies
+
+# Policy: Production environment restrictions
+production_restrictions = rule {
+    tfrun.workspace.name != "production" or
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            # Require approval for production changes
+            rc.change.actions not contains "delete" and
+            rc.change.actions not contains "destroy" and
+            # Require high availability
+            (rc.type != "aws_instance" or rc.change.after.availability_zone != null) and
+            (rc.type != "aws_rds_instance" or rc.change.after.multi_az == true) and
+            # Require encryption
+            (rc.type != "aws_s3_bucket" or rc.change.after.server_side_encryption_configuration != null) and
+            (rc.type != "aws_ebs_volume" or rc.change.after.encrypted == true)
+        }
+    }
+}
+
+# Policy: Development environment permissions
+development_permissions = rule {
+    tfrun.workspace.name != "development" or
+    all tfplan.resource_changes as _, resource_changes {
+        all resource_changes as _, rc {
+            # Allow more flexibility in development
+            rc.change.after.tags != null and
+            "Environment" in keys(rc.change.after.tags) and
+            rc.change.after.tags["Environment"] == "development"
+        }
+    }
+}
+
+# Main Policy Rules
+
+# Security Rules (Mandatory)
+main_security = rule {
+    require_encryption and
+    require_vpc and
+    require_backup_enabled and
+    require_monitoring
+}
+
+# Compliance Rules (Mandatory)
+main_compliance = rule {
+    require_mandatory_tags and
+    require_cost_tags and
+    restrict_regions and
+    prohibit_resources
+}
+
+# Operational Rules (Advisory)
+main_operational = rule {
+    require_versioning and
+    require_lifecycle_rules and
+    require_access_logging
+}
+
+# Cost Control Rules (Hard Limit)
+main_cost_control = rule {
+    limit_resource_costs
+}
+
+# Environment Rules (Conditional)
+main_environment = rule {
+    production_restrictions and
+    development_permissions
+}
+
+# Policy Violations Handler
+print_violations = func(policy_name, violations) {
+    print("Policy Violations for", policy_name, ":")
+    for violations as violation {
+        print("  -", violation.message)
+    }
+}
+
+# Final Policy Decision
+main = rule {
+    main_security and
+    main_compliance and
+    main_operational and
+    main_cost_control and
+    main_environment
+}
+
+# Policy Metadata
+policy_metadata = {
+    "name": "terraform-infrastructure-policy",
+    "version": "1.0.0",
+    "description": "Comprehensive Terraform infrastructure policy for security, compliance, and operational standards",
+    "author": "Infrastructure Team",
+    "created": "2024-01-01",
+    "updated": "2024-01-01",
+    "enforcement_level": "hard-mandatory"
+}
+
+# Export policy metadata
+export "policy_metadata" as policy_metadata

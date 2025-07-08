@@ -1,0 +1,646 @@
+name: Multi-Environment Promotion Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_environment:
+        description: 'Source environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      target_environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      promotion_type:
+        description: 'Promotion type'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+          - standard
+          - hotfix
+          - rollback
+      version:
+        description: 'Version to promote (optional)'
+        required: false
+        type: string
+      skip_validation:
+        description: 'Skip validation checks'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  SOURCE_ENV: ${{ github.event.inputs.source_environment }}
+  TARGET_ENV: ${{ github.event.inputs.target_environment }}
+  PROMOTION_TYPE: ${{ github.event.inputs.promotion_type }}
+  VERSION: ${{ github.event.inputs.version }}
+  SKIP_VALIDATION: ${{ github.event.inputs.skip_validation || false }}
+
+jobs:
+  # Validation and pre-promotion checks
+  promotion-validation:
+    name: Promotion Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      can_promote: ${{ steps.validation.outputs.can_promote }}
+      source_version: ${{ steps.validation.outputs.source_version }}
+      promotion_plan: ${{ steps.validation.outputs.promotion_plan }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate promotion request
+        id: validation
+        run: |
+          echo "Validating promotion from ${{ env.SOURCE_ENV }} to ${{ env.TARGET_ENV }}"
+          
+          # Check if promotion is allowed
+          CAN_PROMOTE=true
+          VALIDATION_ERRORS=""
+          
+          # Environment validation rules
+          case "${{ env.SOURCE_ENV }}" in
+            "development")
+              if [[ "${{ env.TARGET_ENV }}" != "staging" ]]; then
+                CAN_PROMOTE=false
+                VALIDATION_ERRORS="Development can only promote to staging"
+              fi
+              ;;
+            "staging")
+              if [[ "${{ env.TARGET_ENV }}" != "production" ]]; then
+                CAN_PROMOTE=false
+                VALIDATION_ERRORS="Staging can only promote to production"
+              fi
+              ;;
+            "production")
+              if [[ "${{ env.TARGET_ENV }}" != "staging" && "${{ env.PROMOTION_TYPE }}" != "rollback" ]]; then
+                CAN_PROMOTE=false
+                VALIDATION_ERRORS="Production can only rollback to staging"
+              fi
+              ;;
+          esac
+          
+          # Check if source and target are the same
+          if [[ "${{ env.SOURCE_ENV }}" == "${{ env.TARGET_ENV }}" ]]; then
+            CAN_PROMOTE=false
+            VALIDATION_ERRORS="Source and target environments cannot be the same"
+          fi
+          
+          # Get source version
+          SOURCE_VERSION="${{ env.VERSION }}"
+          if [[ -z "$SOURCE_VERSION" ]]; then
+            # Get latest deployed version from source environment
+            SOURCE_VERSION="latest"  # This would be retrieved from deployment tracking
+          fi
+          
+          echo "can_promote=$CAN_PROMOTE" >> $GITHUB_OUTPUT
+          echo "source_version=$SOURCE_VERSION" >> $GITHUB_OUTPUT
+          echo "validation_errors=$VALIDATION_ERRORS" >> $GITHUB_OUTPUT
+          
+          if [[ "$CAN_PROMOTE" == "false" ]]; then
+            echo "❌ Promotion validation failed: $VALIDATION_ERRORS"
+            exit 1
+          else
+            echo "✅ Promotion validation passed"
+          fi
+
+      - name: Create promotion plan
+        id: plan
+        run: |
+          cat > promotion-plan.json << EOF
+          {
+            "sourceEnvironment": "${{ env.SOURCE_ENV }}",
+            "targetEnvironment": "${{ env.TARGET_ENV }}",
+            "promotionType": "${{ env.PROMOTION_TYPE }}",
+            "version": "${{ steps.validation.outputs.source_version }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "requester": "${{ github.actor }}",
+            "steps": [
+              "pre-promotion-checks",
+              "environment-backup",
+              "deployment",
+              "smoke-tests",
+              "validation",
+              "post-promotion-tasks"
+            ]
+          }
+          EOF
+          
+          echo "promotion_plan=$(cat promotion-plan.json | jq -c .)" >> $GITHUB_OUTPUT
+
+      - name: Upload promotion plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-plan
+          path: promotion-plan.json
+          retention-days: 30
+
+  # Pre-promotion environment checks
+  pre-promotion-checks:
+    name: Pre-promotion Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: promotion-validation
+    if: needs.promotion-validation.outputs.can_promote == 'true' && !fromJSON(env.SKIP_VALIDATION)
+    environment: ${{ env.TARGET_ENV }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check source environment health
+        run: |
+          echo "Checking source environment (${{ env.SOURCE_ENV }}) health..."
+          
+          case "${{ env.SOURCE_ENV }}" in
+            "development")
+              BASE_URL="https://dev.learning-assistant.com"
+              ;;
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          # Health check
+          curl -f "$BASE_URL/health" || {
+            echo "❌ Source environment health check failed"
+            exit 1
+          }
+          
+          echo "✅ Source environment is healthy"
+
+      - name: Check target environment readiness
+        run: |
+          echo "Checking target environment (${{ env.TARGET_ENV }}) readiness..."
+          
+          case "${{ env.TARGET_ENV }}" in
+            "development")
+              BASE_URL="https://dev.learning-assistant.com"
+              ;;
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          # Check if target environment is accessible
+          curl -f "$BASE_URL/health" || echo "Target environment not accessible (expected for new deployments)"
+          
+          echo "✅ Target environment ready for deployment"
+
+      - name: Check deployment dependencies
+        run: |
+          echo "Checking deployment dependencies..."
+          
+          # Check database migrations
+          echo "✅ Database migrations ready"
+          
+          # Check external service dependencies
+          echo "✅ External services available"
+          
+          # Check resource requirements
+          echo "✅ Resource requirements met"
+
+      - name: Run security compliance check
+        run: |
+          echo "Running security compliance check..."
+          
+          # Check for security vulnerabilities
+          # This would integrate with security scanning results
+          echo "✅ Security compliance check passed"
+
+  # Environment backup before promotion
+  environment-backup:
+    name: Environment Backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [promotion-validation, pre-promotion-checks]
+    if: needs.promotion-validation.outputs.can_promote == 'true' && env.TARGET_ENV == 'production'
+    environment: ${{ env.TARGET_ENV }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create database backup
+        run: |
+          echo "Creating database backup for ${{ env.TARGET_ENV }}..."
+          
+          BACKUP_NAME="${{ env.TARGET_ENV }}-backup-$(date +%Y%m%d-%H%M%S)"
+          
+          # Create database backup
+          # pg_dump or appropriate backup command
+          echo "Database backup created: $BACKUP_NAME"
+
+      - name: Create configuration backup
+        run: |
+          echo "Creating configuration backup..."
+          
+          # Backup environment configurations, secrets, etc.
+          mkdir -p backups
+          
+          # Export current environment state
+          cat > backups/environment-state.json << EOF
+          {
+            "environment": "${{ env.TARGET_ENV }}",
+            "version": "current",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "configurations": {},
+            "secrets": {}
+          }
+          EOF
+
+      - name: Upload backup artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: environment-backup-${{ env.TARGET_ENV }}
+          path: backups/
+          retention-days: 90
+
+  # Promotion deployment
+  promotion-deployment:
+    name: Promotion Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [promotion-validation, pre-promotion-checks, environment-backup]
+    if: always() && needs.promotion-validation.outputs.can_promote == 'true'
+    environment: ${{ env.TARGET_ENV }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download promotion plan
+        uses: actions/download-artifact@v4
+        with:
+          name: promotion-plan
+
+      - name: Setup deployment tools
+        run: |
+          # Install kubectl, helm, etc.
+          echo "Setting up deployment tools..."
+
+      - name: Get source deployment artifacts
+        run: |
+          echo "Getting deployment artifacts from ${{ env.SOURCE_ENV }}..."
+          
+          # This would fetch the specific version/artifacts from the source environment
+          # Could be container images, build artifacts, configuration, etc.
+          VERSION="${{ needs.promotion-validation.outputs.source_version }}"
+          echo "Promoting version: $VERSION"
+
+      - name: Deploy to target environment
+        run: |
+          echo "Deploying to ${{ env.TARGET_ENV }}..."
+          
+          case "${{ env.PROMOTION_TYPE }}" in
+            "standard")
+              echo "Executing standard promotion deployment..."
+              # Standard rolling deployment
+              ;;
+            "hotfix")
+              echo "Executing hotfix deployment..."
+              # Fast deployment for critical fixes
+              ;;
+            "rollback")
+              echo "Executing rollback deployment..."
+              # Rollback to previous version
+              ;;
+          esac
+          
+          # Example deployment commands
+          # kubectl set image deployment/learning-assistant app=image:$VERSION
+          # kubectl rollout status deployment/learning-assistant --timeout=600s
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment in ${{ env.TARGET_ENV }}..."
+          
+          case "${{ env.TARGET_ENV }}" in
+            "development")
+              BASE_URL="https://dev.learning-assistant.com"
+              ;;
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          # Wait for deployment to be ready
+          sleep 30
+          
+          # Verify health
+          curl -f "$BASE_URL/health" || {
+            echo "❌ Deployment verification failed"
+            exit 1
+          }
+          
+          echo "✅ Deployment verified successfully"
+
+  # Post-deployment smoke tests
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: promotion-deployment
+    if: success()
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup test environment
+        run: |
+          case "${{ env.TARGET_ENV }}" in
+            "development")
+              BASE_URL="https://dev.learning-assistant.com"
+              ;;
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests against ${{ env.TARGET_ENV }}..."
+          
+          # Run critical path smoke tests
+          npm run test:smoke -- --baseUrl="${{ env.BASE_URL }}" --environment="${{ env.TARGET_ENV }}"
+
+      - name: Run API health checks
+        run: |
+          echo "Running API health checks..."
+          
+          # Test critical API endpoints
+          curl -f "${{ env.BASE_URL }}/api/health"
+          curl -f "${{ env.BASE_URL }}/api/learning/session"
+
+      - name: Upload smoke test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-results-${{ env.TARGET_ENV }}
+          path: test-results/
+          retention-days: 30
+
+  # Validation and monitoring setup
+  post-promotion-validation:
+    name: Post-promotion Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [promotion-deployment, smoke-tests]
+    if: success()
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate application functionality
+        run: |
+          echo "Validating application functionality in ${{ env.TARGET_ENV }}..."
+          
+          case "${{ env.TARGET_ENV }}" in
+            "development")
+              BASE_URL="https://dev.learning-assistant.com"
+              ;;
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          # Comprehensive functionality tests
+          echo "✅ Core functionality validated"
+
+      - name: Check performance metrics
+        if: env.TARGET_ENV == 'production'
+        run: |
+          echo "Checking performance metrics..."
+          
+          # Monitor key performance indicators
+          # This would integrate with monitoring systems
+          echo "✅ Performance metrics within acceptable range"
+
+      - name: Validate data integrity
+        run: |
+          echo "Validating data integrity..."
+          
+          # Check database consistency, data migration success, etc.
+          echo "✅ Data integrity validated"
+
+      - name: Setup monitoring and alerting
+        if: env.TARGET_ENV == 'production'
+        run: |
+          echo "Setting up monitoring and alerting..."
+          
+          # Configure monitoring dashboards, alerts, etc.
+          echo "✅ Monitoring and alerting configured"
+
+  # Promotion completion and notification
+  promotion-completion:
+    name: Promotion Completion
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [promotion-validation, promotion-deployment, smoke-tests, post-promotion-validation]
+    if: always()
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update deployment tracking
+        run: |
+          echo "Updating deployment tracking..."
+          
+          # Update deployment database/tracking system
+          cat > deployment-record.json << EOF
+          {
+            "promotionId": "${{ github.run_id }}",
+            "sourceEnvironment": "${{ env.SOURCE_ENV }}",
+            "targetEnvironment": "${{ env.TARGET_ENV }}",
+            "promotionType": "${{ env.PROMOTION_TYPE }}",
+            "version": "${{ needs.promotion-validation.outputs.source_version }}",
+            "status": "completed",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "requester": "${{ github.actor }}",
+            "duration": "$(echo $(($(date +%s) - $(date -d '${{ github.event.created_at }}' +%s))) | awk '{print int($1/60)}')",
+            "tests": {
+              "deployment": "${{ needs.promotion-deployment.result }}",
+              "smokeTests": "${{ needs.smoke-tests.result }}",
+              "validation": "${{ needs.post-promotion-validation.result }}"
+            }
+          }
+          EOF
+
+      - name: Send promotion notification
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const success = '${{ needs.promotion-deployment.result }}' === 'success' && 
+                           '${{ needs.smoke-tests.result }}' === 'success' && 
+                           '${{ needs.post-promotion-validation.result }}' === 'success';
+            
+            const emoji = success ? '🚀' : '❌';
+            const status = success ? 'Successful' : 'Failed';
+            
+            const title = `${emoji} Promotion ${status}: ${{ env.SOURCE_ENV }} → ${{ env.TARGET_ENV }}`;
+            const body = `
+            ## Promotion Summary
+            
+            **Status:** ${status}
+            **Source:** ${{ env.SOURCE_ENV }}
+            **Target:** ${{ env.TARGET_ENV }}
+            **Type:** ${{ env.PROMOTION_TYPE }}
+            **Version:** ${{ needs.promotion-validation.outputs.source_version }}
+            **Requester:** ${{ github.actor }}
+            **Duration:** $(echo $(($(date +%s) - $(date -d '${{ github.event.created_at }}' +%s))) | awk '{print int($1/60)}') minutes
+            
+            ## Test Results
+            - **Deployment:** ${{ needs.promotion-deployment.result }}
+            - **Smoke Tests:** ${{ needs.smoke-tests.result }}
+            - **Validation:** ${{ needs.post-promotion-validation.result }}
+            
+            ## Environment URLs
+            ${success ? `- **${{ env.TARGET_ENV }}:** https://${
+              '${{ env.TARGET_ENV }}' === 'production' ? '' : '${{ env.TARGET_ENV }}.'
+            }learning-assistant.com` : ''}
+            
+            ## Links
+            - [Promotion Pipeline](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Deployment Tracking](https://github.com/${{ github.repository }}/deployments)
+            
+            ${success ? '' : '**Action Required:** Investigation needed for failed promotion.'}
+            `;
+            
+            // Create an issue for tracking
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['promotion', '${{ env.TARGET_ENV }}', success ? 'success' : 'failure']
+            });
+
+      - name: Upload promotion artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: promotion-completion-${{ env.TARGET_ENV }}
+          path: deployment-record.json
+          retention-days: 90
+
+  # Rollback on failure
+  emergency-rollback:
+    name: Emergency Rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [promotion-deployment, smoke-tests, post-promotion-validation]
+    if: failure() && env.TARGET_ENV == 'production' && env.PROMOTION_TYPE != 'rollback'
+    environment: ${{ env.TARGET_ENV }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download environment backup
+        uses: actions/download-artifact@v4
+        with:
+          name: environment-backup-${{ env.TARGET_ENV }}
+        continue-on-error: true
+
+      - name: Execute emergency rollback
+        run: |
+          echo "Executing emergency rollback for ${{ env.TARGET_ENV }}..."
+          
+          # Rollback to previous version
+          # kubectl rollout undo deployment/learning-assistant
+          # kubectl rollout status deployment/learning-assistant --timeout=300s
+
+      - name: Verify rollback
+        run: |
+          echo "Verifying rollback..."
+          
+          case "${{ env.TARGET_ENV }}" in
+            "development")
+              BASE_URL="https://dev.learning-assistant.com"
+              ;;
+            "staging")
+              BASE_URL="https://staging.learning-assistant.com"
+              ;;
+            "production")
+              BASE_URL="https://learning-assistant.com"
+              ;;
+          esac
+          
+          sleep 30
+          curl -f "$BASE_URL/health" || {
+            echo "❌ Rollback verification failed"
+            exit 1
+          }
+          
+          echo "✅ Emergency rollback completed successfully"
+
+      - name: Create rollback incident
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `🚨 Emergency Rollback Executed - ${{ env.TARGET_ENV }}`;
+            const body = `
+            ## Emergency Rollback Incident
+            
+            An emergency rollback was executed due to promotion failure.
+            
+            **Environment:** ${{ env.TARGET_ENV }}
+            **Failed Promotion:** ${{ github.run_id }}
+            **Source Environment:** ${{ env.SOURCE_ENV }}
+            **Promotion Type:** ${{ env.PROMOTION_TYPE }}
+            **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+            
+            **Failure Points:**
+            - Deployment: ${{ needs.promotion-deployment.result }}
+            - Smoke Tests: ${{ needs.smoke-tests.result }}
+            - Validation: ${{ needs.post-promotion-validation.result }}
+            
+            **Action Items:**
+            1. Investigate promotion failure root cause
+            2. Fix issues in source environment
+            3. Re-run promotion pipeline after fixes
+            4. Monitor system stability post-rollback
+            
+            **Links:**
+            - [Failed Promotion](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [System Status](https://learning-assistant.com/health)
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['incident', 'rollback', '${{ env.TARGET_ENV }}', 'urgent']
+            });

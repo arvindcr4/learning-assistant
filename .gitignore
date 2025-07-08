@@ -33,6 +33,15 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# deployment secrets (never commit these!)
+deploy/secrets/*.env
+deploy/secrets/production.env
+deploy/secrets/staging.env
+deploy/secrets/development.env
+secrets.env
+production.env
+staging.env
+
 # vercel
 .vercel
 

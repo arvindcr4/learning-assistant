@@ -1,0 +1,1106 @@
+import { securityMonitor, SecurityEventType, SecurityEventSeverity } from './security-monitor';
+import { incidentResponseService } from './incident-response';
+
+/**
+ * Real-time threat detection and automated classification system
+ */
+
+export interface ThreatSignature {
+  id: string;
+  name: string;
+  description: string;
+  pattern: RegExp | string;
+  category: ThreatCategory;
+  severity: SecurityEventSeverity;
+  confidence: number;
+  falsePositiveRate: number;
+  lastUpdated: Date;
+  detectionCount: number;
+  enabled: boolean;
+  autoBlock: boolean;
+  tags: string[];
+}
+
+export interface ThreatDetectionResult {
+  detected: boolean;
+  threats: DetectedThreat[];
+  riskScore: number;
+  recommendedActions: string[];
+  blocked: boolean;
+  reason?: string;
+}
+
+export interface DetectedThreat {
+  signatureId: string;
+  threatType: string;
+  category: ThreatCategory;
+  severity: SecurityEventSeverity;
+  confidence: number;
+  evidence: ThreatEvidence;
+  timestamp: Date;
+  source: string;
+  blocked: boolean;
+  mitigated: boolean;
+}
+
+export interface ThreatEvidence {
+  matchedPattern: string;
+  matchedValue: string;
+  context: string;
+  location: {
+    url?: string;
+    parameter?: string;
+    header?: string;
+    body?: string;
+  };
+  payload?: string;
+  additionalData?: Record<string, any>;
+}
+
+export type ThreatCategory = 
+  | 'web_attack'
+  | 'network_attack'
+  | 'malware'
+  | 'phishing'
+  | 'data_exfiltration'
+  | 'privilege_escalation'
+  | 'reconnaissance'
+  | 'denial_of_service'
+  | 'authentication_attack'
+  | 'injection_attack'
+  | 'social_engineering'
+  | 'insider_threat';
+
+export interface ThreatIntelligenceFeed {
+  id: string;
+  name: string;
+  url: string;
+  apiKey?: string;
+  format: 'stix' | 'json' | 'xml' | 'csv';
+  updateInterval: number; // minutes
+  lastUpdated: Date;
+  enabled: boolean;
+  priority: number;
+  tags: string[];
+}
+
+export interface ThreatContext {
+  requestId: string;
+  userId?: string;
+  sessionId?: string;
+  ipAddress: string;
+  userAgent: string;
+  referer?: string;
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  queryParams: Record<string, string>;
+  bodyParams: Record<string, any>;
+  cookies: Record<string, string>;
+  timestamp: Date;
+  geolocation?: {
+    country: string;
+    region: string;
+    city: string;
+    coordinates: { lat: number; lon: number };
+  };
+  deviceFingerprint?: string;
+}
+
+export class RealTimeThreatDetection {
+  private signatures: Map<string, ThreatSignature> = new Map();
+  private detectionHistory: Map<string, DetectedThreat[]> = new Map();
+  private threatFeeds: Map<string, ThreatIntelligenceFeed> = new Map();
+  private blockedIPs: Set<string> = new Set();
+  private blockedSessions: Set<string> = new Set();
+  private whitelistedIPs: Set<string> = new Set();
+  
+  private readonly detectionConfig = {
+    maxDetectionsPerMinute: 1000,
+    autoBlockThreshold: 0.9,
+    highConfidenceThreshold: 0.8,
+    mediumConfidenceThreshold: 0.6,
+    maxBlockDuration: 24 * 60 * 60 * 1000, // 24 hours
+    enableMachineLearning: true,
+    enableBehavioralAnalysis: true,
+    enableGeolocationChecks: true,
+  };
+
+  constructor() {
+    this.initializeSignatures();
+    this.initializeThreatFeeds();
+    this.startRealTimeProcessing();
+  }
+
+  /**
+   * Analyze request for threats in real-time
+   */
+  public async analyzeRequest(context: ThreatContext): Promise<ThreatDetectionResult> {
+    const startTime = Date.now();
+    
+    try {
+      // Pre-checks
+      if (this.isWhitelisted(context.ipAddress)) {
+        return {
+          detected: false,
+          threats: [],
+          riskScore: 0,
+          recommendedActions: [],
+          blocked: false,
+        };
+      }
+
+      if (this.isBlocked(context.ipAddress, context.sessionId)) {
+        return {
+          detected: true,
+          threats: [],
+          riskScore: 1.0,
+          recommendedActions: ['maintain_block'],
+          blocked: true,
+          reason: 'Previously blocked IP or session',
+        };
+      }
+
+      // Run detection engines in parallel
+      const [
+        signatureResults,
+        behavioralResults,
+        mlResults,
+        geoResults,
+        reputationResults
+      ] = await Promise.all([
+        this.runSignatureDetection(context),
+        this.runBehavioralAnalysis(context),
+        this.runMachineLearningDetection(context),
+        this.runGeolocationAnalysis(context),
+        this.runReputationChecks(context)
+      ]);
+
+      // Combine results
+      const allThreats = [
+        ...signatureResults,
+        ...behavioralResults,
+        ...mlResults,
+        ...geoResults,
+        ...reputationResults
+      ];
+
+      // Calculate aggregate risk score
+      const riskScore = this.calculateAggregateRiskScore(allThreats);
+      
+      // Determine if blocking is needed
+      const shouldBlock = this.shouldAutoBlock(allThreats, riskScore);
+      
+      // Generate recommendations
+      const recommendedActions = this.generateRecommendations(allThreats, riskScore);
+
+      // Store detection history
+      if (allThreats.length > 0) {
+        this.storeDetectionHistory(context, allThreats);
+      }
+
+      // Auto-block if necessary
+      let blocked = false;
+      if (shouldBlock) {
+        blocked = await this.executeAutoBlock(context, allThreats);
+      }
+
+      // Log detection event
+      if (allThreats.length > 0) {
+        this.logThreatEvent(context, allThreats, riskScore, blocked);
+      }
+
+      const processingTime = Date.now() - startTime;
+      console.log(`Threat detection completed in ${processingTime}ms - Found ${allThreats.length} threats`);
+
+      return {
+        detected: allThreats.length > 0,
+        threats: allThreats,
+        riskScore,
+        recommendedActions,
+        blocked,
+      };
+
+    } catch (error) {
+      console.error('Threat detection error:', error);
+      
+      // In case of error, apply conservative blocking
+      return {
+        detected: true,
+        threats: [],
+        riskScore: 0.8,
+        recommendedActions: ['manual_review'],
+        blocked: false,
+        reason: 'Detection system error - manual review required',
+      };
+    }
+  }
+
+  /**
+   * Add custom threat signature
+   */
+  public addThreatSignature(signature: Omit<ThreatSignature, 'id' | 'detectionCount' | 'lastUpdated'>): string {
+    const signatureId = this.generateSignatureId();
+    
+    const newSignature: ThreatSignature = {
+      id: signatureId,
+      detectionCount: 0,
+      lastUpdated: new Date(),
+      ...signature,
+    };
+
+    this.signatures.set(signatureId, newSignature);
+    
+    console.log(`Added threat signature: ${signature.name}`);
+    
+    return signatureId;
+  }
+
+  /**
+   * Update threat signature
+   */
+  public updateThreatSignature(signatureId: string, updates: Partial<ThreatSignature>): boolean {
+    const signature = this.signatures.get(signatureId);
+    if (!signature) return false;
+
+    const updatedSignature = {
+      ...signature,
+      ...updates,
+      lastUpdated: new Date(),
+    };
+
+    this.signatures.set(signatureId, updatedSignature);
+    
+    return true;
+  }
+
+  /**
+   * Block IP address
+   */
+  public blockIP(ipAddress: string, duration?: number): void {
+    this.blockedIPs.add(ipAddress);
+    
+    // Auto-unblock after duration
+    if (duration) {
+      setTimeout(() => {
+        this.blockedIPs.delete(ipAddress);
+        console.log(`Auto-unblocked IP: ${ipAddress}`);
+      }, duration);
+    }
+    
+    console.log(`Blocked IP address: ${ipAddress}`);
+  }
+
+  /**
+   * Unblock IP address
+   */
+  public unblockIP(ipAddress: string): boolean {
+    const wasBlocked = this.blockedIPs.has(ipAddress);
+    this.blockedIPs.delete(ipAddress);
+    
+    if (wasBlocked) {
+      console.log(`Unblocked IP address: ${ipAddress}`);
+    }
+    
+    return wasBlocked;
+  }
+
+  /**
+   * Add IP to whitelist
+   */
+  public whitelistIP(ipAddress: string): void {
+    this.whitelistedIPs.add(ipAddress);
+    console.log(`Whitelisted IP address: ${ipAddress}`);
+  }
+
+  /**
+   * Get threat statistics
+   */
+  public getThreatStatistics(): {
+    totalDetections: number;
+    detectionsByCategory: Record<string, number>;
+    detectionsBySeverity: Record<string, number>;
+    topThreats: Array<{ name: string; count: number; severity: string }>;
+    blockedIPs: number;
+    falsePositiveRate: number;
+    averageResponseTime: number;
+  } {
+    const allDetections = Array.from(this.detectionHistory.values()).flat();
+    
+    const detectionsByCategory: Record<string, number> = {};
+    const detectionsBySeverity: Record<string, number> = {};
+    const threatCounts = new Map<string, { count: number; severity: string }>();
+
+    for (const detection of allDetections) {
+      detectionsByCategory[detection.category] = (detectionsByCategory[detection.category] || 0) + 1;
+      detectionsBySeverity[detection.severity] = (detectionsBySeverity[detection.severity] || 0) + 1;
+      
+      const signature = this.signatures.get(detection.signatureId);
+      if (signature) {
+        const existing = threatCounts.get(signature.name);
+        if (existing) {
+          existing.count++;
+        } else {
+          threatCounts.set(signature.name, { count: 1, severity: detection.severity });
+        }
+      }
+    }
+
+    const topThreats = Array.from(threatCounts.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 10)
+      .map(([name, data]) => ({ name, count: data.count, severity: data.severity }));
+
+    // Calculate false positive rate
+    const signatures = Array.from(this.signatures.values());
+    const totalFPRate = signatures.reduce((sum, sig) => sum + sig.falsePositiveRate, 0);
+    const avgFalsePositiveRate = signatures.length > 0 ? totalFPRate / signatures.length : 0;
+
+    return {
+      totalDetections: allDetections.length,
+      detectionsByCategory,
+      detectionsBySeverity,
+      topThreats,
+      blockedIPs: this.blockedIPs.size,
+      falsePositiveRate: avgFalsePositiveRate,
+      averageResponseTime: 0, // Would be calculated from actual metrics
+    };
+  }
+
+  // Private detection methods
+
+  private async runSignatureDetection(context: ThreatContext): Promise<DetectedThreat[]> {
+    const threats: DetectedThreat[] = [];
+    
+    for (const signature of this.signatures.values()) {
+      if (!signature.enabled) continue;
+      
+      const detection = await this.testSignature(signature, context);
+      if (detection) {
+        threats.push(detection);
+        
+        // Update signature usage stats
+        signature.detectionCount++;
+        this.signatures.set(signature.id, signature);
+      }
+    }
+    
+    return threats;
+  }
+
+  private async runBehavioralAnalysis(context: ThreatContext): Promise<DetectedThreat[]> {
+    const threats: DetectedThreat[] = [];
+    
+    if (!this.detectionConfig.enableBehavioralAnalysis) return threats;
+    
+    // Use enhanced security monitoring for behavioral analysis
+    const behavioralData = {
+      requestsPerMinute: this.getRequestRate(context.ipAddress),
+      sessionDuration: this.getSessionDuration(context.sessionId),
+      uniqueEndpoints: this.getUniqueEndpointCount(context.ipAddress),
+      userAgent: context.userAgent,
+      deviceFingerprint: context.deviceFingerprint,
+    };
+    
+    const anomaly = securityMonitor.detectAdvancedAnomalies(behavioralData);
+    
+    if (anomaly.isAnomaly && anomaly.confidence > this.detectionConfig.mediumConfidenceThreshold) {
+      threats.push({
+        signatureId: 'behavioral_anomaly',
+        threatType: anomaly.anomalyType,
+        category: 'reconnaissance',
+        severity: anomaly.confidence > this.detectionConfig.highConfidenceThreshold ? 
+          SecurityEventSeverity.HIGH : SecurityEventSeverity.MEDIUM,
+        confidence: anomaly.confidence,
+        evidence: {
+          matchedPattern: 'behavioral_analysis',
+          matchedValue: JSON.stringify(anomaly.factors),
+          context: 'User behavior analysis',
+          location: { url: context.url },
+          additionalData: { anomalyFactors: anomaly.factors },
+        },
+        timestamp: new Date(),
+        source: 'behavioral_engine',
+        blocked: false,
+        mitigated: false,
+      });
+    }
+    
+    return threats;
+  }
+
+  private async runMachineLearningDetection(context: ThreatContext): Promise<DetectedThreat[]> {
+    const threats: DetectedThreat[] = [];
+    
+    if (!this.detectionConfig.enableMachineLearning) return threats;
+    
+    // Use ML-based threat classification
+    const requestData = {
+      userAgent: context.userAgent,
+      ipReputation: await this.getIPReputation(context.ipAddress),
+      requestPattern: this.analyzeRequestPattern(context),
+      payloadAnalysis: this.analyzePayload(context),
+      headerAnalysis: this.analyzeHeaders(context.headers),
+      behaviorScore: securityMonitor.calculateAdvancedRiskScore(
+        context.userId || 'anonymous',
+        context.ipAddress,
+        context.sessionId || 'unknown',
+        context
+      ).totalScore,
+    };
+    
+    const prediction = securityMonitor.predictThreatClassification(requestData);
+    
+    if (prediction.confidence > this.detectionConfig.mediumConfidenceThreshold) {
+      threats.push({
+        signatureId: 'ml_classification',
+        threatType: prediction.threatType,
+        category: this.mapThreatTypeToCategory(prediction.threatType),
+        severity: prediction.severity,
+        confidence: prediction.confidence,
+        evidence: {
+          matchedPattern: 'machine_learning_model',
+          matchedValue: prediction.threatType,
+          context: 'ML-based threat classification',
+          location: { url: context.url },
+          additionalData: { recommendedAction: prediction.recommendedAction },
+        },
+        timestamp: new Date(),
+        source: 'ml_engine',
+        blocked: false,
+        mitigated: false,
+      });
+    }
+    
+    return threats;
+  }
+
+  private async runGeolocationAnalysis(context: ThreatContext): Promise<DetectedThreat[]> {
+    const threats: DetectedThreat[] = [];
+    
+    if (!this.detectionConfig.enableGeolocationChecks || !context.geolocation) return threats;
+    
+    // Check against high-risk countries
+    const highRiskCountries = ['CN', 'RU', 'KP', 'IR']; // Example
+    if (highRiskCountries.includes(context.geolocation.country)) {
+      threats.push({
+        signatureId: 'geo_high_risk',
+        threatType: 'suspicious_geolocation',
+        category: 'reconnaissance',
+        severity: SecurityEventSeverity.MEDIUM,
+        confidence: 0.7,
+        evidence: {
+          matchedPattern: 'high_risk_country',
+          matchedValue: context.geolocation.country,
+          context: 'Geolocation analysis',
+          location: { url: context.url },
+          additionalData: { geolocation: context.geolocation },
+        },
+        timestamp: new Date(),
+        source: 'geo_engine',
+        blocked: false,
+        mitigated: false,
+      });
+    }
+    
+    // Check for impossible travel (if user has previous locations)
+    const impossibleTravel = await this.checkImpossibleTravel(context);
+    if (impossibleTravel) {
+      threats.push(impossibleTravel);
+    }
+    
+    return threats;
+  }
+
+  private async runReputationChecks(context: ThreatContext): Promise<DetectedThreat[]> {
+    const threats: DetectedThreat[] = [];
+    
+    const ipReputation = await this.getIPReputation(context.ipAddress);
+    
+    if (ipReputation < 0.3) { // Low reputation score
+      threats.push({
+        signatureId: 'ip_reputation',
+        threatType: 'malicious_ip',
+        category: 'network_attack',
+        severity: ipReputation < 0.1 ? SecurityEventSeverity.HIGH : SecurityEventSeverity.MEDIUM,
+        confidence: 1 - ipReputation,
+        evidence: {
+          matchedPattern: 'ip_reputation_check',
+          matchedValue: ipReputation.toString(),
+          context: 'IP reputation analysis',
+          location: { url: context.url },
+          additionalData: { reputationScore: ipReputation },
+        },
+        timestamp: new Date(),
+        source: 'reputation_engine',
+        blocked: false,
+        mitigated: false,
+      });
+    }
+    
+    return threats;
+  }
+
+  private async testSignature(signature: ThreatSignature, context: ThreatContext): Promise<DetectedThreat | null> {
+    let matched = false;
+    let matchedValue = '';
+    let location: ThreatEvidence['location'] = {};
+    
+    try {
+      // Test against different parts of the request
+      const testData = [
+        { value: context.url, location: { url: context.url } },
+        { value: context.userAgent, location: { header: 'user-agent' } },
+        { value: JSON.stringify(context.queryParams), location: { parameter: 'query' } },
+        { value: JSON.stringify(context.bodyParams), location: { body: 'request_body' } },
+        { value: Object.values(context.headers).join(' '), location: { header: 'all_headers' } },
+      ];
+      
+      for (const { value, location: loc } of testData) {
+        if (signature.pattern instanceof RegExp) {
+          const match = signature.pattern.exec(value);
+          if (match) {
+            matched = true;
+            matchedValue = match[0];
+            location = loc;
+            break;
+          }
+        } else {
+          if (value.includes(signature.pattern)) {
+            matched = true;
+            matchedValue = signature.pattern;
+            location = loc;
+            break;
+          }
+        }
+      }
+      
+      if (matched) {
+        return {
+          signatureId: signature.id,
+          threatType: signature.name,
+          category: signature.category,
+          severity: signature.severity,
+          confidence: signature.confidence,
+          evidence: {
+            matchedPattern: signature.pattern.toString(),
+            matchedValue,
+            context: signature.description,
+            location,
+            payload: context.bodyParams ? JSON.stringify(context.bodyParams) : undefined,
+          },
+          timestamp: new Date(),
+          source: 'signature_engine',
+          blocked: false,
+          mitigated: false,
+        };
+      }
+      
+    } catch (error) {
+      console.error(`Error testing signature ${signature.id}:`, error);
+    }
+    
+    return null;
+  }
+
+  private calculateAggregateRiskScore(threats: DetectedThreat[]): number {
+    if (threats.length === 0) return 0;
+    
+    // Calculate weighted risk score
+    let totalScore = 0;
+    let totalWeight = 0;
+    
+    for (const threat of threats) {
+      const severityWeight = this.getSeverityWeight(threat.severity);
+      const score = threat.confidence * severityWeight;
+      
+      totalScore += score;
+      totalWeight += severityWeight;
+    }
+    
+    const averageScore = totalWeight > 0 ? totalScore / totalWeight : 0;
+    
+    // Apply escalation for multiple threats
+    const escalationFactor = Math.min(1 + (threats.length - 1) * 0.1, 2.0);
+    
+    return Math.min(averageScore * escalationFactor, 1.0);
+  }
+
+  private shouldAutoBlock(threats: DetectedThreat[], riskScore: number): boolean {
+    // Auto-block for critical threats with high confidence
+    const criticalThreats = threats.filter(t => 
+      t.severity === SecurityEventSeverity.CRITICAL && 
+      t.confidence > this.detectionConfig.highConfidenceThreshold
+    );
+    
+    if (criticalThreats.length > 0) return true;
+    
+    // Auto-block if aggregate risk score is very high
+    if (riskScore > this.detectionConfig.autoBlockThreshold) return true;
+    
+    // Auto-block for specific threat types
+    const autoBlockThreats = ['sql_injection', 'xss_attack', 'malware', 'data_exfiltration'];
+    const hasAutoBlockThreat = threats.some(t => autoBlockThreats.includes(t.threatType));
+    
+    if (hasAutoBlockThreat) return true;
+    
+    return false;
+  }
+
+  private generateRecommendations(threats: DetectedThreat[], riskScore: number): string[] {
+    const recommendations: string[] = [];
+    
+    if (riskScore > 0.8) {
+      recommendations.push('Immediate manual review required');
+      recommendations.push('Consider blocking source IP');
+    } else if (riskScore > 0.6) {
+      recommendations.push('Increase monitoring for this source');
+      recommendations.push('Verify user identity if authenticated');
+    } else if (riskScore > 0.4) {
+      recommendations.push('Continue monitoring');
+      recommendations.push('Log for analysis');
+    }
+    
+    // Threat-specific recommendations
+    const threatTypes = new Set(threats.map(t => t.threatType));
+    
+    if (threatTypes.has('sql_injection')) {
+      recommendations.push('Review database security');
+      recommendations.push('Implement input validation');
+    }
+    
+    if (threatTypes.has('xss_attack')) {
+      recommendations.push('Implement output encoding');
+      recommendations.push('Review Content Security Policy');
+    }
+    
+    if (threatTypes.has('brute_force')) {
+      recommendations.push('Implement account lockout');
+      recommendations.push('Enable multi-factor authentication');
+    }
+    
+    return recommendations;
+  }
+
+  private async executeAutoBlock(context: ThreatContext, threats: DetectedThreat[]): Promise<boolean> {
+    try {
+      // Block IP address
+      this.blockIP(context.ipAddress, this.detectionConfig.maxBlockDuration);
+      
+      // Block session if available
+      if (context.sessionId) {
+        this.blockedSessions.add(context.sessionId);
+      }
+      
+      // Create security incident
+      const threatDescriptions = threats.map(t => `${t.threatType} (${t.confidence.toFixed(2)})`).join(', ');
+      
+      incidentResponseService.createIncident({
+        title: `Automated Block: ${context.ipAddress}`,
+        description: `Auto-blocked IP ${context.ipAddress} due to detected threats: ${threatDescriptions}`,
+        severity: 'high',
+        category: 'unauthorized_access',
+        priority: 2,
+        discoveredAt: new Date(),
+        reporter: 'automated_threat_detection',
+        affectedSystems: [context.url],
+        affectedUsers: context.userId ? [context.userId] : [],
+        evidenceUrls: [],
+        relatedEvents: [],
+        relatedAlerts: [],
+        tags: ['auto_block', 'threat_detection'],
+        confidentiality: 'internal',
+      });
+      
+      console.log(`Auto-blocked IP ${context.ipAddress} due to threats: ${threatDescriptions}`);
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to execute auto-block:', error);
+      return false;
+    }
+  }
+
+  private storeDetectionHistory(context: ThreatContext, threats: DetectedThreat[]): void {
+    const key = context.ipAddress;
+    const existing = this.detectionHistory.get(key) || [];
+    
+    // Add new threats
+    existing.push(...threats);
+    
+    // Keep only recent detections (last 24 hours)
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const recent = existing.filter(t => t.timestamp.getTime() > oneDayAgo);
+    
+    this.detectionHistory.set(key, recent);
+  }
+
+  private logThreatEvent(context: ThreatContext, threats: DetectedThreat[], riskScore: number, blocked: boolean): void {
+    const threatTypes = threats.map(t => t.threatType).join(', ');
+    
+    securityMonitor.logEvent(
+      SecurityEventType.MALICIOUS_REQUEST,
+      this.getMaxSeverity(threats),
+      {
+        source: 'threat_detection',
+        ipAddress: context.ipAddress,
+        userId: context.userId,
+        sessionId: context.sessionId,
+        endpoint: context.url,
+        method: context.method,
+        userAgent: context.userAgent,
+        threatTypes,
+        threatCount: threats.length,
+        riskScore,
+        blocked,
+        threats: threats.map(t => ({
+          type: t.threatType,
+          confidence: t.confidence,
+          evidence: t.evidence.matchedValue,
+        })),
+      }
+    );
+  }
+
+  // Helper methods
+
+  private initializeSignatures(): void {
+    // SQL Injection signatures
+    this.addThreatSignature({
+      name: 'SQL Injection - Union Based',
+      description: 'Detects UNION-based SQL injection attempts',
+      pattern: /(\b(union|UNION)\s+(all\s+)?(select|SELECT))/i,
+      category: 'injection_attack',
+      severity: SecurityEventSeverity.CRITICAL,
+      confidence: 0.9,
+      falsePositiveRate: 0.05,
+      enabled: true,
+      autoBlock: true,
+      tags: ['sql_injection', 'database'],
+    });
+
+    this.addThreatSignature({
+      name: 'SQL Injection - Boolean Based',
+      description: 'Detects boolean-based SQL injection attempts',
+      pattern: /((\b(and|or|AND|OR)\s+\d+\s*=\s*\d+)|(\'\s*(and|or|AND|OR)\s+\'.+\'\s*=\s*\'))/i,
+      category: 'injection_attack',
+      severity: SecurityEventSeverity.CRITICAL,
+      confidence: 0.85,
+      falsePositiveRate: 0.1,
+      enabled: true,
+      autoBlock: true,
+      tags: ['sql_injection', 'database'],
+    });
+
+    // XSS signatures
+    this.addThreatSignature({
+      name: 'XSS - Script Tag',
+      description: 'Detects script tag based XSS attempts',
+      pattern: /<script[^>]*>.*?<\/script>/gi,
+      category: 'web_attack',
+      severity: SecurityEventSeverity.HIGH,
+      confidence: 0.95,
+      falsePositiveRate: 0.02,
+      enabled: true,
+      autoBlock: true,
+      tags: ['xss', 'web_security'],
+    });
+
+    this.addThreatSignature({
+      name: 'XSS - Event Handler',
+      description: 'Detects event handler based XSS attempts',
+      pattern: /on\w+\s*=\s*["\'][^"\']*["\']|javascript:/gi,
+      category: 'web_attack',
+      severity: SecurityEventSeverity.HIGH,
+      confidence: 0.8,
+      falsePositiveRate: 0.15,
+      enabled: true,
+      autoBlock: false,
+      tags: ['xss', 'web_security'],
+    });
+
+    // Directory traversal
+    this.addThreatSignature({
+      name: 'Directory Traversal',
+      description: 'Detects directory traversal attempts',
+      pattern: /(\.\./|\.\.\\|%2e%2e%2f|%2e%2e%5c)/gi,
+      category: 'web_attack',
+      severity: SecurityEventSeverity.HIGH,
+      confidence: 0.9,
+      falsePositiveRate: 0.1,
+      enabled: true,
+      autoBlock: true,
+      tags: ['directory_traversal', 'file_system'],
+    });
+
+    // Command injection
+    this.addThreatSignature({
+      name: 'Command Injection',
+      description: 'Detects command injection attempts',
+      pattern: /(\||;|&|`|\$\(|%7C|%3B|%26)/gi,
+      category: 'injection_attack',
+      severity: SecurityEventSeverity.CRITICAL,
+      confidence: 0.75,
+      falsePositiveRate: 0.2,
+      enabled: true,
+      autoBlock: true,
+      tags: ['command_injection', 'system'],
+    });
+
+    // Malicious user agents
+    this.addThreatSignature({
+      name: 'Malicious User Agent - Security Tools',
+      description: 'Detects security tools and scanners',
+      pattern: /(sqlmap|nmap|nikto|dirb|gobuster|wfuzz|burp|acunetix|nessus|openvas)/gi,
+      category: 'reconnaissance',
+      severity: SecurityEventSeverity.MEDIUM,
+      confidence: 0.95,
+      falsePositiveRate: 0.01,
+      enabled: true,
+      autoBlock: false,
+      tags: ['scanner', 'tools'],
+    });
+
+    // Suspicious patterns
+    this.addThreatSignature({
+      name: 'Suspicious Keywords',
+      description: 'Detects suspicious keywords in requests',
+      pattern: /(passwd|shadow|admin|root|config|\.env|database|backup)/gi,
+      category: 'reconnaissance',
+      severity: SecurityEventSeverity.MEDIUM,
+      confidence: 0.6,
+      falsePositiveRate: 0.3,
+      enabled: true,
+      autoBlock: false,
+      tags: ['reconnaissance', 'sensitive_files'],
+    });
+
+    console.log(`Initialized ${this.signatures.size} threat signatures`);
+  }
+
+  private initializeThreatFeeds(): void {
+    // Example threat intelligence feeds
+    this.threatFeeds.set('malware_ips', {
+      id: 'malware_ips',
+      name: 'Malware IP Blocklist',
+      url: 'https://reputation.alienvault.com/reputation.generic',
+      format: 'csv',
+      updateInterval: 60, // 1 hour
+      lastUpdated: new Date(),
+      enabled: true,
+      priority: 1,
+      tags: ['malware', 'ip_reputation'],
+    });
+
+    this.threatFeeds.set('emerging_threats', {
+      id: 'emerging_threats',
+      name: 'Emerging Threats Rules',
+      url: 'https://rules.emergingthreats.net/blockrules/compromised-ips.txt',
+      format: 'csv',
+      updateInterval: 240, // 4 hours
+      lastUpdated: new Date(),
+      enabled: true,
+      priority: 2,
+      tags: ['emerging_threats', 'compromised_ips'],
+    });
+  }
+
+  private startRealTimeProcessing(): void {
+    // Update threat intelligence feeds
+    setInterval(() => {
+      this.updateThreatFeeds();
+    }, 60 * 60 * 1000); // Every hour
+
+    // Cleanup old detection history
+    setInterval(() => {
+      this.cleanupDetectionHistory();
+    }, 6 * 60 * 60 * 1000); // Every 6 hours
+
+    // Generate threat statistics
+    setInterval(() => {
+      const stats = this.getThreatStatistics();
+      console.log('Threat Detection Statistics:', stats);
+    }, 24 * 60 * 60 * 1000); // Daily
+  }
+
+  private isWhitelisted(ipAddress: string): boolean {
+    return this.whitelistedIPs.has(ipAddress);
+  }
+
+  private isBlocked(ipAddress: string, sessionId?: string): boolean {
+    return this.blockedIPs.has(ipAddress) || 
+           (sessionId ? this.blockedSessions.has(sessionId) : false);
+  }
+
+  private getSeverityWeight(severity: SecurityEventSeverity): number {
+    const weights = {
+      [SecurityEventSeverity.CRITICAL]: 1.0,
+      [SecurityEventSeverity.HIGH]: 0.8,
+      [SecurityEventSeverity.MEDIUM]: 0.6,
+      [SecurityEventSeverity.LOW]: 0.4,
+    };
+    
+    return weights[severity] || 0.4;
+  }
+
+  private getMaxSeverity(threats: DetectedThreat[]): SecurityEventSeverity {
+    const severityOrder = [
+      SecurityEventSeverity.CRITICAL,
+      SecurityEventSeverity.HIGH,
+      SecurityEventSeverity.MEDIUM,
+      SecurityEventSeverity.LOW,
+    ];
+    
+    for (const severity of severityOrder) {
+      if (threats.some(t => t.severity === severity)) {
+        return severity;
+      }
+    }
+    
+    return SecurityEventSeverity.LOW;
+  }
+
+  private mapThreatTypeToCategory(threatType: string): ThreatCategory {
+    const mapping: Record<string, ThreatCategory> = {
+      'sql_injection': 'injection_attack',
+      'xss_attack': 'web_attack',
+      'csrf_attack': 'web_attack',
+      'brute_force': 'authentication_attack',
+      'automated_scanning': 'reconnaissance',
+      'suspicious_activity': 'reconnaissance',
+      'malicious_ip': 'network_attack',
+      'data_exfiltration': 'data_exfiltration',
+      'privilege_escalation': 'privilege_escalation',
+    };
+    
+    return mapping[threatType] || 'web_attack';
+  }
+
+  private getRequestRate(ipAddress: string): number {
+    // Simulate request rate calculation
+    const detections = this.detectionHistory.get(ipAddress) || [];
+    const lastMinute = Date.now() - 60 * 1000;
+    const recentDetections = detections.filter(d => d.timestamp.getTime() > lastMinute);
+    
+    return recentDetections.length;
+  }
+
+  private getSessionDuration(sessionId?: string): number {
+    // Simulate session duration calculation
+    return sessionId ? Math.random() * 3600 : 0; // 0-1 hour
+  }
+
+  private getUniqueEndpointCount(ipAddress: string): number {
+    // Simulate unique endpoint count
+    return Math.floor(Math.random() * 20);
+  }
+
+  private async getIPReputation(ipAddress: string): Promise<number> {
+    // Simulate IP reputation lookup
+    // In production, this would query external reputation services
+    const privateRanges = [
+      /^10\./,
+      /^192\.168\./,
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+      /^127\./,
+    ];
+    
+    if (privateRanges.some(range => range.test(ipAddress))) {
+      return 1.0; // High reputation for private IPs
+    }
+    
+    // Simulate reputation score
+    return Math.random();
+  }
+
+  private analyzeRequestPattern(context: ThreatContext): string {
+    // Analyze request patterns for ML features
+    const patterns = [];
+    
+    if (context.method === 'POST' && Object.keys(context.queryParams).length > 10) {
+      patterns.push('excessive_parameters');
+    }
+    
+    if (context.url.length > 1000) {
+      patterns.push('long_url');
+    }
+    
+    if (context.userAgent.length < 10) {
+      patterns.push('short_user_agent');
+    }
+    
+    return patterns.join(',');
+  }
+
+  private analyzePayload(context: ThreatContext): Record<string, boolean> {
+    const payload = JSON.stringify(context.bodyParams);
+    
+    return {
+      sqlInjection: /(\b(union|select|insert|update|delete|drop|create|alter)\b)/gi.test(payload),
+      xss: /<script|javascript:|on\w+\s*=/gi.test(payload),
+      commandInjection: /(\||;|&|`|\$\()/gi.test(payload),
+      pathTraversal: /(\.\./|\%2e\%2e)/gi.test(payload),
+    };
+  }
+
+  private analyzeHeaders(headers: Record<string, string>): Record<string, any> {
+    return {
+      hasXForwardedFor: 'x-forwarded-for' in headers,
+      hasXRealIp: 'x-real-ip' in headers,
+      hasCustomHeaders: Object.keys(headers).some(h => h.startsWith('x-custom')),
+      userAgentLength: headers['user-agent']?.length || 0,
+      acceptsAll: headers['accept']?.includes('*/*'),
+    };
+  }
+
+  private async checkImpossibleTravel(context: ThreatContext): Promise<DetectedThreat | null> {
+    // Simulate impossible travel detection
+    // In production, this would check against user's previous locations
+    return null;
+  }
+
+  private async updateThreatFeeds(): Promise<void> {
+    console.log('Updating threat intelligence feeds...');
+    
+    for (const feed of this.threatFeeds.values()) {
+      if (!feed.enabled) continue;
+      
+      const timeSinceUpdate = Date.now() - feed.lastUpdated.getTime();
+      const updateInterval = feed.updateInterval * 60 * 1000;
+      
+      if (timeSinceUpdate > updateInterval) {
+        try {
+          // In production, this would fetch from the actual feed URL
+          console.log(`Updating threat feed: ${feed.name}`);
+          feed.lastUpdated = new Date();
+          this.threatFeeds.set(feed.id, feed);
+        } catch (error) {
+          console.error(`Failed to update threat feed ${feed.name}:`, error);
+        }
+      }
+    }
+  }
+
+  private cleanupDetectionHistory(): void {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    
+    for (const [key, detections] of this.detectionHistory.entries()) {
+      const recent = detections.filter(d => d.timestamp.getTime() > oneDayAgo);
+      
+      if (recent.length === 0) {
+        this.detectionHistory.delete(key);
+      } else {
+        this.detectionHistory.set(key, recent);
+      }
+    }
+    
+    console.log('Cleaned up old detection history');
+  }
+
+  private generateSignatureId(): string {
+    return `sig_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+}
+
+// Export singleton instance
+export const realTimeThreatDetection = new RealTimeThreatDetection();

@@ -1,0 +1,550 @@
+# Kubernetes deployment for Learning Assistant Backup Service
+# Production-ready backup and disaster recovery deployment
+# Version: 2.0.0
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: learning-assistant-backup
+  labels:
+    name: learning-assistant-backup
+    environment: production
+    
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-service
+  namespace: learning-assistant-backup
+  labels:
+    app: learning-assistant
+    component: backup
+    
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-service
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+  
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-service
+subjects:
+- kind: ServiceAccount
+  name: backup-service
+  namespace: learning-assistant-backup
+  
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-storage
+  namespace: learning-assistant-backup
+  labels:
+    app: learning-assistant
+    component: backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 500Gi
+      
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-logs
+  namespace: learning-assistant-backup
+  labels:
+    app: learning-assistant
+    component: backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 50Gi
+      
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backup-service
+  namespace: learning-assistant-backup
+  labels:
+    app: learning-assistant
+    component: backup
+    version: v2.0.0
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: learning-assistant
+      component: backup
+  template:
+    metadata:
+      labels:
+        app: learning-assistant
+        component: backup
+        version: v2.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: backup-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        
+      initContainers:
+      - name: backup-init
+        image: learning-assistant/backup-service:2.0.0
+        command: ["/opt/backup/entrypoint.sh", "help"]
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+            
+      containers:
+      - name: backup-service
+        image: learning-assistant/backup-service:2.0.0
+        imagePullPolicy: IfNotPresent
+        
+        command: ["/opt/backup/entrypoint.sh"]
+        args: ["backup-service"]
+        
+        env:
+        - name: DB_HOST
+          value: "postgresql.learning-assistant.svc.cluster.local"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: backup-config
+              key: database.name
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: backup-config
+              key: database.user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backup-secrets
+              key: db-password
+              
+        # Backup configuration
+        - name: BACKUP_SCHEDULE
+          value: "0 2 * * *"
+        - name: RETENTION_DAYS
+          value: "30"
+        - name: RETENTION_MONTHS
+          value: "12"
+        - name: COMPRESSION_LEVEL
+          value: "6"
+        - name: ENCRYPTION_ENABLED
+          value: "true"
+        - name: PARALLEL_JOBS
+          value: "4"
+          
+        # Cloud storage configuration
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: backup-config
+              key: s3.bucket
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: backup-secrets
+              key: aws-access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backup-secrets
+              key: aws-secret-access-key
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+          
+        # Monitoring configuration
+        - name: MONITORING_ENABLED
+          value: "true"
+        - name: MONITORING_INTERVAL
+          value: "300"
+        - name: HEALTH_CHECK_INTERVAL
+          value: "900"
+          
+        # Notification configuration
+        - name: SLACK_WEBHOOK
+          valueFrom:
+            secretKeyRef:
+              name: backup-secrets
+              key: slack-webhook
+              optional: true
+        - name: PAGERDUTY_INTEGRATION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backup-secrets
+              key: pagerduty-integration-key
+              optional: true
+              
+        ports:
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+          
+        volumeMounts:
+        - name: backup-storage
+          mountPath: /var/backups/learning-assistant
+        - name: backup-logs
+          mountPath: /var/log/backup
+        - name: backup-config
+          mountPath: /opt/backup/config
+          readOnly: true
+        - name: encryption-key
+          mountPath: /etc/backup
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+          
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+            ephemeral-storage: 10Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+            ephemeral-storage: 50Gi
+            
+        livenessProbe:
+          exec:
+            command:
+            - /opt/backup/healthcheck.sh
+          initialDelaySeconds: 60
+          periodSeconds: 300
+          timeoutSeconds: 30
+          successThreshold: 1
+          failureThreshold: 3
+          
+        readinessProbe:
+          exec:
+            command:
+            - /opt/backup/healthcheck.sh
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+          
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+            
+      volumes:
+      - name: backup-storage
+        persistentVolumeClaim:
+          claimName: backup-storage
+      - name: backup-logs
+        persistentVolumeClaim:
+          claimName: backup-logs
+      - name: backup-config
+        configMap:
+          name: backup-config
+      - name: encryption-key
+        secret:
+          secretName: backup-secrets
+          items:
+          - key: encryption-key
+            path: encryption.key
+            mode: 0600
+      - name: tmp
+        emptyDir:
+          sizeLimit: 10Gi
+          
+      nodeSelector:
+        node-type: backup
+        
+      tolerations:
+      - key: backup-only
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+        
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: storage-type
+                operator: In
+                values:
+                - ssd
+                
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backup-service
+  namespace: learning-assistant-backup
+  labels:
+    app: learning-assistant
+    component: backup
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    app: learning-assistant
+    component: backup
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: metrics
+    protocol: TCP
+  type: ClusterIP
+  
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verification
+  namespace: learning-assistant-backup
+  labels:
+    app: learning-assistant
+    component: backup-verification
+spec:
+  schedule: "0 4 * * *"  # Daily at 4:00 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: learning-assistant
+            component: backup-verification
+        spec:
+          serviceAccountName: backup-service
+          restartPolicy: OnFailure
+          
+          containers:
+          - name: backup-verification
+            image: learning-assistant/backup-service:2.0.0
+            command: ["/opt/backup/entrypoint.sh"]
+            args: ["verify", "quick"]
+            
+            env:
+            - name: BACKUP_DIR
+              value: "/var/backups/learning-assistant"
+              
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /var/backups/learning-assistant
+              readOnly: true
+            - name: backup-config
+              mountPath: /opt/backup/config
+              readOnly: true
+              
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
+                
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+                
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-storage
+          - name: backup-config
+            configMap:
+              name: backup-config
+              
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: disaster-recovery-test
+  namespace: learning-assistant-backup
+  labels:
+    app: learning-assistant
+    component: disaster-recovery-test
+spec:
+  schedule: "0 6 1 * *"  # Monthly on 1st at 6:00 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: learning-assistant
+            component: disaster-recovery-test
+        spec:
+          serviceAccountName: backup-service
+          restartPolicy: OnFailure
+          
+          containers:
+          - name: disaster-recovery-test
+            image: learning-assistant/backup-service:2.0.0
+            command: ["/opt/backup/entrypoint.sh"]
+            args: ["test-dr"]
+            
+            env:
+            - name: BACKUP_DIR
+              value: "/var/backups/learning-assistant"
+            - name: DRY_RUN
+              value: "true"
+              
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /var/backups/learning-assistant
+              readOnly: true
+            - name: backup-config
+              mountPath: /opt/backup/config
+              readOnly: true
+              
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+                
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+                
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-storage
+          - name: backup-config
+            configMap:
+              name: backup-config
+              
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: backup-service
+  namespace: learning-assistant-backup
+  labels:
+    app: learning-assistant
+    component: backup
+spec:
+  selector:
+    matchLabels:
+      app: learning-assistant
+      component: backup
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backup-service
+  namespace: learning-assistant-backup
+spec:
+  podSelector:
+    matchLabels:
+      app: learning-assistant
+      component: backup
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: learning-assistant
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+  - to: []  # Allow all external traffic for cloud storage
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS
+    - protocol: TCP
+      port: 80   # HTTP
+      
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backup-service
+  namespace: learning-assistant-backup
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: learning-assistant
+      component: backup

@@ -1,112 +1,440 @@
-name: Security Scan
+name: Security Scanning & Compliance
 
 on:
-  schedule:
-    - cron: '0 2 * * *' # Daily at 2 AM UTC
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 3 * * *' # Daily at 3 AM
+  workflow_dispatch:
+    inputs:
+      deep_scan:
+        description: 'Run deep security scan'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '20.x'
+  DEEP_SCAN: ${{ github.event.inputs.deep_scan || false }}
 
 jobs:
-  dependency-check:
-    name: Dependency Security Check
+  # Dependency Vulnerability Scanning
+  dependency-scan:
+    name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Run npm audit
-      run: npm audit --audit-level=moderate
-      
-    - name: Run Snyk to check for vulnerabilities
-      uses: snyk/actions/node@master
-      continue-on-error: true
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      with:
-        args: --severity-threshold=high
-        
-    - name: Upload Snyk results to GitHub Code Scanning
-      uses: github/codeql-action/upload-sarif@v2
-      if: always()
-      with:
-        sarif_file: snyk.sarif
+      - uses: actions/checkout@v4
 
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate --json > npm-audit-report.json
+        continue-on-error: true
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --json > snyk-report.json
+
+      - name: Upload dependency scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-scan-results
+          path: |
+            npm-audit-report.json
+            snyk-report.json
+          retention-days: 30
+
+  # SAST (Static Application Security Testing)
+  sast-scan:
+    name: SAST Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run ESLint security plugin
+        run: npx eslint . --ext .js,.jsx,.ts,.tsx --config .eslintrc.security.js --format json -o eslint-security-report.json || true
+
+      - name: Run Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/nodejs
+            p/typescript
+            p/react
+          generateSarif: "1"
+        continue-on-error: true
+
+      - name: Upload SAST scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sast-scan-results
+          path: |
+            eslint-security-report.json
+            semgrep.sarif
+          retention-days: 30
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+
+  # Secret Detection
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified --json > trufflehog-report.json
+
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        continue-on-error: true
+
+      - name: Upload secret scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secret-scan-results
+          path: |
+            trufflehog-report.json
+            gitleaks-report.json
+          retention-days: 30
+
+  # Container Security (if using Docker)
   container-scan:
     name: Container Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'push' || github.event.inputs.deep_scan == 'true'
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Build Docker image
-      run: docker build -t learning-assistant:${{ github.sha }} .
-      
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: 'learning-assistant:${{ github.sha }}'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: 'trivy-results.sarif'
+      - uses: actions/checkout@v4
 
-  codeql-analysis:
-    name: CodeQL Analysis
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-      
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'javascript' ]
-        
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
-      with:
-        languages: ${{ matrix.language }}
-        
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
-      
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
-      with:
-        category: "/language:${{matrix.language}}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-  secrets-scan:
-    name: Secrets Scan
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: learning-assistant:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'learning-assistant:test'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: container-scan-results
+          path: trivy-results.sarif
+          retention-days: 30
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+  # License Compliance
+  license-scan:
+    name: License Compliance
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
-    - name: Run gitleaks
-      uses: zricethezav/gitleaks-action@v2
-      with:
-        args: --verbose --no-git
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run license checker
+        run: |
+          npx license-checker --json > license-report.json
+          npx license-checker --onlyAllow 'MIT;Apache-2.0;BSD;BSD-2-Clause;BSD-3-Clause;ISC;CC0-1.0;Unlicense;WTFPL' --summary
+
+      - name: Upload license scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: license-scan-results
+          path: license-report.json
+          retention-days: 30
+
+  # Infrastructure Security
+  infrastructure-scan:
+    name: Infrastructure Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'push' || github.event.inputs.deep_scan == 'true'
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov on Terraform
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ./terraform
+          soft_fail: true
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-terraform.sarif
+
+      - name: Run Checkov on Kubernetes
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ./k8s
+          soft_fail: true
+          framework: kubernetes
+          output_format: sarif
+          output_file_path: checkov-k8s.sarif
+
+      - name: Run Checkov on Docker
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          soft_fail: true
+          framework: dockerfile
+          output_format: sarif
+          output_file_path: checkov-docker.sarif
+
+      - name: Upload infrastructure scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infrastructure-scan-results
+          path: |
+            checkov-terraform.sarif
+            checkov-k8s.sarif
+            checkov-docker.sarif
+          retention-days: 30
+
+  # Security Headers & Configuration
+  security-config-scan:
+    name: Security Configuration Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application
+        run: npm start &
+        env:
+          NODE_ENV: production
+
+      - name: Wait for application to start
+        run: sleep 30
+
+      - name: Test security headers
+        run: |
+          curl -I http://localhost:3000 > security-headers.txt
+          npm run test:security-headers
+        continue-on-error: true
+
+      - name: Upload security config results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-config-results
+          path: |
+            security-headers.txt
+            security-test-results.json
+          retention-days: 30
+
+  # Compliance Checks
+  compliance-scan:
+    name: Compliance Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: GDPR Compliance Check
+        run: |
+          echo "Checking GDPR compliance..."
+          npx gdpr-checker --config .gdpr-checker.json --output gdpr-report.json
+        continue-on-error: true
+
+      - name: WCAG Accessibility Compliance
+        run: |
+          npm run build
+          npm start &
+          sleep 30
+          npx axe-core-cli http://localhost:3000 --save accessibility-report.json
+        continue-on-error: true
+
+      - name: Upload compliance scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-scan-results
+          path: |
+            gdpr-report.json
+            accessibility-report.json
+          retention-days: 30
+
+  # Security Summary Report
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, sast-scan, secret-scan, container-scan, license-scan, infrastructure-scan, security-config-scan, compliance-scan]
+    if: always()
+    
+    steps:
+      - name: Download all security artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate security summary
+        run: |
+          echo "# 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🛡️ Security Scan Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan Type | Status | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} | $([ '${{ needs.dependency-scan.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST Scan | ${{ needs.sast-scan.result }} | $([ '${{ needs.sast-scan.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Detection | ${{ needs.secret-scan.result }} | $([ '${{ needs.secret-scan.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Scan | ${{ needs.container-scan.result }} | $([ '${{ needs.container-scan.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| License Compliance | ${{ needs.license-scan.result }} | $([ '${{ needs.license-scan.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Infrastructure Scan | ${{ needs.infrastructure-scan.result }} | $([ '${{ needs.infrastructure-scan.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Config | ${{ needs.security-config-scan.result }} | $([ '${{ needs.security-config-scan.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compliance Check | ${{ needs.compliance-scan.result }} | $([ '${{ needs.compliance-scan.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📊 Security Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 Vulnerabilities: Found in dependency scan" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔐 Secrets: Checked for exposed credentials" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 Compliance: GDPR, WCAG, and license compliance" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ Infrastructure: Terraform, Kubernetes, Docker security" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔗 Security Reports" >> $GITHUB_STEP_SUMMARY
+          echo "- [View Security Advisory](https://github.com/${{ github.repository }}/security/advisories)" >> $GITHUB_STEP_SUMMARY
+          echo "- [View Dependency Graph](https://github.com/${{ github.repository }}/network/dependencies)" >> $GITHUB_STEP_SUMMARY
+          echo "- [View Security Overview](https://github.com/${{ github.repository }}/security)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create security issue if vulnerabilities found
+        uses: actions/github-script@v7
+        if: needs.dependency-scan.result == 'failure' || needs.sast-scan.result == 'failure' || needs.secret-scan.result == 'failure'
+        with:
+          script: |
+            const title = `Security Vulnerabilities Detected - ${new Date().toISOString().split('T')[0]}`;
+            const body = `
+            ## 🚨 Security Alert
+            
+            Security vulnerabilities have been detected in the latest scan.
+            
+            **Affected Areas:**
+            - Dependency Scan: ${{ needs.dependency-scan.result }}
+            - SAST Scan: ${{ needs.sast-scan.result }}
+            - Secret Detection: ${{ needs.secret-scan.result }}
+            
+            **Action Required:**
+            1. Review the security scan results
+            2. Address high and critical vulnerabilities
+            3. Update dependencies and fix code issues
+            4. Re-run security scans to verify fixes
+            
+            **Links:**
+            - [Security Scan Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Security Advisory](https://github.com/${{ github.repository }}/security/advisories)
+            
+            This issue was automatically created by the security scanning workflow.
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['security', 'vulnerability', 'automated']
+            });

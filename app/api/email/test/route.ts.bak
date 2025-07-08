@@ -1,0 +1,235 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { withSecureAuth, AuthenticatedRequest } from '@/middleware/secure-auth';
+import { testEmailConfiguration, sendWelcomeEmail, sendProgressUpdateEmail, sendStudyReminderEmail, sendSystemAlertEmail } from '@/lib/email';
+import { validateRequest, createSanitizedStringSchema } from '@/app/api/schemas/validation';
+import { z } from 'zod';
+import logger from '@/lib/logger';
+
+// Input validation schemas
+const emailTestSchema = z.object({
+  type: z.enum(['config', 'welcome', 'progress', 'reminder', 'alert']),
+  userEmail: createSanitizedStringSchema(100).email('Invalid email format').optional(),
+  userName: createSanitizedStringSchema(100).optional(),
+  activationLink: z.string().url('Invalid URL format').optional(),
+  progressData: z.object({
+    completedModules: z.number().min(0).max(1000).optional(),
+    totalModules: z.number().min(0).max(1000).optional(),
+    currentStreak: z.number().min(0).max(365).optional(),
+    timeSpent: z.number().min(0).max(86400).optional(),
+    achievements: z.array(createSanitizedStringSchema(100)).max(10).optional(),
+    nextGoals: z.array(createSanitizedStringSchema(100)).max(5).optional(),
+  }).optional(),
+  reminderData: z.object({
+    nextModule: createSanitizedStringSchema(200).optional(),
+    suggestedDuration: z.number().min(1).max(480).optional(),
+    streakAtRisk: z.boolean().optional(),
+    motivationalMessage: createSanitizedStringSchema(500).optional(),
+  }).optional(),
+  alertData: z.object({
+    type: z.enum(['maintenance', 'security', 'feature', 'general']).optional(),
+    title: createSanitizedStringSchema(200).optional(),
+    description: createSanitizedStringSchema(1000).optional(),
+    actionRequired: z.boolean().optional(),
+  }).optional(),
+});
+
+async function handlePost(request: AuthenticatedRequest): Promise<NextResponse> {
+  try {
+    // Only admin users can test email functionality
+    if (request.user!.role !== 'admin') {
+      return NextResponse.json(
+        { 
+          error: 'Access denied',
+          message: 'Only administrators can test email functionality',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const validatedData = validateRequest(emailTestSchema, body);
+    const { type, ...data } = validatedData;
+
+    let result;
+    
+    switch (type) {
+      case 'config':
+        result = await testEmailConfiguration();
+        break;
+      
+      case 'welcome':
+        const { userEmail, userName, activationLink } = data;
+        if (!userEmail || !userName) {
+          return NextResponse.json(
+            { success: false, error: 'userEmail and userName are required' },
+            { status: 400 }
+          );
+        }
+        result = await sendWelcomeEmail(userEmail, userName, activationLink);
+        break;
+      
+      case 'progress':
+        const { userEmail: progressEmail, userName: progressName, progressData } = data;
+        if (!progressEmail || !progressName || !progressData) {
+          return NextResponse.json(
+            { success: false, error: 'userEmail, userName, and progressData are required' },
+            { status: 400 }
+          );
+        }
+        result = await sendProgressUpdateEmail(progressEmail, progressName, progressData);
+        break;
+      
+      case 'reminder':
+        const { userEmail: reminderEmail, userName: reminderName, reminderData } = data;
+        if (!reminderEmail || !reminderName || !reminderData) {
+          return NextResponse.json(
+            { success: false, error: 'userEmail, userName, and reminderData are required' },
+            { status: 400 }
+          );
+        }
+        result = await sendStudyReminderEmail(reminderEmail, reminderName, reminderData);
+        break;
+      
+      case 'alert':
+        const { userEmail: alertEmail, userName: alertName, alertData } = data;
+        if (!alertEmail || !alertName || !alertData) {
+          return NextResponse.json(
+            { success: false, error: 'userEmail, userName, and alertData are required' },
+            { status: 400 }
+          );
+        }
+        result = await sendSystemAlertEmail(alertEmail, alertName, alertData);
+        break;
+      
+      default:
+        return NextResponse.json(
+          { success: false, error: 'Invalid test type. Use: config, welcome, progress, reminder, or alert' },
+          { status: 400 }
+        );
+    }
+
+    logger.info('Email test completed by admin:', { 
+      type, 
+      adminId: request.user!.id, 
+      result: { success: result.success }
+    });
+    
+    return NextResponse.json(result);
+  } catch (error) {
+    logger.error('Email test error:', error);
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Invalid input data',
+          details: error.errors,
+          code: 'VALIDATION_ERROR'
+        },
+        { status: 400 }
+      );
+    }
+    
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Internal server error',
+        code: 'INTERNAL_ERROR'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleGet(request: AuthenticatedRequest): Promise<NextResponse> {
+  // Only admin users can access email test documentation
+  if (request.user!.role !== 'admin') {
+    return NextResponse.json(
+      { 
+        error: 'Access denied',
+        message: 'Only administrators can access email test documentation',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      },
+      { status: 403 }
+    );
+  }
+  return NextResponse.json({
+    message: 'Email Test API',
+    endpoints: {
+      'POST /api/email/test': {
+        description: 'Test email functionality',
+        types: {
+          config: 'Test email configuration',
+          welcome: 'Test welcome email',
+          progress: 'Test progress update email',
+          reminder: 'Test study reminder email',
+          alert: 'Test system alert email'
+        },
+        examples: {
+          config: { type: 'config' },
+          welcome: {
+            type: 'welcome',
+            userEmail: 'test@example.com',
+            userName: 'Test User',
+            activationLink: 'https://example.com/activate'
+          },
+          progress: {
+            type: 'progress',
+            userEmail: 'test@example.com',
+            userName: 'Test User',
+            progressData: {
+              completedModules: 5,
+              totalModules: 10,
+              currentStreak: 7,
+              timeSpent: 180,
+              achievements: ['First Module Complete', 'Week Streak'],
+              nextGoals: ['Complete Module 6', 'Maintain Streak']
+            }
+          },
+          reminder: {
+            type: 'reminder',
+            userEmail: 'test@example.com',
+            userName: 'Test User',
+            reminderData: {
+              nextModule: 'Introduction to React',
+              suggestedDuration: 30,
+              streakAtRisk: true,
+              motivationalMessage: 'Keep your streak alive!'
+            }
+          },
+          alert: {
+            type: 'alert',
+            userEmail: 'test@example.com',
+            userName: 'Test User',
+            alertData: {
+              type: 'maintenance',
+              title: 'Scheduled Maintenance',
+              description: 'We will be performing maintenance on our servers.',
+              actionRequired: false
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Export with secure authentication middleware
+export const POST = withSecureAuth(handlePost, {
+  requiredRoles: ['admin'],
+  rateLimits: {
+    maxRequestsPerUser: 10, // Limited email tests per admin
+    maxRequestsPerIP: 5,
+    windowMs: 60000, // 1 minute
+  },
+});
+
+export const GET = withSecureAuth(handleGet, {
+  requiredRoles: ['admin'],
+  rateLimits: {
+    maxRequestsPerUser: 30,
+    maxRequestsPerIP: 15,
+    windowMs: 60000, // 1 minute
+  },
+});

@@ -1,0 +1,438 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: postgres
+    app.kubernetes.io/component: init-scripts
+    app.kubernetes.io/part-of: learning-assistant
+data:
+  01-init-db.sql: |
+    -- Learning Assistant Database Initialization Script
+    -- This script sets up the database schema and initial data
+    
+    -- Enable required extensions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "btree_gin";
+    CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+    
+    -- Create database if it doesn't exist
+    SELECT 'CREATE DATABASE learning_assistant_db' WHERE NOT EXISTS (
+        SELECT FROM pg_database WHERE datname = 'learning_assistant_db'
+    );
+    
+    -- Connect to the database
+    \c learning_assistant_db;
+    
+    -- Create schemas
+    CREATE SCHEMA IF NOT EXISTS public;
+    CREATE SCHEMA IF NOT EXISTS analytics;
+    CREATE SCHEMA IF NOT EXISTS audit;
+    
+    -- Set search path
+    SET search_path TO public, analytics, audit;
+    
+    -- Create users table
+    CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        role VARCHAR(50) DEFAULT 'user',
+        is_active BOOLEAN DEFAULT true,
+        email_verified BOOLEAN DEFAULT false,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP WITH TIME ZONE,
+        profile_data JSONB DEFAULT '{}'::jsonb,
+        preferences JSONB DEFAULT '{}'::jsonb
+    );
+    
+    -- Create learning sessions table
+    CREATE TABLE IF NOT EXISTS learning_sessions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(200) NOT NULL,
+        description TEXT,
+        topic VARCHAR(100),
+        difficulty_level VARCHAR(20) DEFAULT 'beginner',
+        status VARCHAR(20) DEFAULT 'active',
+        progress_percentage INTEGER DEFAULT 0,
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        data JSONB DEFAULT '{}'::jsonb,
+        metadata JSONB DEFAULT '{}'::jsonb
+    );
+    
+    -- Create quiz attempts table
+    CREATE TABLE IF NOT EXISTS quiz_attempts (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        session_id UUID REFERENCES learning_sessions(id) ON DELETE CASCADE,
+        quiz_data JSONB NOT NULL,
+        answers JSONB NOT NULL,
+        score INTEGER NOT NULL,
+        total_questions INTEGER NOT NULL,
+        time_taken INTEGER, -- in seconds
+        completed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        feedback JSONB DEFAULT '{}'::jsonb
+    );
+    
+    -- Create user progress table
+    CREATE TABLE IF NOT EXISTS user_progress (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        topic VARCHAR(100) NOT NULL,
+        level VARCHAR(20) DEFAULT 'beginner',
+        points INTEGER DEFAULT 0,
+        streak_days INTEGER DEFAULT 0,
+        last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        achievements JSONB DEFAULT '[]'::jsonb,
+        statistics JSONB DEFAULT '{}'::jsonb,
+        UNIQUE(user_id, topic)
+    );
+    
+    -- Create analytics schema tables
+    CREATE TABLE IF NOT EXISTS analytics.user_sessions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        session_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        session_end TIMESTAMP WITH TIME ZONE,
+        duration_seconds INTEGER,
+        pages_visited INTEGER DEFAULT 0,
+        actions_taken INTEGER DEFAULT 0,
+        ip_address INET,
+        user_agent TEXT,
+        referrer TEXT,
+        device_type VARCHAR(50),
+        browser VARCHAR(50),
+        os VARCHAR(50)
+    );
+    
+    CREATE TABLE IF NOT EXISTS analytics.learning_events (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        session_id UUID REFERENCES learning_sessions(id) ON DELETE CASCADE,
+        event_type VARCHAR(50) NOT NULL,
+        event_data JSONB DEFAULT '{}'::jsonb,
+        timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        metadata JSONB DEFAULT '{}'::jsonb
+    );
+    
+    -- Create audit schema tables
+    CREATE TABLE IF NOT EXISTS audit.audit_log (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        action VARCHAR(100) NOT NULL,
+        resource_type VARCHAR(50) NOT NULL,
+        resource_id UUID,
+        old_values JSONB,
+        new_values JSONB,
+        timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        ip_address INET,
+        user_agent TEXT,
+        success BOOLEAN DEFAULT true,
+        error_message TEXT
+    );
+    
+    -- Create indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+    CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
+    
+    CREATE INDEX IF NOT EXISTS idx_learning_sessions_user_id ON learning_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_learning_sessions_status ON learning_sessions(status);
+    CREATE INDEX IF NOT EXISTS idx_learning_sessions_topic ON learning_sessions(topic);
+    CREATE INDEX IF NOT EXISTS idx_learning_sessions_started_at ON learning_sessions(started_at);
+    
+    CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_id ON quiz_attempts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_quiz_attempts_session_id ON quiz_attempts(session_id);
+    CREATE INDEX IF NOT EXISTS idx_quiz_attempts_completed_at ON quiz_attempts(completed_at);
+    
+    CREATE INDEX IF NOT EXISTS idx_user_progress_user_id ON user_progress(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_progress_topic ON user_progress(topic);
+    CREATE INDEX IF NOT EXISTS idx_user_progress_last_activity ON user_progress(last_activity);
+    
+    CREATE INDEX IF NOT EXISTS idx_analytics_user_sessions_user_id ON analytics.user_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_user_sessions_start ON analytics.user_sessions(session_start);
+    
+    CREATE INDEX IF NOT EXISTS idx_analytics_learning_events_user_id ON analytics.learning_events(user_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_learning_events_session_id ON analytics.learning_events(session_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_learning_events_type ON analytics.learning_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_analytics_learning_events_timestamp ON analytics.learning_events(timestamp);
+    
+    CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit.audit_log(user_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit.audit_log(action);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_resource_type ON audit.audit_log(resource_type);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit.audit_log(timestamp);
+    
+    -- Create GIN indexes for JSONB columns
+    CREATE INDEX IF NOT EXISTS idx_users_profile_data_gin ON users USING gin(profile_data);
+    CREATE INDEX IF NOT EXISTS idx_users_preferences_gin ON users USING gin(preferences);
+    CREATE INDEX IF NOT EXISTS idx_learning_sessions_data_gin ON learning_sessions USING gin(data);
+    CREATE INDEX IF NOT EXISTS idx_quiz_attempts_answers_gin ON quiz_attempts USING gin(answers);
+    CREATE INDEX IF NOT EXISTS idx_user_progress_achievements_gin ON user_progress USING gin(achievements);
+    CREATE INDEX IF NOT EXISTS idx_analytics_learning_events_data_gin ON analytics.learning_events USING gin(event_data);
+    
+    -- Create functions for common operations
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+    
+    -- Create triggers for updating timestamps
+    CREATE TRIGGER update_users_updated_at
+        BEFORE UPDATE ON users
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    
+    -- Create function to calculate user level
+    CREATE OR REPLACE FUNCTION calculate_user_level(points INTEGER)
+    RETURNS VARCHAR(20) AS $$
+    BEGIN
+        CASE
+            WHEN points < 100 THEN RETURN 'beginner';
+            WHEN points < 500 THEN RETURN 'intermediate';
+            WHEN points < 1000 THEN RETURN 'advanced';
+            ELSE RETURN 'expert';
+        END CASE;
+    END;
+    $$ LANGUAGE plpgsql;
+    
+    -- Create view for user statistics
+    CREATE OR REPLACE VIEW user_statistics AS
+    SELECT 
+        u.id,
+        u.email,
+        u.username,
+        COUNT(DISTINCT ls.id) as total_sessions,
+        COUNT(DISTINCT qa.id) as total_quizzes,
+        COALESCE(AVG(qa.score), 0) as average_score,
+        COALESCE(SUM(up.points), 0) as total_points,
+        COALESCE(MAX(up.streak_days), 0) as max_streak,
+        u.created_at,
+        u.last_login
+    FROM users u
+    LEFT JOIN learning_sessions ls ON u.id = ls.user_id
+    LEFT JOIN quiz_attempts qa ON u.id = qa.user_id
+    LEFT JOIN user_progress up ON u.id = up.user_id
+    GROUP BY u.id, u.email, u.username, u.created_at, u.last_login;
+    
+    -- Insert default data
+    INSERT INTO users (email, username, password_hash, first_name, last_name, role)
+    VALUES 
+        ('admin@learning-assistant.com', 'admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewjEuZeJ5XqzYhW2', 'Admin', 'User', 'admin'),
+        ('demo@learning-assistant.com', 'demo', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewjEuZeJ5XqzYhW2', 'Demo', 'User', 'user')
+    ON CONFLICT (email) DO NOTHING;
+    
+    -- Grant permissions
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO learning_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA analytics TO learning_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO learning_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO learning_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA analytics TO learning_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO learning_user;
+    
+    -- Create database roles
+    CREATE ROLE IF NOT EXISTS learning_read;
+    CREATE ROLE IF NOT EXISTS learning_write;
+    CREATE ROLE IF NOT EXISTS learning_admin;
+    
+    -- Grant role permissions
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO learning_read;
+    GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO learning_read;
+    
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO learning_write;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA analytics TO learning_write;
+    GRANT SELECT ON ALL TABLES IN SCHEMA audit TO learning_write;
+    
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO learning_admin;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA analytics TO learning_admin;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO learning_admin;
+    
+    -- Log completion
+    INSERT INTO audit.audit_log (action, resource_type, resource_id, new_values, success)
+    VALUES ('database_initialization', 'database', uuid_generate_v4(), '{"status": "completed"}', true);
+    
+    ANALYZE;
+  
+  02-performance-tuning.sql: |
+    -- Performance tuning configuration
+    
+    -- Set PostgreSQL configuration for performance
+    ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
+    ALTER SYSTEM SET max_connections = 200;
+    ALTER SYSTEM SET shared_buffers = '256MB';
+    ALTER SYSTEM SET effective_cache_size = '1GB';
+    ALTER SYSTEM SET maintenance_work_mem = '64MB';
+    ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+    ALTER SYSTEM SET wal_buffers = '16MB';
+    ALTER SYSTEM SET default_statistics_target = 100;
+    ALTER SYSTEM SET random_page_cost = 1.1;
+    ALTER SYSTEM SET effective_io_concurrency = 200;
+    ALTER SYSTEM SET work_mem = '4MB';
+    ALTER SYSTEM SET min_wal_size = '1GB';
+    ALTER SYSTEM SET max_wal_size = '4GB';
+    ALTER SYSTEM SET max_worker_processes = 8;
+    ALTER SYSTEM SET max_parallel_workers_per_gather = 4;
+    ALTER SYSTEM SET max_parallel_workers = 8;
+    ALTER SYSTEM SET max_parallel_maintenance_workers = 4;
+    
+    -- Enable pg_stat_statements
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    
+    -- Create monitoring views
+    CREATE OR REPLACE VIEW slow_queries AS
+    SELECT 
+        query,
+        calls,
+        total_time,
+        mean_time,
+        rows,
+        100.0 * shared_blks_hit / nullif(shared_blks_hit + shared_blks_read, 0) AS hit_percent
+    FROM pg_stat_statements
+    WHERE calls > 5
+    ORDER BY mean_time DESC
+    LIMIT 20;
+    
+    CREATE OR REPLACE VIEW table_stats AS
+    SELECT 
+        schemaname,
+        tablename,
+        n_tup_ins AS inserts,
+        n_tup_upd AS updates,
+        n_tup_del AS deletes,
+        n_tup_hot_upd AS hot_updates,
+        n_live_tup AS live_tuples,
+        n_dead_tup AS dead_tuples,
+        last_vacuum,
+        last_autovacuum,
+        last_analyze,
+        last_autoanalyze
+    FROM pg_stat_user_tables
+    ORDER BY n_tup_ins + n_tup_upd + n_tup_del DESC;
+    
+    -- Create index usage stats view
+    CREATE OR REPLACE VIEW index_usage_stats AS
+    SELECT 
+        t.schemaname,
+        t.tablename,
+        indexname,
+        c.reltuples::bigint AS num_rows,
+        pg_size_pretty(pg_relation_size(c.oid)) AS table_size,
+        pg_size_pretty(pg_relation_size(i.indexrelid)) AS index_size,
+        idx_stat.idx_scan AS index_scans,
+        idx_stat.idx_tup_read AS index_tup_read,
+        idx_stat.idx_tup_fetch AS index_tup_fetch
+    FROM pg_stat_user_indexes idx_stat
+    JOIN pg_index i ON idx_stat.indexrelid = i.indexrelid
+    JOIN pg_class c ON i.indrelid = c.oid
+    JOIN pg_stat_user_tables t ON c.oid = t.relid
+    ORDER BY idx_stat.idx_scan DESC;
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-init-scripts
+  namespace: learning-assistant
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: redis
+    app.kubernetes.io/component: init-scripts
+    app.kubernetes.io/part-of: learning-assistant
+data:
+  redis-init.sh: |
+    #!/bin/bash
+    set -e
+    
+    # Wait for Redis to be ready
+    echo "Waiting for Redis to be ready..."
+    while ! redis-cli ping > /dev/null 2>&1; do
+        sleep 1
+    done
+    
+    echo "Redis is ready. Setting up initial configuration..."
+    
+    # Set up Redis configuration
+    redis-cli CONFIG SET maxmemory-policy allkeys-lru
+    redis-cli CONFIG SET maxmemory 256mb
+    redis-cli CONFIG SET appendonly yes
+    redis-cli CONFIG SET appendfsync everysec
+    redis-cli CONFIG SET tcp-keepalive 300
+    redis-cli CONFIG SET timeout 0
+    redis-cli CONFIG SET tcp-backlog 511
+    redis-cli CONFIG SET databases 16
+    redis-cli CONFIG SET save "900 1 300 10 60 10000"
+    
+    # Create initial data structures
+    redis-cli HSET app:config version "1.0.0"
+    redis-cli HSET app:config initialized "true"
+    redis-cli HSET app:config init_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    
+    # Set up rate limiting keys
+    redis-cli SET rate_limit:global 0 EX 3600
+    redis-cli SET rate_limit:per_user 0 EX 3600
+    redis-cli SET rate_limit:per_ip 0 EX 3600
+    
+    # Create session store keyspace
+    redis-cli CONFIG SET notify-keyspace-events Ex
+    
+    echo "Redis initialization completed successfully"
+  
+  redis-monitoring.lua: |
+    -- Redis monitoring script
+    local function get_memory_info()
+        local memory = redis.call('INFO', 'memory')
+        local used_memory = string.match(memory, 'used_memory:(%d+)')
+        local used_memory_peak = string.match(memory, 'used_memory_peak:(%d+)')
+        return {
+            used_memory = tonumber(used_memory),
+            used_memory_peak = tonumber(used_memory_peak)
+        }
+    end
+    
+    local function get_stats()
+        local stats = redis.call('INFO', 'stats')
+        local connections = string.match(stats, 'total_connections_received:(%d+)')
+        local commands = string.match(stats, 'total_commands_processed:(%d+)')
+        local keyspace_hits = string.match(stats, 'keyspace_hits:(%d+)')
+        local keyspace_misses = string.match(stats, 'keyspace_misses:(%d+)')
+        return {
+            connections = tonumber(connections),
+            commands = tonumber(commands),
+            keyspace_hits = tonumber(keyspace_hits),
+            keyspace_misses = tonumber(keyspace_misses)
+        }
+    end
+    
+    local function get_replication_info()
+        local replication = redis.call('INFO', 'replication')
+        local role = string.match(replication, 'role:(%w+)')
+        return {
+            role = role
+        }
+    end
+    
+    local memory_info = get_memory_info()
+    local stats = get_stats()
+    local replication_info = get_replication_info()
+    
+    local result = {
+        memory = memory_info,
+        stats = stats,
+        replication = replication_info,
+        timestamp = redis.call('TIME')[1]
+    }
+    
+    redis.call('HSET', 'monitoring:redis', 'last_check', cjson.encode(result))
+    
+    return result

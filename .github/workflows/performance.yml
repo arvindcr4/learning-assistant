@@ -1,0 +1,698 @@
+name: Performance Testing & Regression Detection
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 4 * * *' # Daily at 4 AM
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - lighthouse
+          - load
+          - stress
+          - benchmark
+      environment:
+        description: 'Test environment'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      duration:
+        description: 'Test duration (minutes)'
+        required: false
+        default: '10'
+        type: string
+
+env:
+  NODE_VERSION: '20.x'
+  TEST_TYPE: ${{ github.event.inputs.test_type || 'full' }}
+  TEST_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+  TEST_DURATION: ${{ github.event.inputs.duration || '10' }}
+  PERFORMANCE_BUDGET_FILE: 'performance-budget.json'
+
+jobs:
+  # Performance baseline establishment
+  baseline-setup:
+    name: Performance Baseline Setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      baseline_exists: ${{ steps.baseline.outputs.exists }}
+      baseline_data: ${{ steps.baseline.outputs.data }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for existing baseline
+        id: baseline
+        run: |
+          if [[ -f "performance-baseline.json" ]]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "data=$(cat performance-baseline.json | jq -c .)" >> $GITHUB_OUTPUT
+            echo "✅ Performance baseline found"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "❌ No performance baseline found - will create new one"
+          fi
+
+      - name: Upload baseline data
+        if: steps.baseline.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-baseline
+          path: performance-baseline.json
+          retention-days: 90
+
+  # Build and prepare application for testing
+  build-for-testing:
+    name: Build Application for Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/.next/cache
+          key: nextjs-perf-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            nextjs-perf-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build application (optimized)
+        run: |
+          npm run build
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=6144
+
+      - name: Create performance build artifact
+        run: |
+          tar -czf performance-build.tar.gz .next public package.json package-lock.json next.config.js
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-build
+          path: performance-build.tar.gz
+          retention-days: 7
+
+  # Lighthouse performance audit
+  lighthouse-audit:
+    name: Lighthouse Performance Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [baseline-setup, build-for-testing]
+    if: contains(fromJSON('["full", "lighthouse"]'), env.TEST_TYPE)
+    
+    strategy:
+      matrix:
+        device: [desktop, mobile]
+        page: [home, dashboard, learning, quiz]
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-build
+
+      - name: Extract build
+        run: tar -xzf performance-build.tar.gz
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --production
+
+      - name: Start application
+        run: |
+          npm start &
+          echo $! > app.pid
+        env:
+          NODE_ENV: production
+          PORT: 3000
+
+      - name: Wait for application to start
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:3000/health; do sleep 2; done'
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.12.x
+
+      - name: Generate page URLs
+        id: urls
+        run: |
+          case "${{ matrix.page }}" in
+            home) URL="http://localhost:3000/" ;;
+            dashboard) URL="http://localhost:3000/dashboard" ;;
+            learning) URL="http://localhost:3000/learn" ;;
+            quiz) URL="http://localhost:3000/quiz" ;;
+          esac
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Run Lighthouse audit
+        run: |
+          lhci autorun \
+            --config=lighthouse/lighthouserc-${{ matrix.device }}.json \
+            --upload.target=filesystem \
+            --upload.outputDir=./lighthouse-reports \
+            --collect.url="${{ steps.urls.outputs.url }}" \
+            --collect.numberOfRuns=3
+
+      - name: Process Lighthouse results
+        run: |
+          REPORT_FILE="lighthouse-reports/manifest.json"
+          if [[ -f "$REPORT_FILE" ]]; then
+            # Extract key metrics
+            PERFORMANCE=$(cat $REPORT_FILE | jq -r '.[0].summary.performance')
+            ACCESSIBILITY=$(cat $REPORT_FILE | jq -r '.[0].summary.accessibility')
+            BEST_PRACTICES=$(cat $REPORT_FILE | jq -r '.[0].summary["best-practices"]')
+            SEO=$(cat $REPORT_FILE | jq -r '.[0].summary.seo')
+            
+            # Create results summary
+            cat > lighthouse-summary-${{ matrix.device }}-${{ matrix.page }}.json << EOF
+          {
+            "device": "${{ matrix.device }}",
+            "page": "${{ matrix.page }}",
+            "performance": $PERFORMANCE,
+            "accessibility": $ACCESSIBILITY,
+            "bestPractices": $BEST_PRACTICES,
+            "seo": $SEO,
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}"
+          }
+          EOF
+          fi
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-results-${{ matrix.device }}-${{ matrix.page }}
+          path: |
+            lighthouse-reports/
+            lighthouse-summary-${{ matrix.device }}-${{ matrix.page }}.json
+          retention-days: 30
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [[ -f app.pid ]]; then
+            kill $(cat app.pid) || true
+          fi
+
+  # Load testing with different scenarios
+  load-testing:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [baseline-setup, build-for-testing]
+    if: contains(fromJSON('["full", "load"]'), env.TEST_TYPE)
+    
+    strategy:
+      matrix:
+        scenario: [baseline, peak, stress]
+        include:
+          - scenario: baseline
+            users: 10
+            duration: 5m
+            ramp_up: 1m
+          - scenario: peak
+            users: 50
+            duration: 10m
+            ramp_up: 2m
+          - scenario: stress
+            users: 100
+            duration: 15m
+            ramp_up: 3m
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-build
+
+      - name: Extract build
+        run: tar -xzf performance-build.tar.gz
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --production
+
+      - name: Start application
+        run: |
+          npm start &
+          echo $! > app.pid
+        env:
+          NODE_ENV: production
+          PORT: 3000
+
+      - name: Wait for application to start
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:3000/health; do sleep 2; done'
+
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.47.0/k6-v0.47.0-linux-amd64.tar.gz -L | tar xvz --strip-components 1
+
+      - name: Run load test (${{ matrix.scenario }})
+        run: |
+          ./k6 run \
+            --vus ${{ matrix.users }} \
+            --duration ${{ matrix.duration }} \
+            --ramp-up-duration ${{ matrix.ramp_up }} \
+            --out json=load-test-results-${{ matrix.scenario }}.json \
+            scripts/performance/load-test-${{ matrix.scenario }}.js
+        env:
+          BASE_URL: http://localhost:3000
+
+      - name: Process load test results
+        run: |
+          # Extract key metrics from k6 results
+          if [[ -f "load-test-results-${{ matrix.scenario }}.json" ]]; then
+            cat load-test-results-${{ matrix.scenario }}.json | jq -s '
+              {
+                "scenario": "${{ matrix.scenario }}",
+                "users": ${{ matrix.users }},
+                "duration": "${{ matrix.duration }}",
+                "metrics": {
+                  "http_req_duration": (map(select(.metric == "http_req_duration")) | .[0]),
+                  "http_reqs": (map(select(.metric == "http_reqs")) | .[0]),
+                  "http_req_failed": (map(select(.metric == "http_req_failed")) | .[0]),
+                  "vus": (map(select(.metric == "vus")) | .[0])
+                },
+                "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                "commit": "${{ github.sha }}"
+              }
+            ' > load-test-summary-${{ matrix.scenario }}.json
+          fi
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-results-${{ matrix.scenario }}
+          path: |
+            load-test-results-${{ matrix.scenario }}.json
+            load-test-summary-${{ matrix.scenario }}.json
+          retention-days: 30
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [[ -f app.pid ]]; then
+            kill $(cat app.pid) || true
+          fi
+
+  # Memory and CPU benchmarking
+  benchmark-testing:
+    name: Benchmark Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [baseline-setup, build-for-testing]
+    if: contains(fromJSON('["full", "benchmark"]'), env.TEST_TYPE)
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-build
+
+      - name: Extract build
+        run: tar -xzf performance-build.tar.gz
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run memory benchmarks
+        run: |
+          npm run test:performance -- --testNamePattern="memory" --verbose --json --outputFile=memory-benchmark-results.json
+
+      - name: Run CPU benchmarks
+        run: |
+          npm run test:performance -- --testNamePattern="cpu" --verbose --json --outputFile=cpu-benchmark-results.json
+
+      - name: Run algorithm benchmarks
+        run: |
+          npm run test:performance -- --testNamePattern="algorithm" --verbose --json --outputFile=algorithm-benchmark-results.json
+
+      - name: Process benchmark results
+        run: |
+          # Combine all benchmark results
+          cat > benchmark-summary.json << EOF
+          {
+            "memory": $(cat memory-benchmark-results.json),
+            "cpu": $(cat cpu-benchmark-results.json),
+            "algorithm": $(cat algorithm-benchmark-results.json),
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}"
+          }
+          EOF
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: |
+            *-benchmark-results.json
+            benchmark-summary.json
+          retention-days: 30
+
+  # Bundle size analysis
+  bundle-analysis:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build-for-testing
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-build
+
+      - name: Extract build
+        run: tar -xzf performance-build.tar.gz
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Analyze bundle size
+        run: |
+          npm run analyze > bundle-analysis.txt 2>&1 || true
+          
+          # Extract bundle sizes
+          find .next/static -name "*.js" -type f -exec ls -la {} \; > bundle-files.txt
+          
+          # Calculate total bundle size
+          TOTAL_SIZE=$(find .next/static -name "*.js" -type f -exec stat -c%s {} \; | awk '{sum+=$1} END {print sum}')
+          
+          cat > bundle-analysis-summary.json << EOF
+          {
+            "totalSize": $TOTAL_SIZE,
+            "files": $(find .next/static -name "*.js" -type f | wc -l),
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}"
+          }
+          EOF
+
+      - name: Bundle size regression check
+        run: |
+          CURRENT_SIZE=$(cat bundle-analysis-summary.json | jq -r '.totalSize')
+          SIZE_LIMIT=5242880  # 5MB limit
+          
+          if [[ $CURRENT_SIZE -gt $SIZE_LIMIT ]]; then
+            echo "❌ Bundle size $CURRENT_SIZE bytes exceeds limit of $SIZE_LIMIT bytes"
+            exit 1
+          else
+            echo "✅ Bundle size $CURRENT_SIZE bytes is within limit"
+          fi
+
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bundle-analysis
+          path: |
+            bundle-analysis.txt
+            bundle-files.txt
+            bundle-analysis-summary.json
+          retention-days: 30
+
+  # Performance regression detection
+  regression-analysis:
+    name: Performance Regression Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [baseline-setup, lighthouse-audit, load-testing, benchmark-testing, bundle-analysis]
+    if: always() && needs.baseline-setup.outputs.baseline_exists == 'true'
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download baseline data
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-baseline
+        continue-on-error: true
+
+      - name: Download current test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "lighthouse-results-*"
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download load test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "load-test-results-*"
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark-results
+        continue-on-error: true
+
+      - name: Download bundle analysis
+        uses: actions/download-artifact@v4
+        with:
+          name: bundle-analysis
+        continue-on-error: true
+
+      - name: Setup Python for analysis
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install analysis dependencies
+        run: |
+          pip install pandas numpy matplotlib seaborn scipy
+
+      - name: Run regression analysis
+        run: |
+          python scripts/performance/regression-analysis.py \
+            --baseline performance-baseline.json \
+            --current . \
+            --output regression-report.json \
+            --threshold 0.1  # 10% regression threshold
+
+      - name: Generate regression report
+        run: |
+          cat > regression-summary.md << 'EOF'
+          # 📊 Performance Regression Analysis
+          
+          ## Summary
+          Performance regression analysis completed for commit `${{ github.sha }}`.
+          
+          ## Key Findings
+          $(cat regression-report.json | jq -r '.summary')
+          
+          ## Recommendations
+          $(cat regression-report.json | jq -r '.recommendations[]')
+          
+          ## Detailed Results
+          See attached artifacts for detailed performance metrics.
+          EOF
+
+      - name: Check for regressions
+        id: regression_check
+        run: |
+          REGRESSIONS=$(cat regression-report.json | jq -r '.regressions | length')
+          if [[ $REGRESSIONS -gt 0 ]]; then
+            echo "has_regressions=true" >> $GITHUB_OUTPUT
+            echo "regression_count=$REGRESSIONS" >> $GITHUB_OUTPUT
+            echo "❌ Found $REGRESSIONS performance regressions"
+          else
+            echo "has_regressions=false" >> $GITHUB_OUTPUT
+            echo "regression_count=0" >> $GITHUB_OUTPUT
+            echo "✅ No performance regressions detected"
+          fi
+
+      - name: Upload regression analysis
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-analysis
+          path: |
+            regression-report.json
+            regression-summary.md
+          retention-days: 30
+
+      - name: Comment regression results on PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const regressionReport = fs.readFileSync('regression-summary.md', 'utf8');
+              const hasRegressions = '${{ steps.regression_check.outputs.has_regressions }}' === 'true';
+              
+              const emoji = hasRegressions ? '⚠️' : '✅';
+              const title = hasRegressions ? 'Performance Regressions Detected' : 'No Performance Regressions';
+              
+              const comment = `
+              ## ${emoji} ${title}
+              
+              ${regressionReport}
+              
+              **Regression Count:** ${{ steps.regression_check.outputs.regression_count }}
+              
+              *Generated by Performance Testing Pipeline*
+              `;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Could not read regression report:', error);
+            }
+
+      - name: Fail if critical regressions found
+        if: steps.regression_check.outputs.has_regressions == 'true'
+        run: |
+          CRITICAL_REGRESSIONS=$(cat regression-report.json | jq -r '.criticalRegressions | length')
+          if [[ $CRITICAL_REGRESSIONS -gt 0 ]]; then
+            echo "❌ Found $CRITICAL_REGRESSIONS critical performance regressions"
+            echo "Failing pipeline due to critical performance regressions"
+            exit 1
+          fi
+
+  # Update performance baseline
+  update-baseline:
+    name: Update Performance Baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [lighthouse-audit, load-testing, benchmark-testing, regression-analysis]
+    if: github.ref == 'refs/heads/main' && success()
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all performance results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-results*"
+          merge-multiple: true
+
+      - name: Generate new baseline
+        run: |
+          python scripts/performance/generate-baseline.py \
+            --input . \
+            --output performance-baseline.json
+
+      - name: Commit updated baseline
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add performance-baseline.json
+          git commit -m "Update performance baseline [skip ci]" || echo "No changes to commit"
+          git push
+
+  # Performance summary
+  performance-summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: [lighthouse-audit, load-testing, benchmark-testing, bundle-analysis, regression-analysis]
+    if: always()
+    
+    steps:
+      - name: Generate performance summary
+        run: |
+          echo "# 🚀 Performance Testing Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📈 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Type | Status | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lighthouse Audit | ${{ needs.lighthouse-audit.result }} | $([ '${{ needs.lighthouse-audit.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Load Testing | ${{ needs.load-testing.result }} | $([ '${{ needs.load-testing.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Benchmark Testing | ${{ needs.benchmark-testing.result }} | $([ '${{ needs.benchmark-testing.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bundle Analysis | ${{ needs.bundle-analysis.result }} | $([ '${{ needs.bundle-analysis.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Regression Analysis | ${{ needs.regression-analysis.result }} | $([ '${{ needs.regression-analysis.result }}' == 'success' ] && echo '✅' || echo '❌') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🎯 Performance Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Type:** ${{ env.TEST_TYPE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ env.TEST_ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duration:** ${{ env.TEST_DURATION }} minutes" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📊 Key Performance Indicators" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔥 **Lighthouse Performance:** Measured across multiple devices and pages" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏋️ **Load Testing:** Baseline, peak, and stress scenarios" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ **Benchmarks:** Memory, CPU, and algorithm performance" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 **Bundle Size:** JavaScript bundle optimization" >> $GITHUB_STEP_SUMMARY
+          echo "- 📈 **Regression Detection:** Automated performance regression analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔗 Reports" >> $GITHUB_STEP_SUMMARY
+          echo "- [Performance Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Lighthouse Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Load Test Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
